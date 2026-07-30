@@ -1,0 +1,7 @@
+fastapi>=0.115
+uvicorn[standard]>=0.34
+supabase>=2.11
+pydantic>=2.11
+pydantic-settings>=2.7
+python-dotenv>=1.0
+openai>=1.59

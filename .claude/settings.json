@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node drive_channels_redesign.js)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('OK, n8n fields present:', 'n8n_workflow_id' in d[0], 'outbound_webhook_url' in d[0]\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(python -c \"from app.main import app; app.openapi\\(\\); print\\('backend OK'\\)\")",
+      "Bash(python -c \"import psycopg2; print\\('psycopg2 OK', psycopg2.__version__\\)\")",
+      "Bash(python -c \"import jwt; print\\('pyjwt OK'\\)\")",
+      "Bash(python -c \"import jwt; jwt.encode\\({'a':1}, 'test', algorithm='RS256'\\)\")",
+      "Bash(python \"C:/Users/TOP/AppData/Local/Temp/claude/d--pluto/cd686c85-80e0-4e92-9c57-05b9ee763abb/scratchpad/test_import_system.py\")",
+      "Bash(taskkill //F //PID 13692)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('n8n path OK:', 'n8n_workflow_id' in d[0]\\)\")",
+      "Bash(node drive_import_redesign.js)",
+      "Bash(node undo_test.js)",
+      "mcp__n8n__unpublish_workflow",
+      "Bash(python \"C:/Users/TOP/AppData/Local/Temp/claude/d--pluto/cd686c85-80e0-4e92-9c57-05b9ee763abb/scratchpad/test_n8n_wiring.py\")",
+      "Bash(taskkill //F //PID 10732)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('OK:', 'n8n_workflow_id' in d[0], 'credentials' in d[0], d[0].get\\('credentials'\\)\\)\")",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue)",
+      "PowerShell(gh --version 2>&1)",
+      "PowerShell(gh auth status 2>&1)",
+      "Bash(git config *)",
+      "Read(//c/Users/TOP/.ssh/**)",
+      "Bash(where.exe git-credential-manager *)",
+      "Bash(where.exe git-credential-manager-core *)",
+      "Bash(\"C:/Program Files/Git/mingw64/bin/git-credential-manager.exe\" --version)",
+      "Bash(grep -rlIE \"AAAA[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}|eyJhbGciOiJ|xox[baprs]-|AIzaSy[A-Za-z0-9_-]{33}\" --include=\"*.py\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.json\" --include=\"*.sql\" --include=\"*.md\" .)",
+      "Bash(grep -nE \"AAAA[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}|eyJhbGciOiJ|xox[baprs]-|AIzaSy[A-Za-z0-9_-]{33}\" .claude/settings.json)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
