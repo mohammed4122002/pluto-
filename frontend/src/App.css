@@ -167,47 +167,114 @@
   box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
-/* Buttons */
+/* Buttons — shared system for every button in the app */
 
 button {
   font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease,
+    opacity 0.15s ease;
 }
 
-.data-form button[type="submit"] {
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+  transform: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Primary (filled accent) — main call-to-action in every form/panel */
+
+.data-form button[type="submit"],
+.settings-form button,
+.inbox-reply-form button,
+.import-controls button,
+.setup-card > button[type="submit"],
+.btn-primary {
   padding: 9px 18px;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid transparent;
   background: var(--accent);
   color: #fff;
-  cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  transition: opacity 0.15s;
+  box-shadow: var(--shadow-btn);
 }
 
-.data-form button[type="submit"]:hover {
-  opacity: 0.9;
+.data-form button[type="submit"]:hover:not(:disabled),
+.settings-form button:hover:not(:disabled),
+.inbox-reply-form button:hover:not(:disabled),
+.import-controls button:hover:not(:disabled),
+.setup-card > button[type="submit"]:hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-btn-hover);
+  transform: translateY(-1px);
 }
 
-.data-form button[type="submit"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.data-form button[type="submit"]:active:not(:disabled),
+.settings-form button:active:not(:disabled),
+.inbox-reply-form button:active:not(:disabled),
+.import-controls button:active:not(:disabled),
+.setup-card > button[type="submit"]:active:not(:disabled),
+.btn-primary:active:not(:disabled) {
+  background: var(--accent-active);
+  box-shadow: var(--shadow-btn);
+  transform: translateY(0);
 }
 
-.data-table button,
+/* Secondary (outlined, full size) — standalone actions next to a primary
+   button, e.g. "verify", "toggle AI", panel-level secondary actions */
+
+button.btn-secondary {
+  padding: 9px 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+button.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Secondary — dense (table row actions, panel cancel/back buttons, etc.);
+   every plain, unclassed action button falls back to this */
+
+.data-form button,
+.data-table button {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-h);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.data-form button:hover:not(:disabled),
+.data-table button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
 .data-table select {
   padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--text-h);
   cursor: pointer;
   font-size: 13px;
-}
-
-.data-table button:hover {
-  border-color: var(--accent-border);
-  color: var(--accent);
 }
 
 .data-table td button + button {
@@ -422,10 +489,17 @@ button {
 .inbox-thread-controls select {
   padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 7px;
   background: var(--bg);
+  color: var(--text-h);
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.inbox-thread-controls button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
 }
 
 .inbox-messages {
@@ -487,15 +561,6 @@ button {
   font-size: 14px;
 }
 
-.inbox-reply-form button {
-  padding: 9px 18px;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
 
 /* Settings */
 
@@ -542,13 +607,6 @@ button {
 
 .settings-form button {
   align-self: flex-start;
-  padding: 9px 18px;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .settings-saved {
@@ -617,19 +675,7 @@ button {
 }
 
 .import-controls button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
   white-space: nowrap;
-}
-
-.import-controls button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .import-result {
@@ -750,23 +796,7 @@ button {
 .setup-card > button[type="submit"] {
   margin-top: 6px;
   padding: 12px 18px;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
   font-size: 15px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.setup-card > button[type="submit"]:hover {
-  opacity: 0.9;
-}
-
-.setup-card > button[type="submit"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Channels */
@@ -775,43 +805,6 @@ button {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 16px;
-}
-
-.btn-primary {
-  padding: 9px 18px;
-  border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  padding: 9px 18px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text-h);
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  border-color: var(--accent-border);
-  color: var(--accent);
 }
 
 .channel-grid {
@@ -929,23 +922,30 @@ button {
 }
 
 .channel-card-actions button {
-  padding: 6px 11px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 7px;
   background: var(--surface);
   color: var(--text-h);
   cursor: pointer;
   font-size: 12.5px;
+  font-weight: 600;
 }
 
-.channel-card-actions button:hover {
+.channel-card-actions button:hover:not(:disabled) {
   border-color: var(--accent-border);
+  background: var(--accent-bg);
   color: var(--accent);
 }
 
-.channel-card-actions button.danger:hover {
-  border-color: var(--danger);
+.channel-card-actions button.danger {
+  border-color: rgba(229, 72, 77, 0.3);
   color: var(--danger);
+}
+
+.channel-card-actions button.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger-hover);
 }
 
 /* Provider picker (add-channel step 1) */
@@ -974,6 +974,8 @@ button {
 
 .provider-option:hover {
   border-color: var(--accent-border);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
 }
 
 .provider-option.selected {
