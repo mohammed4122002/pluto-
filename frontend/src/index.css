@@ -1,17 +1,21 @@
 :root {
-  --bg: #f8f9fb;
+  --bg: #f7f7fb;
   --surface: #ffffff;
-  --border: #e5e7eb;
-  --text: #71717a;
-  --text-h: #18181b;
+  --surface-2: #f6f6fa;
+  --surface-hover: #f1f1f6;
+  --border: #e6e6ec;
+  --border-strong: #d9d9e2;
+  --text: #6b6b76;
+  --text-h: #16161d;
+  --text-faint: #a8a8b3;
+
   --accent: #7c5cff;
   --accent-hover: #6c47ff;
   --accent-active: #5d38e6;
   --accent-bg: rgba(124, 92, 255, 0.1);
   --accent-border: rgba(124, 92, 255, 0.35);
-  --shadow: 0 1px 2px rgba(16, 16, 20, 0.04), 0 8px 24px rgba(16, 16, 20, 0.06);
-  --shadow-btn: 0 1px 2px rgba(124, 92, 255, 0.16);
-  --shadow-btn-hover: 0 6px 14px rgba(124, 92, 255, 0.28);
+  --accent-gradient: linear-gradient(135deg, #9078ff 0%, #6c47ff 100%);
+
   --success: #18794e;
   --success-bg: rgba(24, 121, 78, 0.1);
   --danger: #e5484d;
@@ -20,9 +24,21 @@
   --warning: #b45309;
   --warning-bg: rgba(180, 83, 9, 0.1);
 
-  --sans: "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
+  --shadow-xs: 0 1px 2px rgba(20, 20, 30, 0.05);
+  --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.04), 0 6px 16px rgba(20, 20, 30, 0.05);
+  --shadow-md: 0 2px 6px rgba(20, 20, 30, 0.05), 0 14px 32px rgba(20, 20, 30, 0.08);
+  --shadow-lg: 0 8px 16px rgba(20, 20, 30, 0.08), 0 28px 56px rgba(20, 20, 30, 0.14);
+  --shadow-btn: 0 1px 2px rgba(124, 92, 255, 0.16);
+  --shadow-btn-hover: 0 6px 14px rgba(124, 92, 255, 0.28);
 
-  font: 15px/1.55 var(--sans);
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --sans: "Cairo", "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
+
+  font: 15px/1.6 var(--sans);
   color-scheme: light;
   color: var(--text);
   background: var(--bg);
@@ -48,6 +64,39 @@ h1,
 h2,
 h3 {
   color: var(--text-h);
-  font-weight: 600;
+  font-weight: 700;
   margin: 0;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Scrollbars — thin, tinted to match the neutral palette */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-faint);
+  background-clip: content-box;
 }
