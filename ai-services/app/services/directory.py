@@ -1,5 +1,7 @@
 from supabase import Client
 
+from app.services.text_match import fuzzy_contains
+
 
 def find_doctors(db: Client, branch_id: str, specialty_query: str | None = None) -> list[dict]:
     """Doctors actually available at this branch right now, optionally
@@ -27,14 +29,14 @@ def find_doctors(db: Client, branch_id: str, specialty_query: str | None = None)
         .data
     )
 
-    query = (specialty_query or "").strip().lower()
+    query = (specialty_query or "").strip()
     results = []
     for row in rows:
         specialties = [
             ds["specialties"] for ds in (row.get("doctor_specialties") or []) if ds.get("specialties")
         ]
         names = [s.get("name_ar") for s in specialties] + [s.get("name_en") for s in specialties]
-        if query and not any(query in (name or "").lower() for name in names):
+        if query and not any(fuzzy_contains(name, query) for name in names):
             continue
         results.append(
             {

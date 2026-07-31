@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.services.text_match import fuzzy_contains
+
 
 class BookingError(Exception):
     pass
@@ -21,14 +23,24 @@ def search_available_slots(
 ) -> list[dict]:
     doctor_id = None
     if doctor_name:
-        matches = (
+        # Plain ILIKE would miss "ايلا" vs "إيلا" (different hamza forms of
+        # the same name) — fetch this branch's doctors and compare with
+        # Arabic-normalized matching instead of a raw DB substring match.
+        branch_staff_ids = [
+            row["staff_id"]
+            for row in db.table("staff_branches").select("staff_id").eq("branch_id", branch_id).execute().data
+        ]
+        candidates = (
             db.table("staff")
-            .select("id")
+            .select("id, full_name")
+            .in_("id", branch_staff_ids)
             .eq("role", "doctor")
-            .ilike("full_name", f"%{doctor_name}%")
             .execute()
             .data
+            if branch_staff_ids
+            else []
         )
+        matches = [c for c in candidates if fuzzy_contains(c["full_name"], doctor_name)]
         if not matches:
             return []
         doctor_id = matches[0]["id"]
