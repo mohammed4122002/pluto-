@@ -716,12 +716,18 @@ class ClinicSettings(BaseModel):
     id: UUID
     clinic_name: str
     about_text: str
+    min_booking_lead_minutes: int
+    max_booking_advance_days: int
+    same_day_cutoff_time: time | None = None
     updated_at: datetime
 
 
 class ClinicSettingsUpdate(BaseModel):
     clinic_name: str | None = None
     about_text: str | None = None
+    min_booking_lead_minutes: int | None = None
+    max_booking_advance_days: int | None = None
+    same_day_cutoff_time: time | None = None
 
 
 PaymentMethodType = Literal["mobile_cash", "bank_transfer", "cash", "other"]
