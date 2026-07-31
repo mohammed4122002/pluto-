@@ -18,6 +18,7 @@ from app.models.schemas import (
     SlotSearchResult,
 )
 from app.services.appointments import generate_appointment_number, generate_confirmation_code
+from app.services.recalls import resolve_recalls_on_booking
 from app.services.slots import generate_slots_for_doctor
 
 router = APIRouter(prefix="/slots", tags=["slots"])
@@ -259,5 +260,6 @@ def book_slot(
     db.table("appointments").update(
         {"appointment_number": generate_appointment_number(), "confirmation_code": generate_confirmation_code()}
     ).eq("id", appointment_id).execute()
+    resolve_recalls_on_booking(db, str(payload.patient_id), appointment_id)
 
     return SlotBookResult(appointment_id=appointment_id)

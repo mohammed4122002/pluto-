@@ -1129,4 +1129,37 @@ class ImportProfile(BaseModel):
     last_synced_at: datetime | None = None
     last_sync_status: str | None = None
     last_sync_error: str | None = None
+
+
+RecallReasonType = Literal["specific_date", "after_days", "medical_result", "treatment_plan", "vaccination", "periodic_checkup"]
+RecallStatus = Literal["pending", "invited", "responded", "booked", "escalated", "cancelled"]
+
+
+class RecallCreate(BaseModel):
+    patient_id: UUID
+    branch_id: UUID
+    doctor_id: UUID | None = None
+    service_id: UUID | None = None
+    due_date: date
+    reason_type: RecallReasonType
+    reason_notes: str | None = None
+
+
+class Recall(BaseModel):
+    id: UUID
+    patient_id: UUID
+    branch_id: UUID
+    doctor_id: UUID | None = None
+    service_id: UUID | None = None
+    source_appointment_id: UUID | None = None
+    due_date: date
+    reason_type: RecallReasonType
+    reason_notes: str | None = None
+    status: RecallStatus
+    invited_at: datetime | None = None
+    responded_at: datetime | None = None
+    escalated_at: datetime | None = None
+    resulting_appointment_id: UUID | None = None
+    created_by: UUID | None = None
+    created_at: datetime
     created_at: datetime

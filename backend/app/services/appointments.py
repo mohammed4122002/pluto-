@@ -6,6 +6,7 @@ from supabase import Client
 
 from app.services.notifications import fire_status_change_notifications
 from app.services.payments import create_payment_for_appointment
+from app.services.recalls import auto_create_recall_on_completion
 
 # Timestamp columns that get auto-stamped when an appointment enters a status.
 _STATUS_TIMESTAMP_COLUMNS = {
@@ -77,5 +78,7 @@ def apply_status_transition(
     fire_status_change_notifications(db, appointment_id, new_status)
     if new_status == "confirmed":
         create_payment_for_appointment(db, appointment_id)
+    if new_status == "completed":
+        auto_create_recall_on_completion(db, appointment_id)
 
     return updated

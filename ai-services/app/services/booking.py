@@ -256,7 +256,7 @@ def book_slot_for_patient(
         raise BookingError("هذا الموعد لم يعد متاحاً، تم حجزه للتو من شخص آخر.") from exc
 
     appointment_id = result.data
-    return (
+    appointment = (
         db.table("appointments")
         .update(
             {
@@ -268,6 +268,31 @@ def book_slot_for_patient(
         .execute()
         .data[0]
     )
+    _resolve_recalls_on_booking(db, patient_id, appointment_id)
+    return appointment
+
+
+def _resolve_recalls_on_booking(db: Client, patient_id: str, appointment_id: str) -> None:
+    """FR-RCL-005/007: mirrors backend's resolve_recalls_on_booking (the two
+    services don't share code) — marks any pending/invited recall for this
+    patient as booked so they don't get a follow-up invite for something
+    they already acted on. Best-effort: never blocks a real booking."""
+    try:
+        open_recalls = (
+            db.table("recalls")
+            .select("id")
+            .eq("patient_id", patient_id)
+            .in_("status", ["pending", "invited"])
+            .execute()
+            .data
+        )
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for row in open_recalls:
+            db.table("recalls").update(
+                {"status": "booked", "responded_at": now_iso, "resulting_appointment_id": appointment_id}
+            ).eq("id", row["id"]).execute()
+    except Exception:
+        pass
 
 
 def book_by_doctor_and_time(
