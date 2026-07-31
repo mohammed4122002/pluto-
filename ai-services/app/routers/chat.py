@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from openai import OpenAI
@@ -230,15 +231,29 @@ def _count_ai_turns(db: Client, conversation_id: str, since: str) -> int:
     return result.count or 0
 
 
+_HISTORY_LIMIT = 24  # ~12 exchanges — see _load_history
+
+_ARABIC_WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+
+
 def _load_history(db: Client, conversation_id: str) -> list[dict]:
+    """Bounded to the most recent messages, not the conversation's entire
+    lifetime — a conversation stays open indefinitely (the same row gets
+    reused across days/weeks), so feeding the model unlimited history means
+    stale facts from hours or days ago (a doctor who has since been deleted,
+    an old failed booking attempt) sit right next to the current question
+    with nothing marking them as outdated, and the model has no reliable way
+    to tell "still true" from "was true when I said it.\""""
     rows = (
         db.table("messages")
         .select("direction, content")
         .eq("conversation_id", conversation_id)
-        .order("created_at")
+        .order("created_at", desc=True)
+        .limit(_HISTORY_LIMIT)
         .execute()
         .data
     )
+    rows.reverse()
     return [{"role": "user" if r["direction"] == "inbound" else "assistant", "content": r["content"]} for r in rows]
 
 
@@ -246,19 +261,34 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
         db.table("branches")
-        .select("name, address, phone, working_hours_note")
+        .select("name, address, phone, working_hours_note, timezone")
         .eq("id", branch_id)
         .limit(1)
         .execute()
         .data
     )
     services = (
-        db.table("services").select("name, duration_minutes, price").eq("is_active", True).execute().data
+        db.table("services")
+        .select("name, duration_minutes, price")
+        .eq("is_active", True)
+        .is_("deleted_at", "null")
+        .execute()
+        .data
     )
 
     parts = [BASE_INSTRUCTIONS]
     if ch_settings.get("dialect"):
         parts.append(f"استخدم لهجة: {ch_settings['dialect']}")
+
+    tz_name = (branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman"
+    now_local = datetime.now(ZoneInfo(tz_name))
+    weekday_ar = _ARABIC_WEEKDAYS[(now_local.weekday() + 1) % 7]
+    parts.append(
+        f"التاريخ والوقت الحاليين (بتوقيت العيادة): يوم {weekday_ar} {now_local.strftime('%Y-%m-%d %H:%M')}. "
+        "استخدمي هذا كمرجع لحساب أي تاريخ نسبي يذكره المريض (بكرا، السبت الجاي، بعد يومين...) قبل "
+        "استدعاء find_available_slots — ابعتي date_from ببداية اليوم المقصود وdate_to ببداية اليوم "
+        "يلي بعده عشان تغطي اليوم كامل، ولا تخمّني تاريخ من غير ما تحسبيه من هذا المرجع."
+    )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
     about_text = settings_row[0]["about_text"] if settings_row else ""
