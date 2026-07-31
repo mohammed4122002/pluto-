@@ -73,61 +73,128 @@ def _window_violation_reason(window: dict, tz: ZoneInfo, start_utc: datetime) ->
     return None
 
 
+def _resolve_specialty_doctor_ids(db: Client, branch_id: str, specialty_query: str) -> set[str] | None:
+    """Doctors at this branch whose specialty loosely matches the patient's
+    words — mirrors find_doctors' own matching so the two tools stay
+    consistent about what counts as "this specialty"."""
+    query = (specialty_query or "").strip()
+    if not query:
+        return None
+    branch_staff_ids = [
+        row["staff_id"]
+        for row in db.table("staff_branches").select("staff_id").eq("branch_id", branch_id).execute().data
+    ]
+    if not branch_staff_ids:
+        return set()
+    rows = (
+        db.table("staff")
+        .select("id, doctor_specialties(specialties(name_ar, name_en))")
+        .in_("id", branch_staff_ids)
+        .eq("role", "doctor")
+        .execute()
+        .data
+    )
+    matched: set[str] = set()
+    for row in rows:
+        specialties = [ds["specialties"] for ds in (row.get("doctor_specialties") or []) if ds.get("specialties")]
+        names = [s.get("name_ar") for s in specialties] + [s.get("name_en") for s in specialties]
+        if any(fuzzy_contains(name, query) for name in names):
+            matched.add(row["id"])
+    return matched
+
+
 def search_available_slots(
     db: Client,
     branch_id: str,
     *,
     doctor_name: str | None = None,
+    specialty_query: str | None = None,
+    doctor_gender: str | None = None,
+    doctor_language: str | None = None,
+    max_price: float | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     limit: int = 8,
-) -> list[dict]:
+) -> dict:
     doctor_id = None
     if doctor_name:
         doctor_id = _resolve_doctor_id(db, branch_id, doctor_name)
         if not doctor_id:
-            return []
+            return {"slots": [], "alternative_doctors": []}
+
+    specialty_doctor_ids = _resolve_specialty_doctor_ids(db, branch_id, specialty_query) if specialty_query else None
+    if specialty_doctor_ids is not None and not specialty_doctor_ids:
+        return {"slots": [], "alternative_doctors": []}
 
     branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
     tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
     window = _load_booking_window(db)
 
-    # Pull a wider page than requested since the booking-window filter below
-    # may drop some — still cheap, and far simpler than pushing lead/advance
-    # limits into the query itself.
-    query = (
-        db.table("slots")
-        .select("id, start_at, duration_minutes, staff!slots_doctor_id_fkey(full_name)")
-        .eq("branch_id", branch_id)
-        .eq("status", "available")
-        .gte("start_at", date_from or datetime.now(timezone.utc).isoformat())
-        .order("start_at")
-        .limit(limit * 4)
-    )
-    if doctor_id:
-        query = query.eq("doctor_id", doctor_id)
-    if date_to:
-        query = query.lt("start_at", date_to)
+    def eligible(r: dict) -> bool:
+        staff = r.get("staff") or {}
+        if doctor_gender and staff.get("gender") != doctor_gender:
+            return False
+        if doctor_language and doctor_language not in (staff.get("languages") or []):
+            return False
+        service = r.get("services") or {}
+        if max_price is not None and service.get("price") is not None and service["price"] > max_price:
+            return False
+        return True
 
-    rows = query.execute().data
-    result = []
-    for r in rows:
-        start_utc = datetime.fromisoformat(r["start_at"].replace("Z", "+00:00"))
-        if _window_violation_reason(window, tz, start_utc):
-            continue
-        result.append(
-            {
-                "slot_id": r["id"],
-                "doctor_name": (r.get("staff") or {}).get("full_name"),
-                # Clinic-local time, already converted — show this to the
-                # patient as-is, don't reinterpret or convert it again.
-                "start_at_clinic_local_time": start_utc.astimezone(tz).isoformat(),
-                "duration_minutes": r["duration_minutes"],
-            }
+    # Pull a wider page than requested since the booking-window/eligibility
+    # filters below may drop some — still cheap, and far simpler than pushing
+    # every one of these into the query itself.
+    def run_query(*, use_doctor_id: str | None) -> list[dict]:
+        q = (
+            db.table("slots")
+            .select(
+                "id, start_at, duration_minutes, doctor_id, "
+                "staff!slots_doctor_id_fkey(full_name, gender, languages), services(price)"
+            )
+            .eq("branch_id", branch_id)
+            .eq("status", "available")
+            .gte("start_at", date_from or datetime.now(timezone.utc).isoformat())
+            .order("start_at")
+            .limit(limit * 4)
         )
-        if len(result) >= limit:
-            break
-    return result
+        if use_doctor_id:
+            q = q.eq("doctor_id", use_doctor_id)
+        elif specialty_doctor_ids is not None:
+            q = q.in_("doctor_id", list(specialty_doctor_ids))
+        if date_to:
+            q = q.lt("start_at", date_to)
+
+        rows = q.execute().data
+        out = []
+        for r in rows:
+            if not eligible(r):
+                continue
+            start_utc = datetime.fromisoformat(r["start_at"].replace("Z", "+00:00"))
+            if _window_violation_reason(window, tz, start_utc):
+                continue
+            service = r.get("services") or {}
+            out.append(
+                {
+                    "slot_id": r["id"],
+                    "doctor_name": (r.get("staff") or {}).get("full_name"),
+                    # Clinic-local time, already converted — show this to the
+                    # patient as-is, don't reinterpret or convert it again.
+                    "start_at_clinic_local_time": start_utc.astimezone(tz).isoformat(),
+                    "duration_minutes": r["duration_minutes"],
+                    "price": service.get("price"),
+                }
+            )
+            if len(out) >= limit:
+                break
+        return out
+
+    matches = run_query(use_doctor_id=doctor_id)
+
+    alternative_doctors: list[dict] = []
+    if not matches and doctor_id:
+        alternative_doctors = run_query(use_doctor_id=None)
+
+    return {"slots": matches, "alternative_doctors": alternative_doctors}
 
 
 def _generate_appointment_number() -> str:
@@ -253,7 +320,7 @@ def book_by_doctor_and_time(
             date_from=day_start_local.astimezone(timezone.utc).isoformat(),
             date_to=day_end_local.astimezone(timezone.utc).isoformat(),
         )
-        return {"booked": False, "reason": violation, "alternative_slots": alternatives}
+        return {"booked": False, "reason": violation, "alternative_slots": alternatives["slots"]}
 
     slot_rows = (
         db.table("slots")
@@ -279,7 +346,7 @@ def book_by_doctor_and_time(
         return {
             "booked": False,
             "reason": "هذا الوقت بالضبط مع هذا الطبيب مش متاح (خذه شخص ثاني للتو أو تغيّر الجدول).",
-            "alternative_slots": alternatives,
+            "alternative_slots": alternatives["slots"],
         }
 
     slot_id = slot_rows[0]["id"]

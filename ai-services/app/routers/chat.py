@@ -145,6 +145,9 @@ TOOLS = [
                 "ابحث عن مواعيد متاحة فعلياً. استخدمها دائماً قبل اقتراح أي وقت أو تاريخ للمريض — "
                 "ممنوع اختراع مواعيد. المواعيد مرتبطة بجدول الطبيب فقط (مش بخدمة معينة)، فاتركي "
                 "doctor_name فاضي لعرض أقرب مواعيد متاحة عند أي طبيب إذا المريض ما حدد طبيب بعد. "
+                "استخدمي specialty_query/doctor_gender/doctor_language/max_price فقط إذا المريض ذكر "
+                "تفضيل صريح بهاي المعايير. إذا حددتِ طبيب بعينه وما في له مواعيد، بترجع alternative_doctors "
+                "بمواعيد فعلية عند أطباء تانيين — اعرضيها كبديل بدل ما تقولي فش مواعيد أبداً. "
                 "استدعِ هذه الأداة من جديد لكل سؤال جديد عن المواعيد، حتى لو سألتِ نتيجة فاضية قبل شوي "
                 "بيوم أو طبيب مختلف."
             ),
@@ -154,6 +157,22 @@ TOOLS = [
                     "doctor_name": {
                         "type": "string",
                         "description": "اسم الطبيب إن تم اختياره، أو نص فاضي لعرض مواعيد كل الأطباء.",
+                    },
+                    "specialty_query": {
+                        "type": "string",
+                        "description": "تخصص أو سبب زيارة ذكره المريض لتضييق البحث، أو نص فاضي.",
+                    },
+                    "doctor_gender": {
+                        "type": "string",
+                        "description": "'male' أو 'female' إذا المريض طلب جنس طبيب محدد صراحة، وإلا نص فاضي.",
+                    },
+                    "doctor_language": {
+                        "type": "string",
+                        "description": "لغة طلبها المريض صراحة يحكي فيها الطبيب (مثال: 'English')، أو نص فاضي.",
+                    },
+                    "max_price": {
+                        "type": "number",
+                        "description": "أعلى سعر ذكره المريض كحد مقبول، أو 0 لعدم وضع حد.",
                     },
                     "date_from": {
                         "type": "string",
@@ -168,7 +187,15 @@ TOOLS = [
                         "description": "ISO date/time للبحث قبله، أو نص فاضي لعدم وضع حد أعلى (الحالة الافتراضية لو ما ذُكر يوم محدد).",
                     },
                 },
-                "required": ["doctor_name", "date_from", "date_to"],
+                "required": [
+                    "doctor_name",
+                    "specialty_query",
+                    "doctor_gender",
+                    "doctor_language",
+                    "max_price",
+                    "date_from",
+                    "date_to",
+                ],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -432,15 +459,17 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         if name == "find_doctors":
             return {"doctors": find_doctors(db, ctx["branch_id"], args.get("specialty_query") or None)}
         if name == "find_available_slots":
-            return {
-                "slots": search_available_slots(
-                    db,
-                    ctx["branch_id"],
-                    doctor_name=args.get("doctor_name") or None,
-                    date_from=args.get("date_from") or None,
-                    date_to=args.get("date_to") or None,
-                )
-            }
+            return search_available_slots(
+                db,
+                ctx["branch_id"],
+                doctor_name=args.get("doctor_name") or None,
+                specialty_query=args.get("specialty_query") or None,
+                doctor_gender=args.get("doctor_gender") or None,
+                doctor_language=args.get("doctor_language") or None,
+                max_price=args.get("max_price") or None,
+                date_from=args.get("date_from") or None,
+                date_to=args.get("date_to") or None,
+            )
         if name == "book_appointment":
             if not ctx.get("booking_enabled"):
                 return {"error": "الحجز غير متاح حالياً عبر هذه المحادثة."}
