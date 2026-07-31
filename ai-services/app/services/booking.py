@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from postgrest.exceptions import APIError
@@ -36,6 +36,43 @@ def _resolve_doctor_id(db: Client, branch_id: str, doctor_name: str) -> str | No
     return matches[0]["id"] if matches else None
 
 
+def _load_booking_window(db: Client) -> dict:
+    rows = (
+        db.table("clinic_settings")
+        .select("min_booking_lead_minutes, max_booking_advance_days, same_day_cutoff_time")
+        .limit(1)
+        .execute()
+        .data
+    )
+    return rows[0] if rows else {}
+
+
+def _window_violation_reason(window: dict, tz: ZoneInfo, start_utc: datetime) -> str | None:
+    """None if the slot is bookable under the clinic's booking-window rules
+    (FR-SCH-017/018/019); otherwise a patient-facing Arabic reason. Checked
+    both when listing slots (so we never offer one that'll be rejected) and
+    again right before booking (so a stale/carried-over time can't slip
+    through)."""
+    now = datetime.now(timezone.utc)
+    start_local = start_utc.astimezone(tz)
+
+    lead_minutes = window.get("min_booking_lead_minutes") or 0
+    if lead_minutes and start_utc < now + timedelta(minutes=lead_minutes):
+        return f"هذا الوقت أقرب من الحد الأدنى المسموح للحجز ({lead_minutes} دقيقة مسبقاً)."
+
+    advance_days = window.get("max_booking_advance_days")
+    if advance_days and start_utc > now + timedelta(days=advance_days):
+        return f"هذا الوقت أبعد من الحد الأقصى المسموح للحجز مسبقاً ({advance_days} يوم)."
+
+    cutoff = window.get("same_day_cutoff_time")
+    if cutoff and start_local.date() == now.astimezone(tz).date():
+        cutoff_time = cutoff if isinstance(cutoff, time) else time.fromisoformat(str(cutoff))
+        if now.astimezone(tz).time() >= cutoff_time:
+            return "انتهى وقت استقبال حجوزات نفس اليوم — جرّبي يوم تاني."
+
+    return None
+
+
 def search_available_slots(
     db: Client,
     branch_id: str,
@@ -53,7 +90,11 @@ def search_available_slots(
 
     branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
     tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
+    window = _load_booking_window(db)
 
+    # Pull a wider page than requested since the booking-window filter below
+    # may drop some — still cheap, and far simpler than pushing lead/advance
+    # limits into the query itself.
     query = (
         db.table("slots")
         .select("id, start_at, duration_minutes, staff!slots_doctor_id_fkey(full_name)")
@@ -61,7 +102,7 @@ def search_available_slots(
         .eq("status", "available")
         .gte("start_at", date_from or datetime.now(timezone.utc).isoformat())
         .order("start_at")
-        .limit(limit)
+        .limit(limit * 4)
     )
     if doctor_id:
         query = query.eq("doctor_id", doctor_id)
@@ -72,6 +113,8 @@ def search_available_slots(
     result = []
     for r in rows:
         start_utc = datetime.fromisoformat(r["start_at"].replace("Z", "+00:00"))
+        if _window_violation_reason(window, tz, start_utc):
+            continue
         result.append(
             {
                 "slot_id": r["id"],
@@ -82,6 +125,8 @@ def search_available_slots(
                 "duration_minutes": r["duration_minutes"],
             }
         )
+        if len(result) >= limit:
+            break
     return result
 
 
@@ -195,6 +240,20 @@ def book_by_doctor_and_time(
     if requested_dt.tzinfo is None:
         requested_dt = requested_dt.replace(tzinfo=tz)
     requested_utc = requested_dt.astimezone(timezone.utc)
+
+    window = _load_booking_window(db)
+    violation = _window_violation_reason(window, tz, requested_utc)
+    if violation:
+        day_start_local = requested_dt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_local = day_start_local.replace(hour=23, minute=59, second=59)
+        alternatives = search_available_slots(
+            db,
+            branch_id,
+            doctor_name=doctor_name,
+            date_from=day_start_local.astimezone(timezone.utc).isoformat(),
+            date_to=day_end_local.astimezone(timezone.utc).isoformat(),
+        )
+        return {"booked": False, "reason": violation, "alternative_slots": alternatives}
 
     slot_rows = (
         db.table("slots")
