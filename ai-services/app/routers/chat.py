@@ -16,7 +16,7 @@ from app.services.appointments import (
     confirm_booking_and_request_payment,
     find_upcoming_appointments_for_patient,
 )
-from app.services.booking import BookingError, book_slot_for_patient, search_available_slots
+from app.services.booking import BookingError, book_by_doctor_and_time, search_available_slots
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors
 
@@ -48,14 +48,13 @@ BASE_INSTRUCTIONS = (
     "(طبيب يترك العيادة، دوام يتعدّل) بين رسالة وثانية، فلازم تستدعي find_doctors من جديد كل مرة يُسأل "
     "فيها 'مين الأطباء' أو قبل ما تأكدي إن طبيب معين لسا موجود، حتى لو ذُكر اسمه قبل بنفس المحادثة.\n"
     "- ممنوع نهائياً اقتراح أي وقت أو تاريخ موعد بدون استدعاء أداة find_available_slots أولاً "
-    "والحصول على slot_id حقيقي منها.\n"
-    "- ممنوع نهائياً قول 'تم الحجز' أو تأكيد أي حجز قبل استدعاء أداة book_appointment والتأكد أنها "
-    "رجعت نجاحاً فعلياً. استدعِ هذه الأداة فقط بعد ما المريض يأكد صراحة على وقت محدد.\n"
-    "- مهم جداً: أي slot_id شفتيه برسالة سابقة مش محفوظ عندك الآن — النظام ما يحتفظ إلا بالنص النهائي "
-    "لردودك، مش بالبيانات الخام (slot_id) يلي وراها. فلازم، في نفس الرد يلي رح تستدعي فيه "
-    "book_appointment، تستدعي find_available_slots مباشرة قبلها بنفس الطلب (نفس الطبيب/الوقت) عشان "
-    "تاخذي slot_id حقيقي وطازج، حتى لو كنتِ عرضتِ نفس الوقت برسالة سابقة. ممنوع نهائياً تخمين أو "
-    "اختراع أو إعادة استخدام slot_id قديم.\n"
+    "وعرض وقت رجع فعلاً منها.\n"
+    "- ممنوع نهائياً قول 'تم الحجز' أو تأكيد أي حجز قبل استدعاء أداة book_appointment والتأكد من "
+    "نتيجتها. مرري لها doctor_name وstart_at بالضبط متل ما رجعوا من find_available_slots — الأداة "
+    "نفسها بتتحقق من التوفر وتحجز، إنتِ مش مسؤولة عن معرفة إذا كان الوقت 'لسا متاح' أو لأ.\n"
+    "- ممنوع نهائياً تقولي لوحدك 'هذا الوقت صار محجوز' أو تعرضي بدائل من عندك — هذا القرار فقط من "
+    "نتيجة book_appointment: إذا booked=true الحجز نجح فعلاً، وإذا booked=false استخدمي alternative_slots "
+    "الراجعة بالضبط (لا تخترعي بدائل، ولا تفترضي إن الوقت 'محجوز مسبقاً' بدون ما تستدعي الأداة فعلاً).\n"
     "- بعد نجاح الحجز، أخبري المريض بلهجة طبيعية إن الحجز تم ومؤكد فوراً (مش بانتظار مراجعة) — اذكري "
     "اليوم والوقت بشكل محكي عادي (متل 'ثبتلك موعد السبت الجاي الساعة 9 الصبح')، واذكري رقم الحجز ورمز "
     "التأكيد كتفصيل إضافي بعدها (مثلاً 'رقم حجزك APT-... خليه عندك للمراجعة') — مش كل هذا بجملة واحدة "
@@ -180,19 +179,24 @@ TOOLS = [
         "function": {
             "name": "book_appointment",
             "description": (
-                "احجز موعداً فعلياً — فقط بعد ما المريض يأكد صراحة وقتاً محدداً. لازم تستدعي "
-                "find_available_slots بنفس الطلب مباشرة قبل هذه الأداة بنفس الرد (حتى لو عرضتِ نفس "
-                "الوقت برسالة سابقة) عشان تحصلي على slot_id حقيقي — أي slot_id من رد سابق غير موجود "
-                "عندك فعلياً. ممنوع نهائياً قول إن الحجز تم قبل استدعاء هذه الأداة والتأكد من نجاحها."
+                "احجز موعداً فعلياً — فقط بعد ما المريض يأكد صراحة وقتاً محدداً كان قد ظهر فعلاً بنتيجة "
+                "find_available_slots. مررّي اسم الطبيب والوقت بالضبط متل ما ظهروا لك — الأداة نفسها "
+                "بتتحقق وتحجز بخطوة وحدة. إذا رجعت النتيجة booked=false، معناها الوقت انحجز من حد ثاني "
+                "أو تغيّر، وبترجع لك alternative_slots حقيقية بديلة — اعرضيها للمريض، ممنوع تخترعي بديل "
+                "من عندك ولا تفترضي إن هذا سيناريو متكرر بدون ما تشوفي alternative_slots فعلياً بكل مرة."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "slot_id": {
+                    "doctor_name": {
+                        "type": "string",
+                        "description": "اسم الطبيب بالضبط متل ما ظهر بنتيجة find_available_slots.",
+                    },
+                    "start_at": {
                         "type": "string",
                         "description": (
-                            "slot_id الذي رجع للتو من find_available_slots ضمن نفس هذا الرد — لا "
-                            "تخترعه ولا تعيد استخدام واحد من رسالة سابقة."
+                            "قيمة start_at_clinic_local_time بالضبط متل ما رجعت من find_available_slots "
+                            "للوقت يلي أكّده المريض — انسخيها حرفياً، لا تعيدي كتابتها أو تحسبيها يدوياً."
                         ),
                     },
                     "visit_for_name": {
@@ -204,7 +208,7 @@ TOOLS = [
                         "description": "سبب الزيارة/الأعراض كما وصفها المريض، أو نص فاضي.",
                     },
                 },
-                "required": ["slot_id", "visit_for_name", "reason_for_visit"],
+                "required": ["doctor_name", "start_at", "visit_for_name", "reason_for_visit"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -442,13 +446,22 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {"error": "الحجز غير متاح حالياً عبر هذه المحادثة."}
             if not ctx.get("patient_id"):
                 return {"error": "ما في رقم هاتف موثوق لهذا المستخدم بعد — اطلب منه رقمه قبل ما تكمل الحجز."}
-            appointment = book_slot_for_patient(
+            booking_result = book_by_doctor_and_time(
                 db,
-                slot_id=args["slot_id"],
+                ctx["branch_id"],
+                doctor_name=args["doctor_name"],
+                requested_start_at=args["start_at"],
                 patient_id=ctx["patient_id"],
                 visit_for_name=args.get("visit_for_name") or None,
                 notes=args.get("reason_for_visit") or None,
             )
+            if not booking_result["booked"]:
+                return {
+                    "booked": False,
+                    "reason": booking_result["reason"],
+                    "alternative_slots": booking_result["alternative_slots"],
+                }
+            appointment = booking_result
             payment_info = confirm_booking_and_request_payment(db, appointment["id"])
             result = {
                 "booked": True,

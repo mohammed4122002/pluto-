@@ -12,6 +12,30 @@ class BookingError(Exception):
     pass
 
 
+def _resolve_doctor_id(db: Client, branch_id: str, doctor_name: str) -> str | None:
+    # Plain ILIKE would miss "ايلا" vs "إيلا" (different hamza forms of the
+    # same name) — fetch this branch's doctors and compare with
+    # Arabic-normalized matching instead of a raw DB substring match.
+    branch_staff_ids = [
+        row["staff_id"]
+        for row in db.table("staff_branches").select("staff_id").eq("branch_id", branch_id).execute().data
+    ]
+    candidates = (
+        db.table("staff")
+        .select("id, full_name")
+        .in_("id", branch_staff_ids)
+        .eq("role", "doctor")
+        .eq("is_active", True)
+        .eq("availability_status", "available")
+        .execute()
+        .data
+        if branch_staff_ids
+        else []
+    )
+    matches = [c for c in candidates if fuzzy_contains(c["full_name"], doctor_name)]
+    return matches[0]["id"] if matches else None
+
+
 def search_available_slots(
     db: Client,
     branch_id: str,
@@ -23,29 +47,9 @@ def search_available_slots(
 ) -> list[dict]:
     doctor_id = None
     if doctor_name:
-        # Plain ILIKE would miss "ايلا" vs "إيلا" (different hamza forms of
-        # the same name) — fetch this branch's doctors and compare with
-        # Arabic-normalized matching instead of a raw DB substring match.
-        branch_staff_ids = [
-            row["staff_id"]
-            for row in db.table("staff_branches").select("staff_id").eq("branch_id", branch_id).execute().data
-        ]
-        candidates = (
-            db.table("staff")
-            .select("id, full_name")
-            .in_("id", branch_staff_ids)
-            .eq("role", "doctor")
-            .eq("is_active", True)
-            .eq("availability_status", "available")
-            .execute()
-            .data
-            if branch_staff_ids
-            else []
-        )
-        matches = [c for c in candidates if fuzzy_contains(c["full_name"], doctor_name)]
-        if not matches:
+        doctor_id = _resolve_doctor_id(db, branch_id, doctor_name)
+        if not doctor_id:
             return []
-        doctor_id = matches[0]["id"]
 
     branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
     tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
@@ -152,3 +156,75 @@ def book_slot_for_patient(
         .execute()
         .data[0]
     )
+
+
+def book_by_doctor_and_time(
+    db: Client,
+    branch_id: str,
+    *,
+    doctor_name: str,
+    requested_start_at: str,
+    patient_id: str,
+    visit_for_name: str | None,
+    notes: str | None,
+) -> dict:
+    """Books directly from (doctor_name, requested time) instead of an opaque
+    slot_id — the model only ever has to carry text it already generated
+    (a name, a time it just showed the patient) across turns, never an id
+    from a previous tool call it has no way to still have. Looks up the
+    matching available slot and books it in one shot; if that exact time
+    isn't available anymore, returns booked=False with fresh alternatives
+    instead of raising, since "time taken" is an expected outcome here, not
+    an error."""
+    doctor_id = _resolve_doctor_id(db, branch_id, doctor_name)
+    if not doctor_id:
+        raise BookingError(
+            f"ما في طبيب فعلي بالاسم '{doctor_name}' بهذا الفرع — استدعي find_doctors للتأكد من الاسم الصحيح."
+        )
+
+    branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
+    tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
+
+    try:
+        requested_dt = datetime.fromisoformat(requested_start_at)
+    except ValueError as exc:
+        raise BookingError(
+            "صيغة start_at غير مفهومة — لازم تكون بنفس صيغة start_at_clinic_local_time الراجعة من "
+            "find_available_slots، بدون تعديل."
+        ) from exc
+    if requested_dt.tzinfo is None:
+        requested_dt = requested_dt.replace(tzinfo=tz)
+    requested_utc = requested_dt.astimezone(timezone.utc)
+
+    slot_rows = (
+        db.table("slots")
+        .select("id")
+        .eq("branch_id", branch_id)
+        .eq("doctor_id", doctor_id)
+        .eq("status", "available")
+        .eq("start_at", requested_utc.isoformat())
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not slot_rows:
+        day_start_local = requested_dt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end_local = day_start_local.replace(hour=23, minute=59, second=59)
+        alternatives = search_available_slots(
+            db,
+            branch_id,
+            doctor_name=doctor_name,
+            date_from=day_start_local.astimezone(timezone.utc).isoformat(),
+            date_to=day_end_local.astimezone(timezone.utc).isoformat(),
+        )
+        return {
+            "booked": False,
+            "reason": "هذا الوقت بالضبط مع هذا الطبيب مش متاح (خذه شخص ثاني للتو أو تغيّر الجدول).",
+            "alternative_slots": alternatives,
+        }
+
+    slot_id = slot_rows[0]["id"]
+    appointment = book_slot_for_patient(
+        db, slot_id=slot_id, patient_id=patient_id, visit_for_name=visit_for_name, notes=notes
+    )
+    return {"booked": True, **appointment}
