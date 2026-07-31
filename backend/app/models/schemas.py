@@ -172,6 +172,7 @@ class Service(BaseModel):
     price: float | None = None
     specialty_id: UUID | None = None
     is_active: bool = True
+    doctor_ids: list[UUID] = []
 
 
 class ServiceCreate(BaseModel):
@@ -180,6 +181,7 @@ class ServiceCreate(BaseModel):
     duration_minutes: int = 30
     price: float | None = None
     specialty_id: UUID | None = None
+    doctor_ids: list[UUID] = []
 
 
 class ServiceUpdate(BaseModel):
@@ -201,6 +203,19 @@ class Staff(BaseModel):
     is_active: bool = True
     branch_ids: list[UUID] = []
     specialty_ids: list[UUID] = []
+    service_ids: list[UUID] = []
+
+
+class StaffScheduleBlock(BaseModel):
+    """A quick, single working-hours block applied to every selected day at
+    creation time — the common case of one uniform schedule. Anything more
+    irregular (different hours per day, multiple blocks) is edited afterward
+    from the doctor's schedule panel, which supports arbitrary per-day rows."""
+
+    days: list[int] = []
+    start_time: time
+    end_time: time
+    slot_duration_minutes: int = 30
 
 
 class StaffCreate(BaseModel):
@@ -211,6 +226,8 @@ class StaffCreate(BaseModel):
     specialty: str | None = None
     branch_ids: list[UUID] = []
     specialty_ids: list[UUID] = []
+    service_ids: list[UUID] = []
+    schedule: StaffScheduleBlock | None = None
 
 
 class StaffUpdate(BaseModel):

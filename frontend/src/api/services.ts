@@ -8,6 +8,7 @@ export type Service = {
   price: number | null;
   specialty_id: string | null;
   is_active: boolean;
+  doctor_ids: string[];
 };
 
 export type ServiceCreate = {
@@ -16,9 +17,10 @@ export type ServiceCreate = {
   duration_minutes?: number;
   price?: number;
   specialty_id?: string;
+  doctor_ids?: string[];
 };
 
-export type ServiceUpdate = Partial<ServiceCreate> & { is_active?: boolean };
+export type ServiceUpdate = Partial<Omit<ServiceCreate, "doctor_ids">> & { is_active?: boolean };
 
 export const listServices = () => api.get<Service[]>("/services").then((res) => res.data);
 
@@ -27,3 +29,9 @@ export const createService = (payload: ServiceCreate) =>
 
 export const updateService = (id: string, payload: ServiceUpdate) =>
   api.patch<Service>(`/services/${id}`, payload).then((res) => res.data);
+
+export const addServiceDoctor = (serviceId: string, staffId: string) =>
+  api.post<Service>(`/services/${serviceId}/doctors`, null, { params: { staff_id: staffId } }).then((res) => res.data);
+
+export const removeServiceDoctor = (serviceId: string, staffId: string) =>
+  api.delete(`/services/${serviceId}/doctors/${staffId}`).then((res) => res.data);

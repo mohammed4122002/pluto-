@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
@@ -240,8 +240,8 @@ export function AppointmentsPage() {
           </thead>
           <tbody>
             {appointments.map((appt) => (
-              <>
-                <tr key={appt.id}>
+              <Fragment key={appt.id}>
+                <tr>
                   <td>{nameOf(branches, appt.branch_id)}</td>
                   <td>{nameOf(patients, appt.patient_id)}</td>
                   <td>{nameOf(staff, appt.staff_id)}</td>
@@ -322,7 +322,7 @@ export function AppointmentsPage() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

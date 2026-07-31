@@ -1,27 +1,39 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { createService, listServices, updateService } from "../api/services";
+import { addServiceDoctor, createService, listServices, removeServiceDoctor, updateService } from "../api/services";
 import type { Service, ServiceCreate } from "../api/services";
 import { listSpecialties } from "../api/specialties";
 import type { Specialty } from "../api/specialties";
+import { listStaff } from "../api/staff";
+import type { Staff } from "../api/staff";
 
-const emptyForm: ServiceCreate = { name: "", description: "", duration_minutes: 30, price: undefined, specialty_id: undefined };
+const emptyForm: ServiceCreate = {
+  name: "",
+  description: "",
+  duration_minutes: 30,
+  price: undefined,
+  specialty_id: undefined,
+  doctor_ids: [],
+};
 
 export function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [doctors, setDoctors] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ServiceCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [openFor, setOpenFor] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listServices(), listSpecialties()])
-      .then(([serviceList, specialtyList]) => {
+    Promise.all([listServices(), listSpecialties(), listStaff()])
+      .then(([serviceList, specialtyList, staffList]) => {
         setServices(serviceList);
         setSpecialties(specialtyList);
+        setDoctors(staffList.filter((s) => s.role === "doctor"));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -30,6 +42,17 @@ export function ServicesPage() {
   useEffect(load, []);
 
   const specialtyName = (id: string | null) => specialties.find((s) => s.id === id)?.name_ar ?? "—";
+  const doctorNames = (ids: string[]) =>
+    ids.map((id) => doctors.find((d) => d.id === id)?.full_name).filter(Boolean).join(", ") || "—";
+
+  const toggleFormDoctor = (staffId: string) => {
+    setForm((f) => ({
+      ...f,
+      doctor_ids: (f.doctor_ids ?? []).includes(staffId)
+        ? (f.doctor_ids ?? []).filter((id) => id !== staffId)
+        : [...(f.doctor_ids ?? []), staffId],
+    }));
+  };
 
   const handleCreate = (e: FormEvent) => {
     e.preventDefault();
@@ -46,6 +69,19 @@ export function ServicesPage() {
 
   const toggleActive = (service: Service) => {
     updateService(service.id, { is_active: !service.is_active })
+      .then((updated) => setServices((prev) => prev.map((s) => (s.id === service.id ? updated : s))))
+      .catch((err) => setError(err.message));
+  };
+
+  const toggleServiceDoctor = (service: Service, staffId: string) => {
+    setError(null);
+    const action = service.doctor_ids.includes(staffId)
+      ? removeServiceDoctor(service.id, staffId).then(() => ({
+          ...service,
+          doctor_ids: service.doctor_ids.filter((id) => id !== staffId),
+        }))
+      : addServiceDoctor(service.id, staffId);
+    action
       .then((updated) => setServices((prev) => prev.map((s) => (s.id === service.id ? updated : s))))
       .catch((err) => setError(err.message));
   };
@@ -94,6 +130,21 @@ export function ServicesPage() {
         </button>
       </form>
 
+      {doctors.length > 0 && (
+        <div className="checkbox-group">
+          {doctors.map((d) => (
+            <label key={d.id}>
+              <input
+                type="checkbox"
+                checked={(form.doctor_ids ?? []).includes(d.id)}
+                onChange={() => toggleFormDoctor(d.id)}
+              />
+              {d.full_name}
+            </label>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <p>جاري التحميل...</p>
       ) : (
@@ -105,29 +156,54 @@ export function ServicesPage() {
               <th>المدة</th>
               <th>السعر</th>
               <th>التخصص</th>
+              <th>الأطباء المسؤولون</th>
               <th>الحالة</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {services.map((service) => (
-              <tr key={service.id}>
-                <td>{service.name}</td>
-                <td>{service.description}</td>
-                <td>{service.duration_minutes} د</td>
-                <td>{service.price ?? "—"}</td>
-                <td>{specialtyName(service.specialty_id)}</td>
-                <td>
-                  <span className={service.is_active ? "badge active" : "badge inactive"}>
-                    {service.is_active ? "فعّال" : "متوقف"}
-                  </span>
-                </td>
-                <td>
-                  <button onClick={() => toggleActive(service)}>
-                    {service.is_active ? "إيقاف" : "تفعيل"}
-                  </button>
-                </td>
-              </tr>
+              <Fragment key={service.id}>
+                <tr>
+                  <td>{service.name}</td>
+                  <td>{service.description}</td>
+                  <td>{service.duration_minutes} د</td>
+                  <td>{service.price ?? "—"}</td>
+                  <td>{specialtyName(service.specialty_id)}</td>
+                  <td>{doctorNames(service.doctor_ids)}</td>
+                  <td>
+                    <span className={service.is_active ? "badge active" : "badge inactive"}>
+                      {service.is_active ? "فعّال" : "متوقف"}
+                    </span>
+                  </td>
+                  <td>
+                    <button onClick={() => setOpenFor(openFor === service.id ? null : service.id)}>
+                      {openFor === service.id ? "إخفاء" : "الأطباء"}
+                    </button>
+                    <button onClick={() => toggleActive(service)}>
+                      {service.is_active ? "إيقاف" : "تفعيل"}
+                    </button>
+                  </td>
+                </tr>
+                {openFor === service.id && (
+                  <tr>
+                    <td colSpan={8}>
+                      <div className="checkbox-group">
+                        {doctors.map((d) => (
+                          <label key={d.id}>
+                            <input
+                              type="checkbox"
+                              checked={service.doctor_ids.includes(d.id)}
+                              onChange={() => toggleServiceDoctor(service, d.id)}
+                            />
+                            {d.full_name}
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +9,7 @@ from app.core.database import get_supabase
 from app.core.rbac import sync_legacy_role
 from app.core.security import hash_password
 from app.models.schemas import SetPasswordRequest, Staff, StaffCreate, StaffUpdate
+from app.services.slots import generate_slots_for_doctor
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -41,6 +42,23 @@ def _attach_specialty_ids(db: Client, staff: list[dict]) -> list[dict]:
     return staff
 
 
+def _attach_service_ids(db: Client, staff: list[dict]) -> list[dict]:
+    if not staff:
+        return staff
+    staff_ids = [s["id"] for s in staff]
+    links = db.table("service_doctors").select("staff_id, service_id").in_("staff_id", staff_ids).execute().data
+    by_staff: dict[str, list[str]] = {}
+    for link in links:
+        by_staff.setdefault(link["staff_id"], []).append(link["service_id"])
+    for s in staff:
+        s["service_ids"] = by_staff.get(s["id"], [])
+    return staff
+
+
+def _attach_all(db: Client, staff: list[dict]) -> list[dict]:
+    return _attach_service_ids(db, _attach_specialty_ids(db, _attach_branch_ids(db, staff)))
+
+
 @router.get("", response_model=list[Staff])
 def list_staff(
     branch_id: str | None = None,
@@ -67,7 +85,7 @@ def list_staff(
 
     if role:
         staff = [s for s in staff if s["role"] == role]
-    return _attach_specialty_ids(db, _attach_branch_ids(db, staff))
+    return _attach_all(db, staff)
 
 
 @router.post("", response_model=Staff)
@@ -77,7 +95,7 @@ def create_staff(
     for bid in payload.branch_ids:
         assert_branch_access(current, "staff.create", str(bid))
 
-    data = payload.model_dump(exclude={"branch_ids", "specialty_ids"})
+    data = payload.model_dump(exclude={"branch_ids", "specialty_ids", "service_ids", "schedule"})
     created = db.table("staff").insert(data).execute().data[0]
     if payload.branch_ids:
         db.table("staff_branches").insert(
@@ -87,8 +105,31 @@ def create_staff(
         db.table("doctor_specialties").insert(
             [{"staff_id": created["id"], "specialty_id": str(sid)} for sid in payload.specialty_ids]
         ).execute()
+    if payload.service_ids:
+        db.table("service_doctors").insert(
+            [{"staff_id": created["id"], "service_id": str(svid)} for svid in payload.service_ids]
+        ).execute()
+    if payload.schedule and payload.schedule.days and payload.branch_ids:
+        # A new doctor is only actually bookable once working hours exist and
+        # slots have been generated from them — do both right away instead of
+        # leaving it as a separate, easy-to-miss step.
+        branch_id = str(payload.branch_ids[0])
+        db.table("doctor_availability").insert(
+            [
+                {
+                    "staff_id": created["id"],
+                    "branch_id": branch_id,
+                    "day_of_week": day,
+                    "start_time": payload.schedule.start_time.isoformat(),
+                    "end_time": payload.schedule.end_time.isoformat(),
+                    "slot_duration_minutes": payload.schedule.slot_duration_minutes,
+                }
+                for day in payload.schedule.days
+            ]
+        ).execute()
+        generate_slots_for_doctor(db, created["id"], branch_id, date.today(), date.today() + timedelta(days=30))
     sync_legacy_role(db, created["id"], payload.role, [str(bid) for bid in payload.branch_ids])
-    return _attach_specialty_ids(db, _attach_branch_ids(db, [created]))[0]
+    return _attach_all(db, [created])[0]
 
 
 @router.post("/{staff_id}/specialties", response_model=Staff)
@@ -104,7 +145,7 @@ def add_staff_specialty(
     staff = db.table("staff").select("*").eq("id", str(staff_id)).limit(1).execute().data
     if not staff:
         raise HTTPException(status_code=404, detail="الموظف غير موجود")
-    return _attach_specialty_ids(db, _attach_branch_ids(db, staff))[0]
+    return _attach_all(db, staff)[0]
 
 
 @router.delete("/{staff_id}/specialties/{specialty_id}")
@@ -117,6 +158,31 @@ def remove_staff_specialty(
     db.table("doctor_specialties").delete().eq("staff_id", str(staff_id)).eq(
         "specialty_id", str(specialty_id)
     ).execute()
+    return {"deleted": True}
+
+
+@router.post("/{staff_id}/services", response_model=Staff)
+def add_staff_service(
+    staff_id: UUID,
+    service_id: UUID,
+    _current: CurrentStaff = Depends(require_permission("staff.update")),
+    db: Client = Depends(get_supabase),
+):
+    db.table("service_doctors").upsert({"staff_id": str(staff_id), "service_id": str(service_id)}).execute()
+    staff = db.table("staff").select("*").eq("id", str(staff_id)).limit(1).execute().data
+    if not staff:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+    return _attach_all(db, staff)[0]
+
+
+@router.delete("/{staff_id}/services/{service_id}")
+def remove_staff_service(
+    staff_id: UUID,
+    service_id: UUID,
+    _current: CurrentStaff = Depends(require_permission("staff.update")),
+    db: Client = Depends(get_supabase),
+):
+    db.table("service_doctors").delete().eq("staff_id", str(staff_id)).eq("service_id", str(service_id)).execute()
     return {"deleted": True}
 
 
@@ -142,7 +208,7 @@ def update_staff(
     if "is_active" in updates:
         updates["deactivated_at"] = None if updates["is_active"] else datetime.now(timezone.utc).isoformat()
     updated = db.table("staff").update(updates).eq("id", str(staff_id)).execute().data[0]
-    return _attach_specialty_ids(db, _attach_branch_ids(db, [updated]))[0]
+    return _attach_all(db, [updated])[0]
 
 
 @router.post("/{staff_id}/set-password")

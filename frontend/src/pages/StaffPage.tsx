@@ -2,7 +2,15 @@ import { Fragment, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
-import { addStaffSpecialty, createStaff, listStaff, removeStaffSpecialty, updateStaff } from "../api/staff";
+import {
+  addStaffService,
+  addStaffSpecialty,
+  createStaff,
+  listStaff,
+  removeStaffService,
+  removeStaffSpecialty,
+  updateStaff,
+} from "../api/staff";
 import type { Staff, StaffCreate, StaffRole } from "../api/staff";
 import {
   createDoctorAvailability,
@@ -12,6 +20,8 @@ import {
 import type { DoctorAvailability } from "../api/doctorAvailability";
 import { listSpecialties } from "../api/specialties";
 import type { Specialty } from "../api/specialties";
+import { listServices } from "../api/services";
+import type { Service } from "../api/services";
 import { generateSlots } from "../api/slots";
 
 const roles: StaffRole[] = ["admin", "doctor", "receptionist"];
@@ -22,11 +32,13 @@ function DoctorProfilePanel({
   doctor,
   branches,
   specialties,
+  services,
   onDoctorUpdate,
 }: {
   doctor: Staff;
   branches: Branch[];
   specialties: Specialty[];
+  services: Service[];
   onDoctorUpdate: (updated: Staff) => void;
 }) {
   const doctorBranches = branches.filter((b) => doctor.branch_ids.includes(b.id));
@@ -64,6 +76,17 @@ function DoctorProfilePanel({
           specialty_ids: doctor.specialty_ids.filter((id) => id !== specialtyId),
         }))
       : addStaffSpecialty(doctor.id, specialtyId);
+    action.then(onDoctorUpdate).catch((err) => setError(err.message));
+  };
+
+  const toggleService = (serviceId: string) => {
+    setError(null);
+    const action = doctor.service_ids.includes(serviceId)
+      ? removeStaffService(doctor.id, serviceId).then(() => ({
+          ...doctor,
+          service_ids: doctor.service_ids.filter((id) => id !== serviceId),
+        }))
+      : addStaffService(doctor.id, serviceId);
     action.then(onDoctorUpdate).catch((err) => setError(err.message));
   };
 
@@ -107,7 +130,7 @@ function DoctorProfilePanel({
     <div className="page" style={{ padding: "0.75rem 0" }}>
       {error && <p className="error">{error}</p>}
 
-      <p><strong>التخصصات</strong> — تحدد أي خدمات وأي أسئلة عن "مين الدكاترة" يظهر فيها هذا الطبيب:</p>
+      <p><strong>التخصصات</strong> — تحدد أي أسئلة عن "مين الدكاترة" يظهر فيها هذا الطبيب:</p>
       {specialties.length === 0 ? (
         <p className="error">ما في تخصصات معرّفة بعد بالنظام.</p>
       ) : (
@@ -120,6 +143,24 @@ function DoctorProfilePanel({
                 onChange={() => toggleSpecialty(s.id)}
               />
               {s.name_ar}
+            </label>
+          ))}
+        </div>
+      )}
+
+      <p style={{ marginTop: "1rem" }}><strong>الخدمات التي يقدمها</strong>:</p>
+      {services.length === 0 ? (
+        <p className="error">ما في خدمات معرّفة بعد بالنظام.</p>
+      ) : (
+        <div className="checkbox-group">
+          {services.map((s) => (
+            <label key={s.id}>
+              <input
+                type="checkbox"
+                checked={doctor.service_ids.includes(s.id)}
+                onChange={() => toggleService(s.id)}
+              />
+              {s.name}
             </label>
           ))}
         </div>
@@ -216,11 +257,14 @@ const emptyForm: StaffCreate = {
   specialty: "",
   branch_ids: [],
   specialty_ids: [],
+  service_ids: [],
+  schedule: undefined,
 };
 
 export function StaffPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,13 +272,22 @@ export function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [openFor, setOpenFor] = useState<string | null>(null);
 
+  // Quick-schedule inputs for the create form (role === "doctor" only) — a
+  // single uniform working-hours block applied to whichever days are
+  // checked, generating real bookable slots immediately on creation.
+  const [scheduleDays, setScheduleDays] = useState<number[]>([]);
+  const [scheduleStart, setScheduleStart] = useState("09:00");
+  const [scheduleEnd, setScheduleEnd] = useState("17:00");
+  const [scheduleDuration, setScheduleDuration] = useState(30);
+
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listBranches(), listSpecialties(), listStaff()])
-      .then(([branchList, specialtyList, staffList]) => {
+    Promise.all([listBranches(), listSpecialties(), listServices(), listStaff()])
+      .then(([branchList, specialtyList, serviceList, staffList]) => {
         setBranches(branchList);
         setSpecialties(specialtyList);
+        setServices(serviceList);
         setStaff(staffList);
       })
       .catch((err) => setError(err.message))
@@ -246,6 +299,8 @@ export function StaffPage() {
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? id;
   const specialtyNames = (ids: string[]) =>
     ids.map((id) => specialties.find((s) => s.id === id)?.name_ar).filter(Boolean).join(", ");
+  const serviceNames = (ids: string[]) =>
+    ids.map((id) => services.find((s) => s.id === id)?.name).filter(Boolean).join(", ");
 
   const toggleFormBranch = (branchId: string) => {
     setForm((f) => ({
@@ -265,17 +320,42 @@ export function StaffPage() {
     }));
   };
 
+  const toggleFormService = (serviceId: string) => {
+    setForm((f) => ({
+      ...f,
+      service_ids: f.service_ids.includes(serviceId)
+        ? f.service_ids.filter((id) => id !== serviceId)
+        : [...f.service_ids, serviceId],
+    }));
+  };
+
+  const toggleScheduleDay = (day: number) => {
+    setScheduleDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  };
+
   const handleCreate = (e: FormEvent) => {
     e.preventDefault();
     if (!form.full_name.trim() || !form.email.trim()) return;
     setSaving(true);
-    createStaff(form)
+    const payload: StaffCreate = {
+      ...form,
+      schedule:
+        form.role === "doctor" && scheduleDays.length > 0
+          ? {
+              days: scheduleDays,
+              start_time: scheduleStart,
+              end_time: scheduleEnd,
+              slot_duration_minutes: scheduleDuration,
+            }
+          : undefined,
+    };
+    createStaff(payload)
       .then((member) => {
         setStaff((prev) => [...prev, member]);
         setForm(emptyForm);
-        // Surface the schedule/specialty panel immediately for a new doctor —
-        // there's no bookable slot until working hours are set, so this is
-        // the very next step, not a separate hidden one.
+        setScheduleDays([]);
+        // Surface the profile panel immediately for a new doctor to review
+        // or add more schedule rows — not a separate hidden step.
         if (member.role === "doctor") setOpenFor(member.id);
       })
       .catch((err) => setError(err.message))
@@ -362,6 +442,43 @@ export function StaffPage() {
         </div>
       )}
 
+      {form.role === "doctor" && services.length > 0 && (
+        <div className="checkbox-group">
+          {services.map((s) => (
+            <label key={s.id}>
+              <input
+                type="checkbox"
+                checked={form.service_ids.includes(s.id)}
+                onChange={() => toggleFormService(s.id)}
+              />
+              {s.name}
+            </label>
+          ))}
+        </div>
+      )}
+
+      {form.role === "doctor" && (
+        <div className="data-form">
+          <span>أيام الدوام (يبدأ الحجز فيها فوراً بعد الإضافة):</span>
+          {dayNames.map((name, idx) => (
+            <label key={idx}>
+              <input type="checkbox" checked={scheduleDays.includes(idx)} onChange={() => toggleScheduleDay(idx)} />
+              {name}
+            </label>
+          ))}
+          <input type="time" value={scheduleStart} onChange={(e) => setScheduleStart(e.target.value)} title="من" />
+          <input type="time" value={scheduleEnd} onChange={(e) => setScheduleEnd(e.target.value)} title="إلى" />
+          <input
+            type="number"
+            min={5}
+            step={5}
+            value={scheduleDuration}
+            onChange={(e) => setScheduleDuration(Number(e.target.value))}
+            title="مدة الموعد بالدقائق"
+          />
+        </div>
+      )}
+
       {loading ? (
         <p>جاري التحميل...</p>
       ) : (
@@ -372,6 +489,7 @@ export function StaffPage() {
               <th>الإيميل</th>
               <th>الدور</th>
               <th>التخصصات</th>
+              <th>الخدمات</th>
               <th>الفروع</th>
               <th>الحالة</th>
               <th></th>
@@ -385,6 +503,7 @@ export function StaffPage() {
                   <td>{member.email}</td>
                   <td>{member.role}</td>
                   <td>{specialtyNames(member.specialty_ids) || member.specialty}</td>
+                  <td>{serviceNames(member.service_ids)}</td>
                   <td>{member.branch_ids.map(branchName).join(", ")}</td>
                   <td>
                     <span className={member.is_active ? "badge active" : "badge inactive"}>
@@ -394,7 +513,7 @@ export function StaffPage() {
                   <td>
                     {member.role === "doctor" && (
                       <button onClick={() => setOpenFor(openFor === member.id ? null : member.id)}>
-                        {openFor === member.id ? "إخفاء الملف" : "التخصص والدوام"}
+                        {openFor === member.id ? "إخفاء الملف" : "الملف والدوام"}
                       </button>
                     )}
                     <button onClick={() => toggleActive(member)}>
@@ -404,11 +523,12 @@ export function StaffPage() {
                 </tr>
                 {openFor === member.id && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <DoctorProfilePanel
                         doctor={member}
                         branches={branches}
                         specialties={specialties}
+                        services={services}
                         onDoctorUpdate={handleDoctorUpdate}
                       />
                     </td>

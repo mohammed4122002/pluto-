@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { applyCoupon, listPayments, refundPayment, rejectPayment, verifyPayment } from "../api/payments";
 import type { Payment, PaymentStatus } from "../api/payments";
 import { createInvoice } from "../api/invoices";
@@ -131,8 +131,8 @@ export function PaymentsPage() {
           </thead>
           <tbody>
             {payments.map((p) => (
-              <>
-                <tr key={p.id}>
+              <Fragment key={p.id}>
+                <tr>
                   <td>
                     {p.patient_name}
                     <div className="import-hint">{p.patient_phone}</div>
@@ -213,7 +213,7 @@ export function PaymentsPage() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

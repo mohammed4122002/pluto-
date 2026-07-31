@@ -2,6 +2,13 @@ import { api } from "./client";
 
 export type StaffRole = "admin" | "doctor" | "receptionist";
 
+export type StaffScheduleBlock = {
+  days: number[];
+  start_time: string;
+  end_time: string;
+  slot_duration_minutes: number;
+};
+
 export type Staff = {
   id: string;
   full_name: string;
@@ -12,6 +19,7 @@ export type Staff = {
   is_active: boolean;
   branch_ids: string[];
   specialty_ids: string[];
+  service_ids: string[];
 };
 
 export type StaffCreate = {
@@ -22,9 +30,11 @@ export type StaffCreate = {
   specialty?: string;
   branch_ids: string[];
   specialty_ids: string[];
+  service_ids: string[];
+  schedule?: StaffScheduleBlock;
 };
 
-export type StaffUpdate = Partial<Omit<StaffCreate, "branch_ids" | "specialty_ids" | "email">> & {
+export type StaffUpdate = Partial<Omit<StaffCreate, "branch_ids" | "specialty_ids" | "service_ids" | "schedule" | "email">> & {
   is_active?: boolean;
 };
 
@@ -41,3 +51,9 @@ export const addStaffSpecialty = (staffId: string, specialtyId: string) =>
 
 export const removeStaffSpecialty = (staffId: string, specialtyId: string) =>
   api.delete(`/staff/${staffId}/specialties/${specialtyId}`).then((res) => res.data);
+
+export const addStaffService = (staffId: string, serviceId: string) =>
+  api.post<Staff>(`/staff/${staffId}/services`, null, { params: { service_id: serviceId } }).then((res) => res.data);
+
+export const removeStaffService = (staffId: string, serviceId: string) =>
+  api.delete(`/staff/${staffId}/services/${serviceId}`).then((res) => res.data);
