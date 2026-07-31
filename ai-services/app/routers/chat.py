@@ -30,7 +30,12 @@ BASE_INSTRUCTIONS = (
     "- بعد نجاح الحجز، أخبر المريض برقم الحجز ووقته، ووضّح إنه رح يوصله تأكيد نهائي من الفريق قريباً "
     "(الحجز يدخل مبدئياً بانتظار المراجعة، مش مؤكد 100% فوراً).\n"
     "- إذا رجعت أي أداة نتيجة فاضية أو خطأ، اعتذر بصدق واقترح بديل حقيقي (تخصص/وقت تاني) أو اعرض "
-    "تحويله لموظف — لا تخترع بديل من عندك.\n\n"
+    "تحويله لموظف — لا تخترع بديل من عندك.\n"
+    "- المواعيد المتاحة (find_available_slots) مرتبطة بجدول الطبيب نفسه، مش بخدمة معينة — يعني عدم "
+    "وجود موعد ليوم/طبيب معين ما يعني عدم وجود مواعيد لخدمة ثانية أو يوم ثاني. كل مرة المريض يسأل عن "
+    "مواعيد متاحة (حتى لو سأل قبل بنفس المحادثة عن يوم مختلف)، استدعِ find_available_slots من جديد "
+    "بالطبيب والتاريخ المطلوبين — لا تعمم من نتيجة سابقة ولا تفترض 'ما في مواعيد إطلاقاً' بدون استدعاء "
+    "الأداة لنفس الطلب الجديد.\n\n"
     "قواعد التصعيد (needs_human) — مهم جداً تفرق بين الحالتين:\n"
     "- لا تصعّد أبداً لمجرد إن المريض وصف عرض أو سبب زيارة عشان يتحدد التخصص/الطبيب المناسب "
     "(مثال: 'عندي سخونة'، 'حبوب بالبشرة', 'بدي أسنان') — هاد سؤال حجز طبيعي، كمّل معه عادي.\n"
@@ -79,14 +84,17 @@ TOOLS = [
             "name": "find_available_slots",
             "description": (
                 "ابحث عن مواعيد متاحة فعلياً. استخدمها دائماً قبل اقتراح أي وقت أو تاريخ للمريض — "
-                "ممنوع اختراع مواعيد."
+                "ممنوع اختراع مواعيد. المواعيد مرتبطة بجدول الطبيب فقط (مش بخدمة معينة)، فاتركي "
+                "doctor_name فاضي لعرض أقرب مواعيد متاحة عند أي طبيب إذا المريض ما حدد طبيب بعد. "
+                "استدعِ هذه الأداة من جديد لكل سؤال جديد عن المواعيد، حتى لو سألتِ نتيجة فاضية قبل شوي "
+                "بيوم أو طبيب مختلف."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "doctor_name": {
                         "type": "string",
-                        "description": "اسم الطبيب إن تم اختياره، أو نص فاضي إذا ما في طبيب محدد بعد.",
+                        "description": "اسم الطبيب إن تم اختياره، أو نص فاضي لعرض مواعيد كل الأطباء.",
                     },
                     "date_from": {
                         "type": "string",
@@ -176,7 +184,7 @@ def _get_openai(settings: Settings = Depends(get_settings)) -> OpenAI:
 def _load_conversation(db: Client, conversation_id: str) -> dict:
     conv = (
         db.table("conversations")
-        .select("id, mode, patient_id, channel_id, channels(branch_id)")
+        .select("id, mode, patient_id, channel_id, ai_episode_started_at, channels(branch_id)")
         .eq("id", conversation_id)
         .single()
         .execute()
@@ -191,12 +199,18 @@ def _load_channel_settings(db: Client, channel_id: str) -> dict:
     return rows[0] if rows else _DEFAULT_CHANNEL_SETTINGS
 
 
-def _count_ai_turns(db: Client, conversation_id: str) -> int:
+def _count_ai_turns(db: Client, conversation_id: str, since: str) -> int:
+    """Scoped to the current AI episode (since ai_episode_started_at), not the
+    conversation's whole lifetime — a conversation stays open indefinitely
+    (handle_inbound_message reuses the same row across days), so counting
+    forever meant any long-lived thread permanently tripped the cap regardless
+    of how the current round was going."""
     result = (
         db.table("messages")
         .select("id", count="exact")
         .eq("conversation_id", conversation_id)
         .eq("sender_type", "ai")
+        .gte("created_at", since)
         .execute()
     )
     return result.count or 0
@@ -391,7 +405,7 @@ def generate_reply(
     lowered = payload.message.lower()
     keyword_hit = any(k.lower() in lowered for k in (ch_settings.get("escalation_keywords") or []) if k)
     turn_limit = ch_settings.get("max_ai_turns_before_human") or 10
-    turn_limit_hit = _count_ai_turns(db, payload.conversation_id) >= turn_limit
+    turn_limit_hit = _count_ai_turns(db, payload.conversation_id, conv["ai_episode_started_at"]) >= turn_limit
 
     if keyword_hit or turn_limit_hit:
         reply = ch_settings.get("handoff_message") or _DEFAULT_HANDOFF_MESSAGE
@@ -447,7 +461,9 @@ def reclaim_stale_conversations(db: Client = Depends(get_supabase), client: Open
         if not ch_settings.get("ai_enabled", True):
             continue
 
-        db.table("conversations").update({"mode": "ai", "needs_attention": False}).eq("id", row["id"]).execute()
+        db.table("conversations").update(
+            {"mode": "ai", "needs_attention": False, "ai_episode_started_at": now.isoformat()}
+        ).eq("id", row["id"]).execute()
         try:
             conv = _load_conversation(db, row["id"])
             history = _load_history(db, row["id"])

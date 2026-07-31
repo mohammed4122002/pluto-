@@ -222,6 +222,11 @@ def update_conversation(
 ):
     assert_branch_access(current, "conversation.update", _conversation_branch_id(db, str(conversation_id)))
     updates = payload.model_dump(exclude_unset=True, mode="json")
+    if updates.get("mode") == "ai":
+        # Scopes the AI's max_ai_turns_before_human cap to this fresh episode
+        # instead of the conversation's entire (indefinitely reused) history —
+        # see ai-services/app/routers/chat.py::_count_ai_turns.
+        updates["ai_episode_started_at"] = datetime.now(timezone.utc).isoformat()
     db.table("conversations").update(updates).eq("id", str(conversation_id)).execute()
     return _summary_of(db, conversation_id)
 
