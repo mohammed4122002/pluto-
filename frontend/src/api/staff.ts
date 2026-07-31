@@ -57,3 +57,11 @@ export const addStaffService = (staffId: string, serviceId: string) =>
 
 export const removeStaffService = (staffId: string, serviceId: string) =>
   api.delete(`/staff/${staffId}/services/${serviceId}`).then((res) => res.data);
+
+export const addStaffBranch = (staffId: string, branchId: string) =>
+  api.post<Staff>(`/staff/${staffId}/branches`, null, { params: { branch_id: branchId } }).then((res) => res.data);
+
+export const removeStaffBranch = (staffId: string, branchId: string) =>
+  api.delete(`/staff/${staffId}/branches/${branchId}`).then((res) => res.data);
+
+export const deleteStaff = (staffId: string) => api.delete(`/staff/${staffId}`).then((res) => res.data);

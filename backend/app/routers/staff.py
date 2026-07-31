@@ -186,6 +186,62 @@ def remove_staff_service(
     return {"deleted": True}
 
 
+@router.post("/{staff_id}/branches", response_model=Staff)
+def add_staff_branch(
+    staff_id: UUID,
+    branch_id: UUID,
+    current: CurrentStaff = Depends(require_permission("staff.update")),
+    db: Client = Depends(get_supabase),
+):
+    assert_branch_access(current, "staff.update", str(branch_id))
+    db.table("staff_branches").upsert({"staff_id": str(staff_id), "branch_id": str(branch_id)}).execute()
+    staff = db.table("staff").select("*").eq("id", str(staff_id)).limit(1).execute().data
+    if not staff:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+    return _attach_all(db, staff)[0]
+
+
+@router.delete("/{staff_id}/branches/{branch_id}")
+def remove_staff_branch(
+    staff_id: UUID,
+    branch_id: UUID,
+    current: CurrentStaff = Depends(require_permission("staff.update")),
+    db: Client = Depends(get_supabase),
+):
+    assert_branch_access(current, "staff.update", str(branch_id))
+    db.table("staff_branches").delete().eq("staff_id", str(staff_id)).eq("branch_id", str(branch_id)).execute()
+    return {"deleted": True}
+
+
+@router.delete("/{staff_id}")
+def delete_staff(
+    staff_id: UUID,
+    current: CurrentStaff = Depends(require_permission("staff.delete")),
+    db: Client = Depends(get_supabase),
+):
+    """Soft delete only — appointment/slot history keeps referencing this
+    staff_id, so a hard delete would either fail on the FK or blow away real
+    visit records. Hides the row everywhere is_active/deleted_at is checked."""
+    existing_branches = [
+        r["branch_id"] for r in db.table("staff_branches").select("branch_id").eq("staff_id", str(staff_id)).execute().data
+    ]
+    if existing_branches:
+        allowed = allowed_branch_ids(current, "staff.delete")
+        if allowed is not None and not (set(allowed) & set(existing_branches)):
+            raise HTTPException(status_code=403, detail="ليست لديك صلاحية على فرع هذا الموظف")
+    else:
+        assert_branch_access(current, "staff.delete", None)
+
+    db.table("staff").update(
+        {
+            "is_active": False,
+            "deactivated_at": datetime.now(timezone.utc).isoformat(),
+            "deleted_at": datetime.now(timezone.utc).isoformat(),
+        }
+    ).eq("id", str(staff_id)).execute()
+    return {"deleted": True}
+
+
 @router.patch("/{staff_id}", response_model=Staff)
 def update_staff(
     staff_id: UUID,
