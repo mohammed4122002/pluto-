@@ -1,5 +1,6 @@
 import secrets
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from postgrest.exceptions import APIError
 from supabase import Client
@@ -32,6 +33,9 @@ def search_available_slots(
             return []
         doctor_id = matches[0]["id"]
 
+    branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
+    tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
+
     query = (
         db.table("slots")
         .select("id, start_at, duration_minutes, staff!slots_doctor_id_fkey(full_name)")
@@ -47,15 +51,20 @@ def search_available_slots(
         query = query.lt("start_at", date_to)
 
     rows = query.execute().data
-    return [
-        {
-            "slot_id": r["id"],
-            "doctor_name": (r.get("staff") or {}).get("full_name"),
-            "start_at": r["start_at"],
-            "duration_minutes": r["duration_minutes"],
-        }
-        for r in rows
-    ]
+    result = []
+    for r in rows:
+        start_utc = datetime.fromisoformat(r["start_at"].replace("Z", "+00:00"))
+        result.append(
+            {
+                "slot_id": r["id"],
+                "doctor_name": (r.get("staff") or {}).get("full_name"),
+                # Clinic-local time, already converted — show this to the
+                # patient as-is, don't reinterpret or convert it again.
+                "start_at_clinic_local_time": start_utc.astimezone(tz).isoformat(),
+                "duration_minutes": r["duration_minutes"],
+            }
+        )
+    return result
 
 
 def _generate_appointment_number() -> str:
@@ -105,6 +114,15 @@ def book_slot_for_patient(
             },
         ).execute()
     except APIError as exc:
+        if exc.code == "P0002":
+            # slot_id doesn't exist at all — almost always means the model
+            # reused/guessed an id instead of one just returned by
+            # find_available_slots in this same turn (tool results from a
+            # prior turn aren't stored anywhere it can re-read them).
+            raise BookingError(
+                "slot_id غير موجود إطلاقاً. لازم تستدعي find_available_slots الآن ضمن نفس هذا الرد "
+                "للحصول على slot_id حقيقي وطازج — لا يوجد عندك slot_id صالح من محادثة سابقة."
+            ) from exc
         raise BookingError("هذا الموعد لم يعد متاحاً، تم حجزه للتو من شخص آخر.") from exc
 
     appointment_id = result.data
