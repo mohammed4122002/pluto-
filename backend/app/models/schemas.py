@@ -383,6 +383,21 @@ class BulkCancelResult(BaseModel):
     cancelled_count: int
 
 
+class DoctorAbsenceRequest(BaseModel):
+    doctor_id: UUID
+    branch_id: UUID | None = None
+    date_from: datetime
+    date_to: datetime
+    reason: str
+
+
+class DoctorAbsenceResult(BaseModel):
+    total_affected: int
+    reassigned_count: int
+    cancelled_count: int
+    substitute_staff_id: UUID | None = None
+
+
 class MarkNoShowRequest(BaseModel):
     reason: str | None = None
     override_grace_period: bool = False

@@ -15,6 +15,8 @@ from app.models.schemas import (
     CancelResult,
     CheckInRequest,
     CheckInResult,
+    DoctorAbsenceRequest,
+    DoctorAbsenceResult,
     MarkNoShowRequest,
     NoShowRateItem,
     RescheduleRequest,
@@ -28,6 +30,7 @@ from app.services.scheduling import (
     bulk_cancel_appointments,
     cancel_appointment,
     check_in_appointment,
+    handle_doctor_absence,
     mark_no_show,
     no_show_rate_report,
     reschedule_appointment,
@@ -134,7 +137,10 @@ def bulk_cancel(
     current: CurrentStaff = Depends(require_permission("appointment.cancel")),
     db: Client = Depends(get_supabase),
 ):
-    """Doctor-absence (FR-ABS-*) or branch-closure bulk cancellation."""
+    """Branch-closure (or plain doctor-absence-with-no-substitute) bulk
+    cancellation — always cancels, never reassigns. For a doctor absence
+    where a substitute might be able to absorb the bookings, use
+    POST /appointments/handle-doctor-absence instead."""
     if payload.branch_id:
         assert_branch_access(current, "appointment.cancel", str(payload.branch_id))
     elif not payload.doctor_id:
@@ -149,6 +155,30 @@ def bulk_cancel(
         current.id,
     )
     return BulkCancelResult(cancelled_count=count)
+
+
+@router.post("/handle-doctor-absence", response_model=DoctorAbsenceResult)
+def handle_absence(
+    payload: DoctorAbsenceRequest,
+    current: CurrentStaff = Depends(require_permission("appointment.cancel")),
+    db: Client = Depends(get_supabase),
+):
+    """FR-ABS-002/003/004/005/009: for every appointment this doctor has in
+    the given window, tries to move it to a registered substitute at the
+    exact same time first; only cancels (fee-free, same as bulk-cancel)
+    when no substitute exists or they have no open slot right then."""
+    if payload.branch_id:
+        assert_branch_access(current, "appointment.cancel", str(payload.branch_id))
+    result = handle_doctor_absence(
+        db,
+        str(payload.doctor_id),
+        str(payload.branch_id) if payload.branch_id else None,
+        payload.date_from.isoformat(),
+        payload.date_to.isoformat(),
+        payload.reason,
+        current.id,
+    )
+    return DoctorAbsenceResult(**result)
 
 
 @router.post("/{appointment_id}/check-in", response_model=CheckInResult)

@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.services.appointments import apply_status_transition, generate_appointment_number, generate_confirmation_code
@@ -184,6 +185,127 @@ def bulk_cancel_appointments(
         if row.get("slot_id"):
             release_slot_and_offer_waitlist(db, row["slot_id"])
     return count
+
+
+def _find_substitute(db: Client, doctor_id: str, branch_id: str | None, start_at: str, end_at: str) -> str | None:
+    """A substitute registered for this doctor whose covered window overlaps
+    the absence period. If more than one branch has a substitute
+    arrangement, prefer the one scoped to this specific branch."""
+    rows = (
+        db.table("doctor_substitutes")
+        .select("substitute_staff_id, branch_id")
+        .eq("staff_id", doctor_id)
+        .lt("start_at", end_at)
+        .gt("end_at", start_at)
+        .execute()
+        .data
+    )
+    if not rows:
+        return None
+    if branch_id:
+        branch_specific = [r for r in rows if r["branch_id"] == branch_id]
+        if branch_specific:
+            return branch_specific[0]["substitute_staff_id"]
+        branch_wide = [r for r in rows if r["branch_id"] is None]
+        if branch_wide:
+            return branch_wide[0]["substitute_staff_id"]
+        return None
+    return rows[0]["substitute_staff_id"]
+
+
+def handle_doctor_absence(
+    db: Client, doctor_id: str, branch_id: str | None, date_from: str, date_to: str, reason: str, changed_by: str | None
+) -> dict:
+    """For each affected appointment, tries to move it to a registered
+    substitute at the exact same time first (BR: doctor_substitutes covering
+    this window) — only falls back to cancel-and-waitlist (same as
+    bulk_cancel_appointments) when no substitute exists or the substitute
+    has no open slot at that exact time. No fee either way since this is
+    clinic-caused."""
+    query = (
+        db.table("appointments")
+        .select("id, branch_id, patient_id, service_id, slot_id, scheduled_at, duration_minutes, notes, status")
+        .gte("scheduled_at", date_from)
+        .lt("scheduled_at", date_to)
+        .eq("staff_id", doctor_id)
+        .in_("status", ["confirmed", "patient_confirmed", "requested", "checked_in", "waitlisted"])
+    )
+    if branch_id:
+        query = query.eq("branch_id", branch_id)
+    rows = query.execute().data
+
+    substitute_id = _find_substitute(db, doctor_id, branch_id, date_from, date_to)
+    # checked_in/waitlisted appointments aren't reschedulable (the patient is
+    # already at the clinic, or the "booking" is only speculative to begin
+    # with) — only genuinely confirmed/requested visits get moved.
+    _reassignable_statuses = {"confirmed", "patient_confirmed", "requested"}
+    reassigned = 0
+    cancelled = 0
+
+    for appt in rows:
+        moved = False
+        if substitute_id and appt["status"] in _reassignable_statuses:
+            substitute_slot = (
+                db.table("slots")
+                .select("id")
+                .eq("branch_id", appt["branch_id"])
+                .eq("doctor_id", substitute_id)
+                .eq("start_at", appt["scheduled_at"])
+                .eq("status", "available")
+                .limit(1)
+                .execute()
+                .data
+            )
+            if substitute_slot:
+                new_slot_id = substitute_slot[0]["id"]
+                try:
+                    result = db.rpc(
+                        "book_slot",
+                        {
+                            "p_slot_id": new_slot_id,
+                            "p_patient_id": appt["patient_id"],
+                            "p_held_by_session": f"absence-reassign:{appt['id']}",
+                            "p_notes": appt.get("notes"),
+                            "p_source": "doctor_absence_reassignment",
+                        },
+                    ).execute()
+                    new_appointment_id = result.data
+                    db.table("appointments").update(
+                        {
+                            "appointment_number": generate_appointment_number(),
+                            "confirmation_code": generate_confirmation_code(),
+                            "previous_appointment_id": appt["id"],
+                        }
+                    ).eq("id", new_appointment_id).execute()
+                    apply_status_transition(db, appt["id"], "rescheduled", reason, changed_by)
+                    if appt.get("slot_id"):
+                        release_slot_and_offer_waitlist(db, appt["slot_id"])
+                    moved = True
+                    reassigned += 1
+                except (APIError, HTTPException):
+                    # Either the slot got taken between the check and the
+                    # book_slot() call, or this appointment's current status
+                    # doesn't allow a "rescheduled" transition (e.g. already
+                    # checked_in) — fall back to the cancel path below either
+                    # way rather than losing the appointment entirely.
+                    moved = False
+
+        if not moved:
+            new_status = "cancelled_by_doctor"
+            try:
+                apply_status_transition(db, appt["id"], new_status, reason, changed_by)
+                cancelled += 1
+                if appt.get("slot_id"):
+                    release_slot_and_offer_waitlist(db, appt["slot_id"])
+            except HTTPException:
+                continue
+
+    return {
+        "total_affected": len(rows),
+        "reassigned_count": reassigned,
+        "cancelled_count": cancelled,
+        "substitute_staff_id": substitute_id,
+    }
 
 
 def mark_no_show(db: Client, appointment_id: str, reason: str | None, changed_by: str | None, override_grace: bool) -> dict:
