@@ -166,18 +166,23 @@ def resolve_recalls_on_booking(db: Client, patient_id: str, appointment_id: str)
     """FR-RCL-005/007: when this patient books a new appointment, any of
     their pending/invited recalls are marked booked and linked to it — this
     is what stops them from getting another invitation for something they
-    already acted on."""
-    open_recalls = (
-        db.table("recalls")
-        .select("id")
-        .eq("patient_id", patient_id)
-        .in_("status", list(_ACTIVE_RECALL_STATUSES))
-        .execute()
-        .data
-    )
-    now_iso = datetime.now(timezone.utc).isoformat()
-    for row in open_recalls:
-        db.table("recalls").update(
-            {"status": "booked", "responded_at": now_iso, "resulting_appointment_id": appointment_id}
-        ).eq("id", row["id"]).execute()
-    return len(open_recalls)
+    already acted on. Best-effort: never blocks a real booking that already
+    succeeded."""
+    try:
+        open_recalls = (
+            db.table("recalls")
+            .select("id")
+            .eq("patient_id", patient_id)
+            .in_("status", list(_ACTIVE_RECALL_STATUSES))
+            .execute()
+            .data
+        )
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for row in open_recalls:
+            db.table("recalls").update(
+                {"status": "booked", "responded_at": now_iso, "resulting_appointment_id": appointment_id}
+            ).eq("id", row["id"]).execute()
+        return len(open_recalls)
+    except Exception:
+        logger.exception("resolve_recalls_on_booking failed for patient_id=%s appointment_id=%s", patient_id, appointment_id)
+        return 0
