@@ -24,6 +24,7 @@ from app.routers import (
     settings,
     setup,
     slots,
+    specialties,
     staff,
     waitlist,
 )
@@ -72,6 +73,7 @@ app.include_router(services.router)
 app.include_router(settings.router)
 app.include_router(setup.router)
 app.include_router(slots.router)
+app.include_router(specialties.router)
 app.include_router(staff.router)
 app.include_router(appointments.router)
 app.include_router(waitlist.router)

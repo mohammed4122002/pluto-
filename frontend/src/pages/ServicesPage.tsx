@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { createService, listServices, updateService } from "../api/services";
 import type { Service, ServiceCreate } from "../api/services";
+import { listSpecialties } from "../api/specialties";
+import type { Specialty } from "../api/specialties";
 
-const emptyForm: ServiceCreate = { name: "", description: "", duration_minutes: 30, price: undefined };
+const emptyForm: ServiceCreate = { name: "", description: "", duration_minutes: 30, price: undefined, specialty_id: undefined };
 
 export function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ServiceCreate>(emptyForm);
@@ -15,13 +18,18 @@ export function ServicesPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    listServices()
-      .then(setServices)
+    Promise.all([listServices(), listSpecialties()])
+      .then(([serviceList, specialtyList]) => {
+        setServices(serviceList);
+        setSpecialties(specialtyList);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
 
   useEffect(load, []);
+
+  const specialtyName = (id: string | null) => specialties.find((s) => s.id === id)?.name_ar ?? "—";
 
   const handleCreate = (e: FormEvent) => {
     e.preventDefault();
@@ -70,6 +78,17 @@ export function ServicesPage() {
           value={form.price ?? ""}
           onChange={(e) => setForm({ ...form, price: e.target.value ? Number(e.target.value) : undefined })}
         />
+        <select
+          value={form.specialty_id ?? ""}
+          onChange={(e) => setForm({ ...form, specialty_id: e.target.value || undefined })}
+        >
+          <option value="">بدون تخصص محدد</option>
+          {specialties.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name_ar}
+            </option>
+          ))}
+        </select>
         <button type="submit" disabled={saving}>
           {saving ? "..." : "إضافة خدمة"}
         </button>
@@ -85,6 +104,7 @@ export function ServicesPage() {
               <th>الوصف</th>
               <th>المدة</th>
               <th>السعر</th>
+              <th>التخصص</th>
               <th>الحالة</th>
               <th></th>
             </tr>
@@ -96,6 +116,7 @@ export function ServicesPage() {
                 <td>{service.description}</td>
                 <td>{service.duration_minutes} د</td>
                 <td>{service.price ?? "—"}</td>
+                <td>{specialtyName(service.specialty_id)}</td>
                 <td>
                   <span className={service.is_active ? "badge active" : "badge inactive"}>
                     {service.is_active ? "فعّال" : "متوقف"}

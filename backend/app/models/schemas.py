@@ -150,12 +150,27 @@ class PatientTagRequest(BaseModel):
     tag: PatientTagValue
 
 
+class Specialty(BaseModel):
+    id: UUID
+    department_id: UUID | None = None
+    name_ar: str
+    name_en: str
+    is_active: bool = True
+
+
+class SpecialtyCreate(BaseModel):
+    department_id: UUID | None = None
+    name_ar: str
+    name_en: str
+
+
 class Service(BaseModel):
     id: UUID
     name: str
     description: str | None = None
     duration_minutes: int = 30
     price: float | None = None
+    specialty_id: UUID | None = None
     is_active: bool = True
 
 
@@ -164,6 +179,7 @@ class ServiceCreate(BaseModel):
     description: str | None = None
     duration_minutes: int = 30
     price: float | None = None
+    specialty_id: UUID | None = None
 
 
 class ServiceUpdate(BaseModel):
@@ -171,6 +187,7 @@ class ServiceUpdate(BaseModel):
     description: str | None = None
     duration_minutes: int | None = None
     price: float | None = None
+    specialty_id: UUID | None = None
     is_active: bool | None = None
 
 
@@ -183,6 +200,7 @@ class Staff(BaseModel):
     specialty: str | None = None
     is_active: bool = True
     branch_ids: list[UUID] = []
+    specialty_ids: list[UUID] = []
 
 
 class StaffCreate(BaseModel):
@@ -192,6 +210,7 @@ class StaffCreate(BaseModel):
     role: StaffRole
     specialty: str | None = None
     branch_ids: list[UUID] = []
+    specialty_ids: list[UUID] = []
 
 
 class StaffUpdate(BaseModel):

@@ -6,6 +6,7 @@ export type Service = {
   description: string | null;
   duration_minutes: number;
   price: number | null;
+  specialty_id: string | null;
   is_active: boolean;
 };
 
@@ -14,6 +15,7 @@ export type ServiceCreate = {
   description?: string;
   duration_minutes?: number;
   price?: number;
+  specialty_id?: string;
 };
 
 export type ServiceUpdate = Partial<ServiceCreate> & { is_active?: boolean };

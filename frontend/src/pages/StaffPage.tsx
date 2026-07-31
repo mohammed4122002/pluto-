@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
-import { createStaff, listStaff, updateStaff } from "../api/staff";
+import { addStaffSpecialty, createStaff, listStaff, removeStaffSpecialty, updateStaff } from "../api/staff";
 import type { Staff, StaffCreate, StaffRole } from "../api/staff";
 import {
   createDoctorAvailability,
@@ -10,13 +10,25 @@ import {
   listDoctorAvailability,
 } from "../api/doctorAvailability";
 import type { DoctorAvailability } from "../api/doctorAvailability";
+import { listSpecialties } from "../api/specialties";
+import type { Specialty } from "../api/specialties";
 import { generateSlots } from "../api/slots";
 
 const roles: StaffRole[] = ["admin", "doctor", "receptionist"];
 
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
-function DoctorSchedulePanel({ doctor, branches }: { doctor: Staff; branches: Branch[] }) {
+function DoctorProfilePanel({
+  doctor,
+  branches,
+  specialties,
+  onDoctorUpdate,
+}: {
+  doctor: Staff;
+  branches: Branch[];
+  specialties: Specialty[];
+  onDoctorUpdate: (updated: Staff) => void;
+}) {
   const doctorBranches = branches.filter((b) => doctor.branch_ids.includes(b.id));
   const [rows, setRows] = useState<DoctorAvailability[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +55,17 @@ function DoctorSchedulePanel({ doctor, branches }: { doctor: Staff; branches: Br
   useEffect(load, [doctor.id]);
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? id;
+
+  const toggleSpecialty = (specialtyId: string) => {
+    setError(null);
+    const action = doctor.specialty_ids.includes(specialtyId)
+      ? removeStaffSpecialty(doctor.id, specialtyId).then(() => ({
+          ...doctor,
+          specialty_ids: doctor.specialty_ids.filter((id) => id !== specialtyId),
+        }))
+      : addStaffSpecialty(doctor.id, specialtyId);
+    action.then(onDoctorUpdate).catch((err) => setError(err.message));
+  };
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -80,86 +103,107 @@ function DoctorSchedulePanel({ doctor, branches }: { doctor: Staff; branches: Br
       .finally(() => setGenerating(false));
   };
 
-  if (doctorBranches.length === 0) {
-    return <p className="error">اربط الطبيب/ة بفرع أولاً قبل تحديد الدوام.</p>;
-  }
-
   return (
     <div className="page" style={{ padding: "0.75rem 0" }}>
       {error && <p className="error">{error}</p>}
 
-      {doctorBranches.length > 1 && (
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-          {doctorBranches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {loading ? (
-        <p>جاري التحميل...</p>
+      <p><strong>التخصصات</strong> — تحدد أي خدمات وأي أسئلة عن "مين الدكاترة" يظهر فيها هذا الطبيب:</p>
+      {specialties.length === 0 ? (
+        <p className="error">ما في تخصصات معرّفة بعد بالنظام.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>اليوم</th>
-              <th>من</th>
-              <th>إلى</th>
-              <th>مدة الموعد (د)</th>
-              <th>الفرع</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{dayNames[r.day_of_week]}</td>
-                <td>{r.start_time}</td>
-                <td>{r.end_time}</td>
-                <td>{r.slot_duration_minutes}</td>
-                <td>{branchName(r.branch_id)}</td>
-                <td>
-                  <button onClick={() => handleDelete(r.id)}>حذف</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="checkbox-group">
+          {specialties.map((s) => (
+            <label key={s.id}>
+              <input
+                type="checkbox"
+                checked={doctor.specialty_ids.includes(s.id)}
+                onChange={() => toggleSpecialty(s.id)}
+              />
+              {s.name_ar}
+            </label>
+          ))}
+        </div>
       )}
 
-      <form className="data-form" onSubmit={handleAdd}>
-        <select value={dayOfWeek} onChange={(e) => setDayOfWeek(Number(e.target.value))}>
-          {dayNames.map((name, idx) => (
-            <option key={idx} value={idx}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
-        <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
-        <input
-          type="number"
-          min={5}
-          step={5}
-          value={duration}
-          onChange={(e) => setDuration(Number(e.target.value))}
-          title="مدة الموعد بالدقائق"
-        />
-        <button type="submit" disabled={saving}>
-          {saving ? "..." : "إضافة دوام"}
-        </button>
-      </form>
+      {doctorBranches.length === 0 ? (
+        <p className="error">اربط الطبيب/ة بفرع أولاً قبل تحديد الدوام.</p>
+      ) : (
+        <>
+          <p style={{ marginTop: "1rem" }}><strong>الدوام والمواعيد المتاحة</strong></p>
+          {doctorBranches.length > 1 && (
+            <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              {doctorBranches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
 
-      <form className="data-form" onSubmit={handleGenerate}>
-        <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} required />
-        <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} required />
-        <button type="submit" disabled={generating}>
-          {generating ? "..." : "توليد المواعيد المتاحة"}
-        </button>
-        {generateResult && <span>{generateResult}</span>}
-      </form>
+          {loading ? (
+            <p>جاري التحميل...</p>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>اليوم</th>
+                  <th>من</th>
+                  <th>إلى</th>
+                  <th>مدة الموعد (د)</th>
+                  <th>الفرع</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{dayNames[r.day_of_week]}</td>
+                    <td>{r.start_time}</td>
+                    <td>{r.end_time}</td>
+                    <td>{r.slot_duration_minutes}</td>
+                    <td>{branchName(r.branch_id)}</td>
+                    <td>
+                      <button onClick={() => handleDelete(r.id)}>حذف</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <form className="data-form" onSubmit={handleAdd}>
+            <select value={dayOfWeek} onChange={(e) => setDayOfWeek(Number(e.target.value))}>
+              {dayNames.map((name, idx) => (
+                <option key={idx} value={idx}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              title="مدة الموعد بالدقائق"
+            />
+            <button type="submit" disabled={saving}>
+              {saving ? "..." : "إضافة دوام"}
+            </button>
+          </form>
+
+          <form className="data-form" onSubmit={handleGenerate}>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} required />
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} required />
+            <button type="submit" disabled={generating}>
+              {generating ? "..." : "توليد المواعيد المتاحة"}
+            </button>
+            {generateResult && <span>{generateResult}</span>}
+          </form>
+        </>
+      )}
     </div>
   );
 }
@@ -171,23 +215,26 @@ const emptyForm: StaffCreate = {
   role: "doctor",
   specialty: "",
   branch_ids: [],
+  specialty_ids: [],
 };
 
 export function StaffPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<StaffCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [scheduleFor, setScheduleFor] = useState<string | null>(null);
+  const [openFor, setOpenFor] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listBranches(), listStaff()])
-      .then(([branchList, staffList]) => {
+    Promise.all([listBranches(), listSpecialties(), listStaff()])
+      .then(([branchList, specialtyList, staffList]) => {
         setBranches(branchList);
+        setSpecialties(specialtyList);
         setStaff(staffList);
       })
       .catch((err) => setError(err.message))
@@ -197,6 +244,8 @@ export function StaffPage() {
   useEffect(load, []);
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? id;
+  const specialtyNames = (ids: string[]) =>
+    ids.map((id) => specialties.find((s) => s.id === id)?.name_ar).filter(Boolean).join(", ");
 
   const toggleFormBranch = (branchId: string) => {
     setForm((f) => ({
@@ -204,6 +253,15 @@ export function StaffPage() {
       branch_ids: f.branch_ids.includes(branchId)
         ? f.branch_ids.filter((id) => id !== branchId)
         : [...f.branch_ids, branchId],
+    }));
+  };
+
+  const toggleFormSpecialty = (specialtyId: string) => {
+    setForm((f) => ({
+      ...f,
+      specialty_ids: f.specialty_ids.includes(specialtyId)
+        ? f.specialty_ids.filter((id) => id !== specialtyId)
+        : [...f.specialty_ids, specialtyId],
     }));
   };
 
@@ -215,6 +273,10 @@ export function StaffPage() {
       .then((member) => {
         setStaff((prev) => [...prev, member]);
         setForm(emptyForm);
+        // Surface the schedule/specialty panel immediately for a new doctor —
+        // there's no bookable slot until working hours are set, so this is
+        // the very next step, not a separate hidden one.
+        if (member.role === "doctor") setOpenFor(member.id);
       })
       .catch((err) => setError(err.message))
       .finally(() => setSaving(false));
@@ -224,6 +286,10 @@ export function StaffPage() {
     updateStaff(member.id, { is_active: !member.is_active })
       .then((updated) => setStaff((prev) => prev.map((s) => (s.id === member.id ? updated : s))))
       .catch((err) => setError(err.message));
+  };
+
+  const handleDoctorUpdate = (updated: Staff) => {
+    setStaff((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   };
 
   return (
@@ -257,7 +323,7 @@ export function StaffPage() {
           ))}
         </select>
         <input
-          placeholder="التخصص"
+          placeholder="التخصص (نص وصفي اختياري)"
           value={form.specialty}
           onChange={(e) => setForm({ ...form, specialty: e.target.value })}
         />
@@ -281,6 +347,21 @@ export function StaffPage() {
         </div>
       )}
 
+      {form.role === "doctor" && specialties.length > 0 && (
+        <div className="checkbox-group">
+          {specialties.map((s) => (
+            <label key={s.id}>
+              <input
+                type="checkbox"
+                checked={form.specialty_ids.includes(s.id)}
+                onChange={() => toggleFormSpecialty(s.id)}
+              />
+              {s.name_ar}
+            </label>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <p>جاري التحميل...</p>
       ) : (
@@ -290,7 +371,7 @@ export function StaffPage() {
               <th>الاسم</th>
               <th>الإيميل</th>
               <th>الدور</th>
-              <th>التخصص</th>
+              <th>التخصصات</th>
               <th>الفروع</th>
               <th>الحالة</th>
               <th></th>
@@ -303,7 +384,7 @@ export function StaffPage() {
                   <td>{member.full_name}</td>
                   <td>{member.email}</td>
                   <td>{member.role}</td>
-                  <td>{member.specialty}</td>
+                  <td>{specialtyNames(member.specialty_ids) || member.specialty}</td>
                   <td>{member.branch_ids.map(branchName).join(", ")}</td>
                   <td>
                     <span className={member.is_active ? "badge active" : "badge inactive"}>
@@ -312,8 +393,8 @@ export function StaffPage() {
                   </td>
                   <td>
                     {member.role === "doctor" && (
-                      <button onClick={() => setScheduleFor(scheduleFor === member.id ? null : member.id)}>
-                        {scheduleFor === member.id ? "إخفاء الدوام" : "الدوام"}
+                      <button onClick={() => setOpenFor(openFor === member.id ? null : member.id)}>
+                        {openFor === member.id ? "إخفاء الملف" : "التخصص والدوام"}
                       </button>
                     )}
                     <button onClick={() => toggleActive(member)}>
@@ -321,10 +402,15 @@ export function StaffPage() {
                     </button>
                   </td>
                 </tr>
-                {scheduleFor === member.id && (
+                {openFor === member.id && (
                   <tr>
                     <td colSpan={7}>
-                      <DoctorSchedulePanel doctor={member} branches={branches} />
+                      <DoctorProfilePanel
+                        doctor={member}
+                        branches={branches}
+                        specialties={specialties}
+                        onDoctorUpdate={handleDoctorUpdate}
+                      />
                     </td>
                   </tr>
                 )}
