@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from app.services.channel_providers import (
 )
 
 router = APIRouter(prefix="/channels", tags=["channels"])
+logger = logging.getLogger("channels")
 
 # One shared, already-published n8n workflow per provider type — each looks
 # up the right channel dynamically by identifier and fetches its decrypted
@@ -280,7 +282,11 @@ def delete_channel(
         try:
             n8n_client.deactivate_workflow(row[0]["n8n_workflow_id"])
         except Exception:
-            pass
+            # /conversations/inbound also rejects deleted_at channels, so the
+            # bot still stops even if this call failed — but log it, since a
+            # workflow silently left active is exactly how a "deleted" channel
+            # kept looking live everywhere except the dashboard.
+            logger.exception("failed to deactivate n8n workflow %s for deleted channel %s", row[0]["n8n_workflow_id"], channel_id)
     db.table("channels").update(
         {"is_active": False, "deleted_at": datetime.now(timezone.utc).isoformat()}
     ).eq("id", str(channel_id)).execute()

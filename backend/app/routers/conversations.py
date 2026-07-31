@@ -48,11 +48,22 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
     to a real phone does a patient record get created or matched. Records the
     inbound message and returns the conversation_id + mode so the workflow
     knows whether to generate an AI reply or leave it for a staff member."""
-    channel_rows = db.table("channels").select("id, channel_type").eq("id", str(payload.channel_id)).execute().data
+    channel_rows = (
+        db.table("channels")
+        .select("id, channel_type")
+        .eq("id", str(payload.channel_id))
+        .is_("deleted_at", "null")
+        .execute()
+        .data
+    )
     if not channel_rows:
         # Validate the channel up front — otherwise a bad/fake channel_id would
         # still create an identity/patient row below before failing on the
-        # conversation insert's FK check, leaving orphaned rows behind.
+        # conversation insert's FK check, leaving orphaned rows behind. Also
+        # rejects a deleted channel even if its n8n workflow wasn't actually
+        # deactivated (e.g. a transient failure in delete_channel below) —
+        # deletion must stop the bot for real, not just hide it from the
+        # dashboard.
         raise HTTPException(status_code=404, detail="القناة غير موجودة")
     channel = channel_rows[0]
 

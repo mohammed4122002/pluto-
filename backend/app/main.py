@@ -12,6 +12,7 @@ from app.routers import (
     channels,
     conversations,
     coupons,
+    doctor_availability,
     imports,
     invoices,
     notifications,
@@ -59,6 +60,7 @@ app.include_router(cancellation_policies.router)
 app.include_router(channels.router)
 app.include_router(conversations.router)
 app.include_router(coupons.router)
+app.include_router(doctor_availability.router)
 app.include_router(imports.router)
 app.include_router(invoices.router)
 app.include_router(notifications.router)

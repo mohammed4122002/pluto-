@@ -210,6 +210,16 @@ class DoctorAvailability(BaseModel):
     start_time: time
     end_time: time
     slot_duration_minutes: int = 30
+    is_active: bool = True
+
+
+class DoctorAvailabilityCreate(BaseModel):
+    staff_id: UUID
+    branch_id: UUID
+    day_of_week: int
+    start_time: time
+    end_time: time
+    slot_duration_minutes: int = 30
 
 
 SlotStatus = Literal[
