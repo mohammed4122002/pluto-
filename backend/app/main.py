@@ -5,6 +5,7 @@ from postgrest.exceptions import APIError
 
 from app.core.config import get_settings
 from app.routers import (
+    alerts,
     appointments,
     auth,
     branches,
@@ -56,6 +57,7 @@ def handle_postgrest_error(request: Request, exc: APIError):
     status_code = _PG_ERROR_STATUS.get(exc.code, 400)
     return JSONResponse(status_code=status_code, content={"detail": exc.message})
 
+app.include_router(alerts.router)
 app.include_router(auth.router)
 app.include_router(branches.router)
 app.include_router(cancellation_policies.router)
