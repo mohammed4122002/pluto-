@@ -5,8 +5,9 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
 from app.core.database import get_supabase
-from app.models.schemas import Queue, QueueTicket, QueueTicketUpdate
+from app.models.schemas import Queue, QueueTicket, QueueTicketUpdate, TriageRequest
 from app.services.queue import call_ticket, complete_ticket, skip_ticket, start_ticket, update_ticket
+from app.services.scheduling import record_triage
 
 router = APIRouter(tags=["queue"])
 
@@ -99,3 +100,15 @@ def update(
 ):
     assert_branch_access(current, "queue.manage", _ticket_branch_id(db, str(ticket_id)))
     return update_ticket(db, str(ticket_id), payload.priority_level, str(payload.queue_id) if payload.queue_id else None)
+
+
+@router.post("/queue-tickets/{ticket_id}/triage", response_model=QueueTicket)
+def triage(
+    ticket_id: UUID,
+    payload: TriageRequest,
+    current: CurrentStaff = Depends(require_permission("queue.manage")),
+    db: Client = Depends(get_supabase),
+):
+    """FR-WIN-006: records a nurse's triage assessment against the ticket."""
+    assert_branch_access(current, "queue.manage", _ticket_branch_id(db, str(ticket_id)))
+    return record_triage(db, str(ticket_id), payload.triage_level, payload.triage_notes, current.id)

@@ -20,6 +20,8 @@ from app.models.schemas import (
     MarkNoShowRequest,
     NoShowRateItem,
     RescheduleRequest,
+    WalkInRequest,
+    WalkInResult,
 )
 from app.services.appointments import (
     apply_status_transition,
@@ -33,6 +35,7 @@ from app.services.scheduling import (
     handle_doctor_absence,
     mark_no_show,
     no_show_rate_report,
+    register_walk_in,
     reschedule_appointment,
 )
 
@@ -179,6 +182,30 @@ def handle_absence(
         current.id,
     )
     return DoctorAbsenceResult(**result)
+
+
+@router.post("/walk-in", response_model=WalkInResult)
+def walk_in(
+    payload: WalkInRequest,
+    current: CurrentStaff = Depends(require_permission("queue.manage")),
+    db: Client = Depends(get_supabase),
+):
+    """FR-WIN-001..007: registers a patient who showed up without a prior
+    appointment — books the nearest open slot if one exists, otherwise
+    registers the visit directly, and checks them straight into today's
+    queue with the given priority."""
+    assert_branch_access(current, "queue.manage", str(payload.branch_id))
+    result = register_walk_in(
+        db,
+        str(payload.branch_id),
+        str(payload.patient_id),
+        str(payload.doctor_id) if payload.doctor_id else None,
+        str(payload.service_id) if payload.service_id else None,
+        payload.priority_level,
+        payload.notes,
+        current.id,
+    )
+    return WalkInResult(**result)
 
 
 @router.post("/{appointment_id}/check-in", response_model=CheckInResult)

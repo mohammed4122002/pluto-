@@ -517,6 +517,9 @@ class CheckInRequest(BaseModel):
     priority_level: PriorityLevel = "normal"
 
 
+TriageLevel = Literal["non_urgent", "urgent", "emergency"]
+
+
 class QueueTicket(BaseModel):
     id: UUID
     queue_id: UUID
@@ -531,6 +534,11 @@ class QueueTicket(BaseModel):
     started_at: datetime | None = None
     ended_at: datetime | None = None
     estimated_entry_time: datetime | None = None
+    is_walk_in: bool = False
+    triage_level: TriageLevel | None = None
+    triage_notes: str | None = None
+    triaged_by: UUID | None = None
+    triaged_at: datetime | None = None
 
 
 class CheckInResult(BaseModel):
@@ -541,6 +549,28 @@ class CheckInResult(BaseModel):
 class QueueTicketUpdate(BaseModel):
     priority_level: PriorityLevel | None = None
     queue_id: UUID | None = None
+
+
+class TriageRequest(BaseModel):
+    triage_level: TriageLevel
+    triage_notes: str | None = None
+
+
+class WalkInRequest(BaseModel):
+    branch_id: UUID
+    patient_id: UUID
+    doctor_id: UUID | None = None
+    service_id: UUID | None = None
+    priority_level: PriorityLevel = "normal"
+    notes: str | None = None
+
+
+class WalkInResult(BaseModel):
+    appointment: Appointment
+    ticket: QueueTicket
+    matched_available_slot: bool
+    bumped_ticket_count: int = 0
+    emergency_notice: str | None = None
 
 
 class Channel(BaseModel):

@@ -375,7 +375,9 @@ def _arrival_status(scheduled_at: datetime, checked_in_at: datetime) -> str:
     return "very_late"
 
 
-def check_in_appointment(db: Client, appointment_id: str, priority_level: str, changed_by: str | None) -> dict:
+def check_in_appointment(
+    db: Client, appointment_id: str, priority_level: str, changed_by: str | None, is_walk_in: bool = False
+) -> dict:
     rows = db.table("appointments").select("*").eq("id", appointment_id).limit(1).execute().data
     if not rows:
         raise HTTPException(status_code=404, detail="الموعد غير موجود")
@@ -433,6 +435,7 @@ def check_in_appointment(db: Client, appointment_id: str, priority_level: str, c
                 "ticket_number": next_number,
                 "priority_level": priority_level,
                 "arrival_status": arrival_status,
+                "is_walk_in": is_walk_in,
             }
         )
         .execute()
@@ -441,3 +444,140 @@ def check_in_appointment(db: Client, appointment_id: str, priority_level: str, c
     db.table("appointments").update({"queue_number": next_number}).eq("id", appointment_id).execute()
 
     return {"appointment": updated, "ticket": ticket}
+
+
+_URGENT_WALKIN_PRIORITIES = {"critical", "emergency"}
+
+_EMERGENCY_NOTICE = (
+    "هذا النظام لا يغني عن خدمات الطوارئ — إذا كانت الحالة فعلاً طارئة أو تهدد الحياة، "
+    "يجب التوجه فوراً لأقرب قسم طوارئ أو الاتصال بالإسعاف بدل انتظار الدور بالعيادة."
+)
+
+
+def register_walk_in(
+    db: Client,
+    branch_id: str,
+    patient_id: str,
+    doctor_id: str | None,
+    service_id: str | None,
+    priority_level: str,
+    notes: str | None,
+    changed_by: str | None,
+) -> dict:
+    """FR-WIN-001/002: books the nearest available slot for a walk-in patient
+    (matching doctor/service if given) and checks them straight into today's
+    queue; if nothing is open right now, registers the visit directly without
+    a slots-table reservation rather than turning the patient away. FR-WIN-003
+    /004: a critical/emergency walk-in is inserted ahead of already-waiting
+    normal-priority tickets instead of appended at the end — the result
+    reports how many tickets were bumped so staff see the impact before it
+    happens. FR-WIN-007: never a substitute for real emergency services —
+    emergency_notice carries that warning back to staff for urgent cases."""
+    now = datetime.now(timezone.utc)
+    slot_query = (
+        db.table("slots")
+        .select("id, doctor_id, start_at, duration_minutes")
+        .eq("branch_id", branch_id)
+        .eq("status", "available")
+        .gte("start_at", now.isoformat())
+        .order("start_at")
+        .limit(1)
+    )
+    if doctor_id:
+        slot_query = slot_query.eq("doctor_id", doctor_id)
+    if service_id:
+        slot_query = slot_query.eq("service_id", service_id)
+    slot_rows = slot_query.execute().data
+
+    if slot_rows:
+        slot = slot_rows[0]
+        result = db.rpc(
+            "book_slot",
+            {
+                "p_slot_id": slot["id"],
+                "p_patient_id": patient_id,
+                "p_held_by_session": f"walk-in:{patient_id}:{now.isoformat()}",
+                "p_notes": notes,
+                "p_source": "walk_in",
+            },
+        ).execute()
+        appointment_id = result.data
+        db.table("appointments").update(
+            {"appointment_number": generate_appointment_number(), "confirmation_code": generate_confirmation_code()}
+        ).eq("id", appointment_id).execute()
+        matched_slot = True
+    else:
+        appt = (
+            db.table("appointments")
+            .insert(
+                {
+                    "branch_id": branch_id,
+                    "patient_id": patient_id,
+                    "staff_id": doctor_id,
+                    "service_id": service_id,
+                    "scheduled_at": now.isoformat(),
+                    "duration_minutes": 15,
+                    "source": "walk_in",
+                    "notes": notes,
+                    "status": "requested",
+                    "appointment_number": generate_appointment_number(),
+                    "confirmation_code": generate_confirmation_code(),
+                }
+            )
+            .execute()
+            .data[0]
+        )
+        appointment_id = appt["id"]
+        matched_slot = False
+
+    check_in = check_in_appointment(db, appointment_id, priority_level, changed_by, is_walk_in=True)
+    ticket = check_in["ticket"]
+    bumped_count = 0
+
+    if priority_level in _URGENT_WALKIN_PRIORITIES:
+        waiting = (
+            db.table("queue_tickets")
+            .select("id, ticket_number, priority_level")
+            .eq("queue_id", ticket["queue_id"])
+            .eq("status", "waiting")
+            .neq("id", ticket["id"])
+            .execute()
+            .data
+        )
+        ahead = [w for w in waiting if w["priority_level"] not in _URGENT_WALKIN_PRIORITIES]
+        if ahead:
+            new_position = min(w["ticket_number"] for w in ahead)
+            for w in ahead:
+                db.table("queue_tickets").update({"ticket_number": w["ticket_number"] + 1}).eq("id", w["id"]).execute()
+            ticket = db.table("queue_tickets").update({"ticket_number": new_position}).eq("id", ticket["id"]).execute().data[0]
+            bumped_count = len(ahead)
+
+    return {
+        "appointment": check_in["appointment"],
+        "ticket": ticket,
+        "matched_available_slot": matched_slot,
+        "bumped_ticket_count": bumped_count,
+        "emergency_notice": _EMERGENCY_NOTICE if priority_level in _URGENT_WALKIN_PRIORITIES else None,
+    }
+
+
+def record_triage(db: Client, ticket_id: str, triage_level: str, triage_notes: str | None, changed_by: str | None) -> dict:
+    """FR-WIN-006: lets a nurse attach a triage assessment to an existing
+    queue ticket (walk-in or regular check-in alike)."""
+    rows = db.table("queue_tickets").select("id").eq("id", ticket_id).limit(1).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="التذكرة غير موجودة")
+    return (
+        db.table("queue_tickets")
+        .update(
+            {
+                "triage_level": triage_level,
+                "triage_notes": triage_notes,
+                "triaged_by": changed_by,
+                "triaged_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        .eq("id", ticket_id)
+        .execute()
+        .data[0]
+    )
