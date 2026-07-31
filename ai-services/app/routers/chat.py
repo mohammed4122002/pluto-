@@ -11,6 +11,11 @@ from supabase import Client
 from app.core.config import Settings, get_settings
 from app.core.database import get_supabase
 from app.core.service_auth import require_service_token
+from app.services.appointments import (
+    cancel_patient_appointment,
+    confirm_booking_and_request_payment,
+    find_upcoming_appointments_for_patient,
+)
 from app.services.booking import BookingError, book_slot_for_patient, search_available_slots
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors
@@ -45,10 +50,25 @@ BASE_INSTRUCTIONS = (
     "book_appointment، تستدعي find_available_slots مباشرة قبلها بنفس الطلب (نفس الطبيب/الوقت) عشان "
     "تاخذي slot_id حقيقي وطازج، حتى لو كنتِ عرضتِ نفس الوقت برسالة سابقة. ممنوع نهائياً تخمين أو "
     "اختراع أو إعادة استخدام slot_id قديم.\n"
-    "- بعد نجاح الحجز، أخبر المريض برقم الحجز ووقته، ووضّح إنه رح يوصله تأكيد نهائي من الفريق قريباً "
-    "(الحجز يدخل مبدئياً بانتظار المراجعة، مش مؤكد 100% فوراً).\n"
+    "- بعد نجاح الحجز، أخبر المريض برقم الحجز ووقته، والحجز مؤكد فوراً (مش بانتظار مراجعة).\n"
+    "- إذا رجعت نتيجة book_appointment وفيها deposit_required=true، لازم بنفس الرد تخبري المريض "
+    "بمبلغ العربون (deposit_amount) وطرق الدفع المتاحة (payment_methods) بالضبط متل ما رجعوا، واطلبي "
+    "منه يبعت صورة إيصال الدفع بنفس المحادثة بعد ما يدفع — لا تخترعي مبلغ أو طريقة دفع من عندك ولا "
+    "تحذفي هذا الجزء من ردك.\n"
+    "- إذا رجعت نتيجة book_appointment وفيها deposit_required=false، الحجز تم بدون أي مبلغ مطلوب "
+    "— لا تطلبي من المريض يدفع شي.\n"
     "- إذا رجعت أي أداة نتيجة فاضية أو خطأ، اعتذر بصدق واقترح بديل حقيقي (تخصص/وقت تاني) أو اعرض "
-    "تحويله لموظف — لا تخترع بديل من عندك.\n"
+    "تحويله لموظف — لا تخترع بديل من عندك.\n\n"
+    "قواعد الإلغاء:\n"
+    "- لو المريض طلب يلغي موعد، استدعِ find_my_appointments أولاً لتعرفي مواعيده الفعلية وappointment_id "
+    "الصحيح — ممنوع نهائياً تخمين أو اختراع appointment_id.\n"
+    "- إذا عنده أكثر من موعد قادم، اسأليه يحدد أي واحد (بذكر الطبيب أو اليوم) قبل ما تستدعي "
+    "cancel_appointment.\n"
+    "- أكدي مع المريض صراحة إنه بدو يلغي فعلاً قبل استدعاء cancel_appointment — ما تلغي بمجرد إنه سأل "
+    "'بقدر ألغي موعدي؟'.\n"
+    "- بعد الإلغاء، إذا رجعت النتيجة fee_charged أكبر من صفر، أخبري المريض بوضوح إنه انترتب رسم إلغاء "
+    "وبقيمته، لأن الإلغاء صار متأخر حسب سياسة العيادة — لا تخفي هذه المعلومة ولا تعتذري عنها كأنه خطأ "
+    "منك.\n"
     "- المواعيد المتاحة (find_available_slots) مرتبطة بجدول الطبيب نفسه، مش بخدمة معينة — يعني عدم "
     "وجود موعد ليوم/طبيب معين ما يعني عدم وجود مواعيد لخدمة ثانية أو يوم ثاني. كل مرة المريض يسأل عن "
     "مواعيد متاحة (حتى لو سأل قبل بنفس المحادثة عن يوم مختلف)، استدعِ find_available_slots من جديد "
@@ -176,6 +196,46 @@ TOOLS = [
                     },
                 },
                 "required": ["slot_id", "visit_for_name", "reason_for_visit"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_my_appointments",
+            "description": (
+                "اعرض مواعيد هذا المريض الحالية/القادمة (غير الملغاة وغير المنتهية) في هذا الفرع. "
+                "استدعِها دائماً قبل أي محاولة لإلغاء موعد أو الرد على سؤال عن موعد موجود، عشان تحصلي "
+                "على appointment_id الحقيقي — ممنوع افتراض أو تخمين أي موعد."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_appointment",
+            "description": (
+                "ألغِ موعداً فعلياً لهذا المريض — فقط بعد ما يأكد صراحة إنه بدو يلغي، وبعد ما تستدعي "
+                "find_my_appointments بنفس الرد للحصول على appointment_id الصحيح. قد يترتب على الإلغاء "
+                "رسم حسب سياسة العيادة إذا كان قريباً من موعد الزيارة — النتيجة برجع لك المبلغ إذا انطبق."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "appointment_id": {
+                        "type": "string",
+                        "description": "appointment_id الراجع لتوه من find_my_appointments بنفس هذا الرد.",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "سبب الإلغاء كما ذكره المريض، أو نص فاضي.",
+                    },
+                },
+                "required": ["appointment_id", "reason"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -350,7 +410,7 @@ def _select_tools(ch_settings: dict) -> list[dict]:
     if mode == "greeting_only":
         return []
     if mode == "inquiry_only":
-        return [t for t in TOOLS if t["function"]["name"] != "book_appointment"]
+        return [t for t in TOOLS if t["function"]["name"] not in ("book_appointment", "cancel_appointment")]
     return TOOLS
 
 
@@ -380,11 +440,37 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 visit_for_name=args.get("visit_for_name") or None,
                 notes=args.get("reason_for_visit") or None,
             )
-            return {
+            payment_info = confirm_booking_and_request_payment(db, appointment["id"])
+            result = {
                 "booked": True,
                 "appointment_number": appointment["appointment_number"],
                 "confirmation_code": appointment["confirmation_code"],
                 "scheduled_at": appointment["scheduled_at"],
+                "deposit_required": bool(payment_info),
+            }
+            if payment_info:
+                result["deposit_amount"] = payment_info["amount"]
+                result["deposit_currency"] = payment_info["currency"]
+                result["payment_methods"] = payment_info["methods_text"]
+            return result
+        if name == "find_my_appointments":
+            if not ctx.get("patient_id"):
+                return {"appointments": []}
+            return {"appointments": find_upcoming_appointments_for_patient(db, ctx["patient_id"])}
+        if name == "cancel_appointment":
+            if not ctx.get("patient_id"):
+                return {"error": "ما في رقم هاتف موثوق لهذا المستخدم بعد."}
+            result = cancel_patient_appointment(
+                db,
+                appointment_id=args["appointment_id"],
+                patient_id=ctx["patient_id"],
+                reason=args.get("reason") or None,
+            )
+            return {
+                "cancelled": True,
+                "fee_charged": result["fee"],
+                "currency": result.get("currency"),
+                "appointment_number": result.get("appointment_number"),
             }
         return {"error": f"unknown tool {name}"}
     except BookingError as exc:
