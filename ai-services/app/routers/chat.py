@@ -561,7 +561,7 @@ def _escalate(db: Client, conversation_id: str) -> None:
     db.table("conversations").update({"mode": "human", "needs_attention": True}).eq("id", conversation_id).execute()
 
 
-@router.post("/reply", response_model=ReplyResponse)
+@router.post("/reply", response_model=ReplyResponse, dependencies=[Depends(require_service_token)])
 def generate_reply(
     payload: ReplyRequest,
     db: Client = Depends(get_supabase),
