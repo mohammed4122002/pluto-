@@ -73,6 +73,7 @@ def confirm_booking_and_request_payment(db: Client, appointment_id: str) -> dict
     amount = service.get("deposit_amount") or service.get("price")
     if not amount:
         return None
+    payment_type = "deposit" if service.get("deposit_amount") else "full"
 
     branch = db.table("branches").select("currency").eq("id", appt["branch_id"]).limit(1).execute().data
     currency = (branch[0].get("currency") if branch else None) or ""
@@ -83,6 +84,7 @@ def confirm_booking_and_request_payment(db: Client, appointment_id: str) -> dict
             "patient_id": appt["patient_id"],
             "amount": amount,
             "currency": currency,
+            "payment_type": payment_type,
             "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
         }
     ).execute()
@@ -202,6 +204,7 @@ def cancel_patient_appointment(db: Client, *, appointment_id: str, patient_id: s
                 "patient_id": patient_id,
                 "amount": fee,
                 "currency": currency,
+                "payment_type": "cancellation_fee",
                 "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
             }
         ).execute()

@@ -20,6 +20,7 @@ from app.routers import (
     patients,
     payments,
     queue,
+    reports,
     services,
     settings,
     setup,
@@ -69,6 +70,7 @@ app.include_router(packages.router)
 app.include_router(patients.router)
 app.include_router(payments.router)
 app.include_router(queue.router)
+app.include_router(reports.router)
 app.include_router(services.router)
 app.include_router(settings.router)
 app.include_router(setup.router)

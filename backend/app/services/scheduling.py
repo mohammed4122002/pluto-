@@ -66,6 +66,7 @@ def _charge_fee(db: Client, appointment: dict, fee: float) -> None:
             "patient_id": appointment["patient_id"],
             "amount": fee,
             "currency": currency,
+            "payment_type": "cancellation_fee",
             "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
         }
     ).execute()
