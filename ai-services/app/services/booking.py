@@ -35,6 +35,8 @@ def search_available_slots(
             .select("id, full_name")
             .in_("id", branch_staff_ids)
             .eq("role", "doctor")
+            .eq("is_active", True)
+            .eq("availability_status", "available")
             .execute()
             .data
             if branch_staff_ids
