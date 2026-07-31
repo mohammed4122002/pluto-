@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     supabase_service_key: str
     openai_api_key: str = ""
 
+    # Shared secret validating machine-to-machine calls (e.g. the external
+    # scheduler polling /chat/reclaim-stale) — same value/semantics as the
+    # backend's SERVICE_TOKEN, see backend/app/core/config.py.
+    service_token: str = ""
+    service_auth_mode: str = "permissive"
+
 
 @lru_cache
 def get_settings() -> Settings:
