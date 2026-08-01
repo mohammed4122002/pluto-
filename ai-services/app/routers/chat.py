@@ -310,6 +310,11 @@ class ReplyResponse(BaseModel):
     reply: str
     needs_human: bool
     skipped: bool = False
+    # Set only when this turn just booked an appointment — a QR image URL
+    # for the calling channel workflow to fetch (with the service token)
+    # and relay to the patient as a photo. Never shown to the model/patient
+    # as a link: the endpoint it points to isn't patient-fetchable.
+    image_url: str | None = None
 
 
 def _get_openai(settings: Settings = Depends(get_settings)) -> OpenAI:
@@ -491,6 +496,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     "alternative_slots": booking_result["alternative_slots"],
                 }
             appointment = booking_result
+            ctx["_booked_appointment_id"] = appointment["id"]
             payment_info = confirm_booking_and_request_payment(db, appointment["id"])
             result = {
                 "booked": True,
@@ -595,6 +601,7 @@ def generate_reply(
     payload: ReplyRequest,
     db: Client = Depends(get_supabase),
     client: OpenAI = Depends(_get_openai),
+    settings: Settings = Depends(get_settings),
 ):
     """Called by the backend (or directly by n8n) to turn an inbound patient
     message into a reply, grounded in the conversation history stored in
@@ -645,7 +652,12 @@ def generate_reply(
     if needs_human:
         _escalate(db, payload.conversation_id)
 
-    return ReplyResponse(reply=reply, needs_human=needs_human)
+    image_url = None
+    booked_appointment_id = ctx.get("_booked_appointment_id")
+    if booked_appointment_id and settings.backend_public_url:
+        image_url = f"{settings.backend_public_url}/appointments/{booked_appointment_id}/qr-code.png"
+
+    return ReplyResponse(reply=reply, needs_human=needs_human, image_url=image_url)
 
 
 @router.post("/reclaim-stale", dependencies=[Depends(require_service_token)])
