@@ -1,10 +1,14 @@
+import io
 from uuid import UUID
 
+import qrcode
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
 from app.core.database import get_supabase
+from app.core.service_auth import require_service_token
 from app.models.schemas import (
     Appointment,
     AppointmentCreate,
@@ -13,6 +17,7 @@ from app.models.schemas import (
     BulkCancelResult,
     CancelRequest,
     CancelResult,
+    CheckInByCodeRequest,
     CheckInRequest,
     CheckInResult,
     DoctorAbsenceRequest,
@@ -218,6 +223,41 @@ def check_in(
     assert_branch_access(current, "appointment.check_in", _appointment_branch_id(db, str(appointment_id)))
     result = check_in_appointment(db, str(appointment_id), payload.priority_level, current.id)
     return CheckInResult(appointment=result["appointment"], ticket=result["ticket"])
+
+
+@router.post("/check-in-by-code", response_model=CheckInResult)
+def check_in_by_code(
+    payload: CheckInByCodeRequest,
+    current: CurrentStaff = Depends(require_permission("appointment.check_in")),
+    db: Client = Depends(get_supabase),
+):
+    """Lets front-desk staff check a patient in by scanning (or typing) the
+    confirmation_code from their booking QR/confirmation message, instead of
+    hunting for them in the appointments list."""
+    code = payload.confirmation_code.strip().upper()
+    rows = db.table("appointments").select("id, branch_id").eq("confirmation_code", code).limit(1).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="لم يتم العثور على موعد بهذا الرمز")
+    assert_branch_access(current, "appointment.check_in", rows[0]["branch_id"])
+    result = check_in_appointment(db, rows[0]["id"], payload.priority_level, current.id)
+    return CheckInResult(appointment=result["appointment"], ticket=result["ticket"])
+
+
+@router.get("/{appointment_id}/qr-code.png", dependencies=[Depends(require_service_token)])
+def appointment_qr_code(appointment_id: UUID, db: Client = Depends(get_supabase)):
+    """Renders a QR image encoding this appointment's confirmation_code —
+    the same code already shared with the patient in their booking
+    confirmation, just in scannable form for front-desk check-in. Gated by
+    the shared service token (not public) since Telegram/WhatsApp's own
+    servers can't send it: the calling n8n workflow must fetch this as
+    binary and relay it to the patient as a photo, not pass this URL
+    straight to the channel's send-photo API."""
+    rows = db.table("appointments").select("confirmation_code").eq("id", str(appointment_id)).limit(1).execute().data
+    if not rows or not rows[0].get("confirmation_code"):
+        raise HTTPException(status_code=404, detail="الموعد غير موجود")
+    buf = io.BytesIO()
+    qrcode.make(rows[0]["confirmation_code"]).save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
 
 
 @router.post("/{appointment_id}/no-show", response_model=CancelResult)

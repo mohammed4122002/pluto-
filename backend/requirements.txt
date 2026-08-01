@@ -12,3 +12,4 @@ pyjwt>=2.10
 pyotp>=2.9
 cryptography>=44.0
 psycopg2-binary>=2.9
+qrcode[pil]>=8.0

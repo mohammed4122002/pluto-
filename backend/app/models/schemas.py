@@ -517,6 +517,11 @@ class CheckInRequest(BaseModel):
     priority_level: PriorityLevel = "normal"
 
 
+class CheckInByCodeRequest(BaseModel):
+    confirmation_code: str
+    priority_level: PriorityLevel = "normal"
+
+
 TriageLevel = Literal["non_urgent", "urgent", "emergency"]
 
 
