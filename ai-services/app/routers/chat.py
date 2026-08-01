@@ -630,7 +630,17 @@ def generate_reply(
     }
     tools = _select_tools(ch_settings)
 
-    reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx)
+    try:
+        reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx)
+    except Exception:
+        # Whatever broke (OpenAI outage/rate limit, an unexpected tool
+        # failure, ...) — a patient waiting on a reply must never see a raw
+        # 500. Degrade to the same human handoff used for keyword/turn-limit
+        # escalation instead of crashing the request.
+        logger.exception("chat turn failed for conversation_id=%s", payload.conversation_id)
+        reply = ch_settings.get("handoff_message") or _DEFAULT_HANDOFF_MESSAGE
+        needs_human = True
+
     _store_reply(db, payload.conversation_id, reply)
     if needs_human:
         _escalate(db, payload.conversation_id)
