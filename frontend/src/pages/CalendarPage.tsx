@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
 import { listStaff } from "../api/staff";
 import type { Staff } from "../api/staff";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
-import { listAppointments } from "../api/appointments";
+import { listAppointments, rescheduleAppointment } from "../api/appointments";
 import type { Appointment } from "../api/appointments";
 import { searchSlots, generateSlots, holdSlot, bookSlot } from "../api/slots";
 import type { Slot } from "../api/slots";
+
+const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
 const statusLabel: Record<string, string> = {
   available: "متاح",
@@ -41,6 +43,9 @@ export function CalendarPage() {
   const [bookingSlotId, setBookingSlotId] = useState<string | null>(null);
   const [bookingPatientId, setBookingPatientId] = useState("");
   const [booking, setBooking] = useState(false);
+  const [dragOverSlotId, setDragOverSlotId] = useState<string | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
+  const draggedAppointmentId = useRef<string | null>(null);
 
   useEffect(() => {
     Promise.all([listBranches(), listStaff(), listPatients()]).then(([b, s, p]) => {
@@ -105,10 +110,24 @@ export function CalendarPage() {
   const doctorName = (id: string | null) => doctors.find((d) => d.id === id)?.full_name ?? "—";
   const apptForSlot = (slotId: string) => appointments.find((a) => a.slot_id === slotId);
 
+  const handleDropReschedule = (targetSlotId: string) => {
+    setDragOverSlotId(null);
+    const appointmentId = draggedAppointmentId.current;
+    draggedAppointmentId.current = null;
+    if (!appointmentId) return;
+    setRescheduling(true);
+    setError(null);
+    rescheduleAppointment(appointmentId, targetSlotId, `calendar-drag-${Date.now()}`, "إعادة جدولة بالسحب والإفلات من التقويم")
+      .then(() => load())
+      .catch((err) => setError(err.response?.data?.detail ?? err.message))
+      .finally(() => setRescheduling(false));
+  };
+
   return (
     <div className="page">
       <p className="settings-hint">
-        عرض يومي لأوقات طبيب معيّن. السحب والإفلات لإعادة الجدولة غير مدعوم حالياً — عدّل الموعد من صفحة "المواعيد".
+        عرض يومي لأوقات طبيب معيّن. اسحبي موعداً محجوزاً وأفلتيه على وقت متاح لإعادة جدولته
+        {rescheduling && " — جارٍ إعادة الجدولة..."}
       </p>
 
       <div className="data-form">
@@ -171,8 +190,43 @@ export function CalendarPage() {
           <tbody>
             {slots.map((s) => {
               const appt = s.status === "booked" ? apptForSlot(s.id) : undefined;
+              const isDropTarget = s.status === "available";
               return (
-                <tr key={s.id}>
+                <tr
+                  key={s.id}
+                  draggable={Boolean(appt)}
+                  onDragStart={
+                    appt
+                      ? (e) => {
+                          draggedAppointmentId.current = appt.id;
+                          e.dataTransfer.setData(DRAG_APPOINTMENT_ID, appt.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }
+                      : undefined
+                  }
+                  onDragOver={
+                    isDropTarget
+                      ? (e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverSlotId !== s.id) setDragOverSlotId(s.id);
+                        }
+                      : undefined
+                  }
+                  onDragLeave={isDropTarget ? () => setDragOverSlotId((cur) => (cur === s.id ? null : cur)) : undefined}
+                  onDrop={
+                    isDropTarget
+                      ? (e) => {
+                          e.preventDefault();
+                          handleDropReschedule(s.id);
+                        }
+                      : undefined
+                  }
+                  style={{
+                    cursor: appt ? "grab" : undefined,
+                    background: dragOverSlotId === s.id ? "var(--highlight, #eef6ff)" : undefined,
+                  }}
+                >
                   <td>
                     {new Date(s.start_at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })} -{" "}
                     {new Date(s.end_at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}
