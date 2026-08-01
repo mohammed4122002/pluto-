@@ -709,6 +709,11 @@ class InboundMessage(BaseModel):
     external_user_id: str | None = None
     provider_type: str | None = None
     display_name: str | None = None
+    # Set when n8n already uploaded an inbound photo/file to storage before
+    # calling this endpoint — media_type="image" triggers an attempt to
+    # attach it to the patient's pending payment as a receipt.
+    media_url: str | None = None
+    media_type: str | None = None
 
 
 class InboundMessageResult(BaseModel):
@@ -723,6 +728,8 @@ class Message(BaseModel):
     direction: MessageDirection
     sender_type: MessageSender
     content: str
+    media_url: str | None = None
+    media_type: str | None = None
     created_at: datetime
 
 

@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,7 +17,7 @@ from app.models.schemas import (
     PaymentWithDetails,
     RefundRequest,
 )
-from app.services.payments import apply_coupon, reject_payment, refund_payment, verify_payment
+from app.services.payments import apply_coupon, reject_payment, refund_payment, submit_receipt as submit_receipt_service, verify_payment
 
 router = APIRouter(tags=["payments"])
 
@@ -109,22 +108,7 @@ def submit_receipt(payment_id: UUID, payload: PaymentReceiptSubmit, db: Client =
     not a staff/dashboard action, so it's gated by the shared service token
     instead of a staff JWT. Also rate-limited since it's an unauthenticated-
     by-a-person endpoint reachable from wherever n8n's server is."""
-    rows = (
-        db.table("payments")
-        .update(
-            {
-                "status": "receipt_submitted",
-                "receipt_image_url": payload.receipt_image_url,
-                "submitted_at": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        .eq("id", str(payment_id))
-        .execute()
-        .data
-    )
-    if not rows:
-        raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
-    return rows[0]
+    return submit_receipt_service(db, str(payment_id), payload.receipt_image_url)
 
 
 @router.post("/payments/{payment_id}/verify", response_model=Payment)

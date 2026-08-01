@@ -226,6 +226,47 @@ def refund_payment(db: Client, payment_id: str, amount: float, reason: str, staf
     return refund
 
 
+def submit_receipt(db: Client, payment_id: str, receipt_image_url: str) -> dict:
+    rows = (
+        db.table("payments")
+        .update(
+            {
+                "status": "receipt_submitted",
+                "receipt_image_url": receipt_image_url,
+                "submitted_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        .eq("id", payment_id)
+        .execute()
+        .data
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
+    return rows[0]
+
+
+def attach_receipt_from_inbound_media(db: Client, patient_id: str, media_url: str) -> dict | None:
+    """Receipt capture in chat: a patient sending a photo in the same
+    conversation right after being asked for one should count as submitting
+    it — finds their most recent payment still waiting on a receipt
+    (pending, or rejected and being retried) and attaches this image to it.
+    Returns None (and attaches nothing) if there's no such payment, since an
+    unrelated photo shouldn't silently attach to something stale."""
+    rows = (
+        db.table("payments")
+        .select("id, created_at")
+        .eq("patient_id", patient_id)
+        .in_("status", ["pending", "rejected"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows:
+        return None
+    return submit_receipt(db, rows[0]["id"], media_url)
+
+
 def _deliver(db: Client, channel: dict, patient_id: str, message: str) -> None:
     import httpx
 

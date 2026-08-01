@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -24,6 +25,9 @@ from app.services.channel_identity import (
     resolve_external_user_id,
     resolve_identity,
 )
+from app.services.payments import attach_receipt_from_inbound_media
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -118,9 +122,19 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
             "direction": "inbound",
             "sender_type": "patient",
             "content": payload.message,
+            "media_url": payload.media_url,
+            "media_type": payload.media_type,
         }
     ).execute()
     _touch_conversation(db, conversation_id, payload.message, "patient")
+
+    if payload.media_type == "image" and payload.media_url and patient_id:
+        # A photo sent right after being asked for a receipt — best-effort:
+        # never let a receipt-matching hiccup break inbound message recording.
+        try:
+            attach_receipt_from_inbound_media(db, patient_id, payload.media_url)
+        except Exception:
+            logger.exception("attach_receipt_from_inbound_media failed for patient_id=%s", patient_id)
 
     return InboundMessageResult(conversation_id=conversation_id, patient_id=patient_id, mode=mode)
 
