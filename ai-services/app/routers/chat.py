@@ -639,12 +639,27 @@ def generate_reply(
 
     try:
         reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx)
-    except Exception:
+    except Exception as exc:
         # Whatever broke (OpenAI outage/rate limit, an unexpected tool
         # failure, ...) — a patient waiting on a reply must never see a raw
         # 500. Degrade to the same human handoff used for keyword/turn-limit
-        # escalation instead of crashing the request.
+        # escalation instead of crashing the request. Also record the real
+        # exception in audit_log — Railway's own logs aren't queryable from
+        # here, and this failure mode has been intermittent enough that
+        # "log and hope" wasn't cutting it.
         logger.exception("chat turn failed for conversation_id=%s", payload.conversation_id)
+        try:
+            db.table("audit_log").insert(
+                {
+                    "entity_type": "ai_chat_turn",
+                    "entity_id": payload.conversation_id,
+                    "action": "chat_turn_failed",
+                    "reason": f"{type(exc).__name__}: {str(exc)[:500]}",
+                    "channel": "ai-services",
+                }
+            ).execute()
+        except Exception:
+            logger.exception("failed to record chat turn failure in audit_log")
         reply = ch_settings.get("handoff_message") or _DEFAULT_HANDOFF_MESSAGE
         needs_human = True
 
