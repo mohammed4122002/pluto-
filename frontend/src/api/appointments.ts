@@ -82,5 +82,13 @@ export const cancelAppointment = (id: string, reason: string, cancelledBy: "pati
 export const checkInAppointment = (id: string, priorityLevel = "normal") =>
   api.post<CheckInResult>(`/appointments/${id}/check-in`, { priority_level: priorityLevel }).then((res) => res.data);
 
+export const checkInByCode = (confirmationCode: string, priorityLevel = "normal") =>
+  api
+    .post<CheckInResult>("/appointments/check-in-by-code", {
+      confirmation_code: confirmationCode,
+      priority_level: priorityLevel,
+    })
+    .then((res) => res.data);
+
 export const markNoShow = (id: string, reason: string) =>
   api.post<CancelResult>(`/appointments/${id}/no-show`, { reason }).then((res) => res.data);

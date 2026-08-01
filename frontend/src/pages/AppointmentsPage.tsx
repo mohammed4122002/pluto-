@@ -11,6 +11,7 @@ import type { Service } from "../api/services";
 import {
   cancelAppointment,
   checkInAppointment,
+  checkInByCode,
   createAppointment,
   listAppointments,
   markNoShow,
@@ -47,6 +48,8 @@ export function AppointmentsPage() {
   const [panel, setPanel] = useState<ActionPanel | null>(null);
   const [reasonText, setReasonText] = useState("");
   const [rescheduleSlots, setRescheduleSlots] = useState<Slot[]>([]);
+  const [checkInCode, setCheckInCode] = useState("");
+  const [checkingInByCode, setCheckingInByCode] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState("");
 
   const load = () => {
@@ -155,6 +158,21 @@ export function AppointmentsPage() {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
+  const handleCheckInByCode = (e: FormEvent) => {
+    e.preventDefault();
+    if (!checkInCode.trim()) return;
+    setError(null);
+    setCheckingInByCode(true);
+    checkInByCode(checkInCode.trim())
+      .then((result) => {
+        setNotice(`تم تسجيل الحضور — رقم الدور: ${result.ticket.ticket_number}`);
+        setCheckInCode("");
+        load();
+      })
+      .catch((err) => setError(err.response?.data?.detail ?? err.message))
+      .finally(() => setCheckingInByCode(false));
+  };
+
   if (!loading && (branches.length === 0 || patients.length === 0)) {
     return (
       <div className="page">
@@ -171,6 +189,18 @@ export function AppointmentsPage() {
           {notice} <button onClick={() => setNotice(null)}>إخفاء</button>
         </p>
       )}
+
+      <form className="data-form" onSubmit={handleCheckInByCode}>
+        <input
+          autoFocus
+          placeholder="امسحي رمز QR أو اكتبي رمز التأكيد لتسجيل الحضور"
+          value={checkInCode}
+          onChange={(e) => setCheckInCode(e.target.value)}
+        />
+        <button type="submit" disabled={checkingInByCode || !checkInCode.trim()}>
+          تسجيل حضور
+        </button>
+      </form>
 
       {form && (
         <form className="data-form" onSubmit={handleCreate}>
