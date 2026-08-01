@@ -122,8 +122,8 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
             "direction": "inbound",
             "sender_type": "patient",
             "content": payload.message,
-            "media_url": payload.media_url,
-            "media_type": payload.media_type,
+            "media_url": payload.media_url or None,
+            "media_type": payload.media_type or None,
         }
     ).execute()
     _touch_conversation(db, conversation_id, payload.message, "patient")
