@@ -15,7 +15,11 @@ class Settings(BaseSettings):
     # disable the fallback (a failed OpenAI call then degrades straight to
     # human handoff, as before).
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    # Alias, not a pinned version, on purpose: pinned gemini-2.0-flash silently
+    # lost its free-tier allocation (429 "limit: 0") and gemini-2.5-* got
+    # retired for new keys, which took the fallback down exactly when OpenAI
+    # was already failing. An alias keeps pointing at a model that still exists.
+    gemini_model: str = "gemini-flash-latest"
 
     # Decrypts openai_api_key_encrypted/gemini_api_key_encrypted from the
     # ai_provider_settings table (set via the dashboard's AI settings page) —
