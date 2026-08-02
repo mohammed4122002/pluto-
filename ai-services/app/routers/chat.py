@@ -562,6 +562,10 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 "scheduled_at": appointment["scheduled_at"],
                 "deposit_required": bool(payment_info),
             }
+            # Kept so that if the tool loop runs out of rounds before the model
+            # writes its reply, we can still tell the patient their booking is
+            # real instead of a generic failure — see _run_conversation_turn.
+            ctx["_booked_appointment_number"] = appointment["appointment_number"]
             if payment_info:
                 result["deposit_amount"] = payment_info["amount"]
                 result["deposit_currency"] = payment_info["currency"]
@@ -594,6 +598,15 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         return {"error": "صار خطأ تقني بسيط، جرب طلب تاني أو اطلب التحويل لموظف."}
 
 
+# A booking routinely costs 3-4 rounds (find_doctors -> find_available_slots ->
+# book_appointment -> reply), and models spend extra rounds on redundant
+# lookups or on retrying after a slot was taken. At 5 a perfectly ordinary
+# "book me with Dr X tomorrow at 9" was tipping over the limit and the patient
+# got a handoff message instead of a booking, so keep real headroom above the
+# common path.
+_MAX_TOOL_ROUNDS = 10
+
+
 def _run_conversation_turn(
     client: OpenAI,
     system_prompt: str,
@@ -605,7 +618,7 @@ def _run_conversation_turn(
 ) -> tuple[str, bool]:
     messages = [{"role": "system", "content": system_prompt}] + history
     active_client, active_model = client, "gpt-4o-mini"
-    for _ in range(5):
+    for _ in range(_MAX_TOOL_ROUNDS):
         kwargs = {"model": active_model, "messages": messages, "response_format": REPLY_SCHEMA}
         if tools:
             kwargs["tools"] = tools
@@ -647,6 +660,17 @@ def _run_conversation_turn(
         parsed = json.loads(message.content)
         return parsed["reply"], parsed["needs_human"]
 
+    booked_number = ctx.get("_booked_appointment_number")
+    if booked_number:
+        # The booking itself went through on one of those rounds; the model just
+        # never got around to writing the confirmation. Telling this patient
+        # "I couldn't finish" would be false — they have a real appointment, and
+        # they'd likely rebook and double-book themselves.
+        return (
+            f"تم تثبيت حجزك فعلاً ورقمه {booked_number} — خليه عندك للمراجعة. "
+            "بحكيلك موظف يأكدلك باقي التفاصيل.",
+            True,
+        )
     return "بواجهني ازدحام بسيط وما قدرت أكمل — حابب أوصلك مع أحد الفريق؟", True
 
 
