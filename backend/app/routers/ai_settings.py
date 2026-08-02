@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
@@ -8,15 +9,26 @@ from app.core.database import get_supabase
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.schemas import AiProviderSettings, AiProviderSettingsUpdate
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/settings/ai-providers", tags=["settings"])
 
 
 def _mask(encrypted_value: str | None) -> str | None:
     """Never let a raw key reach the frontend — show only enough to
-    recognize which one is configured (e.g. '****a4f2')."""
+    recognize which one is configured (e.g. '****a4f2').
+
+    Fails soft on an undecryptable blob (ENCRYPTION_KEY rotated, row written
+    by a different deployment) — raising here would 500 both GET and PATCH,
+    locking staff out of the very screen they'd use to re-enter a working
+    key. '****' still tells them a key is stored; they can overwrite it."""
     if not encrypted_value:
         return None
-    value = decrypt_secret(encrypted_value)
+    try:
+        value = decrypt_secret(encrypted_value)
+    except Exception:
+        logger.exception("stored AI provider key could not be decrypted — ENCRYPTION_KEY may have changed")
+        return "****"
     return f"****{value[-4:]}" if len(value) >= 4 else "****"
 
 
