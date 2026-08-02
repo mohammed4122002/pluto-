@@ -626,7 +626,13 @@ def _store_reply(db: Client, conversation_id: str, reply: str) -> None:
 
 
 def _escalate(db: Client, conversation_id: str) -> None:
-    db.table("conversations").update({"mode": "human", "needs_attention": True}).eq("id", conversation_id).execute()
+    # escalated_at (not last_message_at) is what reclaim_stale_conversations
+    # times out against — last_message_at gets touched by every inbound
+    # patient message too, so a patient who keeps texting while waiting would
+    # otherwise keep resetting the "no staff reply yet" clock indefinitely.
+    db.table("conversations").update(
+        {"mode": "human", "needs_attention": True, "escalated_at": datetime.now(timezone.utc).isoformat()}
+    ).eq("id", conversation_id).execute()
 
 
 @router.post("/reply", response_model=ReplyResponse, dependencies=[Depends(require_service_token)])
@@ -725,7 +731,7 @@ def reclaim_stale_conversations(
     now = datetime.now(timezone.utc)
     candidates = (
         db.table("conversations")
-        .select("id, channel_id, last_message_at")
+        .select("id, channel_id, last_message_at, escalated_at")
         .eq("mode", "human")
         .eq("needs_attention", True)
         .execute()
@@ -734,11 +740,18 @@ def reclaim_stale_conversations(
 
     reclaimed = []
     for row in candidates:
-        if not row.get("last_message_at"):
+        # Prefer escalated_at (when this handoff actually started) over
+        # last_message_at — the latter is touched by every inbound patient
+        # message too, so a patient re-messaging while waiting would
+        # otherwise keep pushing the timeout out instead of ever tripping it.
+        # Fall back to last_message_at only for rows escalated before
+        # escalated_at existed.
+        stale_since = row.get("escalated_at") or row.get("last_message_at")
+        if not stale_since:
             continue
         ch_settings = _load_channel_settings(db, row["channel_id"])
         timeout_minutes = ch_settings.get("human_handoff_timeout_minutes", 20)
-        last = datetime.fromisoformat(row["last_message_at"].replace("Z", "+00:00"))
+        last = datetime.fromisoformat(stale_since.replace("Z", "+00:00"))
         if now - last < timedelta(minutes=timeout_minutes):
             continue
         if not ch_settings.get("ai_enabled", True):
