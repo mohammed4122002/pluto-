@@ -220,8 +220,21 @@ def refund_payment(db: Client, payment_id: str, amount: float, reason: str, staf
         .execute()
         .data[0]
     )
-    new_status = "refunded" if total_refunded + amount >= payment["amount"] else "partially_refunded"
+    fully_refunded = total_refunded + amount >= payment["amount"]
+    new_status = "refunded" if fully_refunded else "partially_refunded"
     db.table("payments").update({"status": new_status}).eq("id", payment_id).execute()
+
+    if fully_refunded and payment.get("patient_package_id"):
+        # A package payment refunded in full means the clinic gave the money
+        # back — the package must not keep working. Without this, a fully
+        # refunded package stayed 'active' with its sessions untouched
+        # (confirmed in an audit: refunded 60/60, package still active with
+        # 2 sessions left), letting the patient keep using something the
+        # clinic was no longer paid for. Left alone on a partial refund,
+        # which needs staff judgment about how much of the package survives.
+        db.table("patient_packages").update({"status": "cancelled"}).eq(
+            "id", payment["patient_package_id"]
+        ).eq("status", "active").execute()
 
     return refund
 
