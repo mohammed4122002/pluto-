@@ -187,7 +187,12 @@ def create_channel(
     channel = db.table("channels").insert(row).execute().data[0]
     db.table("channel_settings").insert({"channel_id": channel["id"]}).execute()
 
-    if payload.channel_type == "telegram" and settings.n8n_rest_api_key and settings.n8n_telegram_template_workflow_id:
+    if (
+        payload.channel_type == "telegram"
+        and settings.n8n_rest_api_key
+        and settings.n8n_telegram_template_workflow_id
+        and settings.n8n_api_base_url
+    ):
         try:
             credential_id = n8n_client.create_telegram_credential(f"Telegram - {payload.display_name}", payload.credentials["bot_token"])
             created_wf = n8n_client.clone_telegram_workflow(
@@ -212,12 +217,17 @@ def create_channel(
             # retry activation later; we don't lose the configured channel.
             pass
 
-    elif payload.channel_type in SHARED_N8N_WORKFLOWS:
+    elif payload.channel_type in SHARED_N8N_WORKFLOWS and settings.n8n_api_base_url:
         # These provider types don't clone a workflow per channel — ONE
         # shared workflow per type looks up the right channel dynamically by
         # identifier and fetches its decrypted token per-message, so adding a
         # channel here only means pointing it at that already-published
         # workflow's outbound webhook. Nothing to create in n8n at all.
+        #
+        # Guarded on n8n_api_base_url being configured: without it this built
+        # a relative "/webhook/..." and still flipped is_active=True, so the
+        # channel looked live in the dashboard while every outbound send
+        # (staff replies, reminders) failed against an unusable URL.
         workflow_id, outbound_path = SHARED_N8N_WORKFLOWS[payload.channel_type]
         n8n_web_base = settings.n8n_api_base_url.removesuffix("/api/v1")
         channel = (
