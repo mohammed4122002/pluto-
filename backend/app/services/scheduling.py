@@ -12,6 +12,10 @@ _ARRIVAL_EARLY_MINUTES = 15
 _ARRIVAL_ON_TIME_MINUTES = 5
 _ARRIVAL_LATE_MINUTES = 20
 
+# Only has to cover the in-request gap between holding the new slot and
+# booking it; short enough that a crashed reschedule frees the slot quickly.
+_HOLD_MINUTES = 5
+
 _CANCELLED_BY_STATUS = {"patient": "cancelled_by_patient", "clinic": "cancelled_by_clinic", "doctor": "cancelled_by_doctor"}
 
 
@@ -89,7 +93,20 @@ def reschedule_appointment(
 
     held = (
         db.table("slots")
-        .update({"status": "temporarily_held", "held_by_session": session_id})
+        .update(
+            {
+                "status": "temporarily_held",
+                "held_by_session": session_id,
+                # The hold only has to survive the few lines down to book_slot,
+                # but it must carry an expiry: without one, a request that dies
+                # between here and the booking leaves the slot temporarily_held
+                # forever — invisible to patients (search filters on
+                # 'available') and unbookable by anyone else (book_slot only
+                # lets the original held_by_session through). An expiry lets
+                # expire_past_slots hand it back.
+                "held_until": (datetime.now(timezone.utc) + timedelta(minutes=_HOLD_MINUTES)).isoformat(),
+            }
+        )
         .eq("id", new_slot_id)
         .eq("status", "available")
         .execute()

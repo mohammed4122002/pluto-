@@ -584,10 +584,38 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         if name == "find_my_appointments":
             if not ctx.get("patient_id"):
                 return {"appointments": []}
-            return {"appointments": find_upcoming_appointments_for_patient(db, ctx["patient_id"])}
+            appointments = find_upcoming_appointments_for_patient(db, ctx["patient_id"])
+            # Remembered so cancel_appointment can only act on an id this turn
+            # actually looked up, instead of one the model carried over or
+            # invented.
+            ctx.setdefault("_listed_appointment_ids", set()).update(
+                a["appointment_id"] for a in appointments if a.get("appointment_id")
+            )
+            return {"appointments": appointments}
         if name == "cancel_appointment":
             if not ctx.get("patient_id"):
                 return {"error": "ما في رقم هاتف موثوق لهذا المستخدم بعد."}
+            if ctx.get("_booked_appointment_id"):
+                # A single patient message cannot mean both "book me" and
+                # "cancel it". This fired in production: the patient answered
+                # "خالد" to pick a dentist, and the turn booked, then cancelled,
+                # then charged a 5 JOD late-cancellation fee for something they
+                # never asked for. The prompt already forbade it; only a real
+                # guard stops it, because money moves before anyone can review
+                # the wording.
+                return {
+                    "error": "ممنوع الإلغاء بنفس الدور اللي صار فيه حجز. المريض طلب يحجز مش يلغي — "
+                    "أكّدي له الحجز اللي تم، ولا تستدعي cancel_appointment."
+                }
+            listed = ctx.get("_listed_appointment_ids") or set()
+            if args["appointment_id"] not in listed:
+                # Enforces the rule the prompt states: cancel only an id that
+                # find_my_appointments returned in this same turn. Without it a
+                # guessed or stale id could cancel a real appointment.
+                return {
+                    "error": "لازم تستدعي find_my_appointments بنفس هذا الدور وتاخذي appointment_id من "
+                    "نتيجتها قبل أي إلغاء — الرقم يلي مررتيه مش من نتيجة هذا الدور."
+                }
             result = cancel_patient_appointment(
                 db,
                 appointment_id=args["appointment_id"],

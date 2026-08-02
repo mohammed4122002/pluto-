@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 OFFER_WINDOW_MINUTES = 30
 
+# Only has to cover the in-request gap between holding the offered slot and
+# booking it; short enough that a crashed accept frees the slot quickly.
+_HOLD_MINUTES = 5
+
 
 def offer_slot_to_top_candidate(db: Client, slot_id: str) -> dict | None:
     """Called whenever a slot becomes available again (release/cancel/reschedule).
@@ -96,7 +100,17 @@ def accept_offer(db: Client, offer_id: str) -> str:
     session_id = f"waitlist:{offer_id}"
     held = (
         db.table("slots")
-        .update({"status": "temporarily_held", "held_by_session": session_id})
+        .update(
+            {
+                "status": "temporarily_held",
+                "held_by_session": session_id,
+                # Carries an expiry for the same reason as the reschedule hold:
+                # a request that dies between this hold and book_slot below
+                # would otherwise strand the slot in temporarily_held forever,
+                # where patients can't see it and nobody else can book it.
+                "held_until": (datetime.now(timezone.utc) + timedelta(minutes=_HOLD_MINUTES)).isoformat(),
+            }
+        )
         .eq("id", slot["id"])
         .eq("status", "reserved")
         .execute()
