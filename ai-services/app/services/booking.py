@@ -56,6 +56,15 @@ def _window_violation_reason(window: dict, tz: ZoneInfo, start_utc: datetime) ->
     now = datetime.now(timezone.utc)
     start_local = start_utc.astimezone(tz)
 
+    if start_utc < now:
+        # Independent of min_booking_lead_minutes, which is 0 by default and
+        # then skips its own check entirely. Nothing marks a slot unavailable
+        # once its time passes, so the branch keeps hundreds of past slots at
+        # status='available', and book_by_doctor_and_time matches a slot on
+        # (doctor, exact start_at, available) without any "not in the past"
+        # filter — so a requested time from yesterday would book cleanly.
+        return "هذا الوقت مضى خلاص — اختاري وقت جاي."
+
     lead_minutes = window.get("min_booking_lead_minutes") or 0
     if lead_minutes and start_utc < now + timedelta(minutes=lead_minutes):
         return f"هذا الوقت أقرب من الحد الأدنى المسموح للحجز ({lead_minutes} دقيقة مسبقاً)."
