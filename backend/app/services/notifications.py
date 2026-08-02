@@ -57,7 +57,14 @@ def send_notification_for_appointment(db: Client, appointment_id: str, schedule:
             "appointment_id": appointment_id,
             "schedule_id": schedule["id"],
             "template_id": template["id"],
-            "channel_type": template["channel_type"],
+            # The channel it actually went out on, not the one the template is
+            # labelled with. Templates carry a channel_type describing how
+            # they're worded, but delivery always follows whichever channel the
+            # patient last talked to us on — so logging the template's label
+            # recorded telegram sends as whatsapp and made any per-channel
+            # reporting wrong. Falls back to the template only when no channel
+            # resolved, where there's no real delivery channel to name.
+            "channel_type": (channel or {}).get("channel_type") or template["channel_type"],
             "recipient": patient.get("phone", ""),
         }
 
