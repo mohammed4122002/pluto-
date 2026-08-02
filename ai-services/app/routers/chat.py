@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -29,6 +30,9 @@ BASE_INSTRUCTIONS = (
     "أسلوبك:\n"
     "- رد دائماً بنفس اللغة واللهجة اللي كتب فيها المريض بالضبط (عامية أردنية/شامية عادي، مش لازم فصحى) — "
     "قلّدي لهجته يلي حكى فيها، وما تتحوّلي فجأة للفصحى.\n"
+    "- لهجتك أردنية/شامية تحديداً. ممنوع تنزلق لكلمات مصرية أو خليجية — أشهر الأخطاء: 'ما فيش' (قولي "
+    "'ما في')، 'مش موجود خالص'، 'عايز' (قولي 'بدك')، 'دلوقتي' (قولي 'هلق')، 'إزيك' (قولي 'كيفك')، "
+    "'كده' (قولي 'هيك')، 'ازاي' (قولي 'كيف'). المريض بيلاحظ فوراً لما اللهجة تتبدّل بنص المحادثة.\n"
     "- وهاي القاعدة مش بس للهجات العربية: إذا المريض كتب بالإنجليزي رُدّي بالإنجليزي كامل، وإذا كتب بأي "
     "لغة ثانية رُدّي فيها. ممنوع ترجعي بالعربي على واحد كتبلك بالإنجليزي حتى لو كل معلومات العيادة "
     "وأسماء الأطباء عندك بالعربي — ترجميها بردك. لو المريض بدّل لغته بنص المحادثة، بدّلي معه.\n"
@@ -99,6 +103,13 @@ BASE_INSTRUCTIONS = (
     "- بعد الإلغاء، إذا رجعت النتيجة fee_charged أكبر من صفر، أخبري المريض بوضوح إنه انترتب رسم إلغاء "
     "وبقيمته، لأن الإلغاء صار متأخر حسب سياسة العيادة — لا تخفي هذه المعلومة ولا تعتذري عنها كأنه خطأ "
     "منك.\n"
+    "- وبعد ما تذكري رسم الإلغاء، هو صار **مستحق فعلاً** ومسجّل بالنظام. ممنوع منعاً باتاً تتراجعي عنه "
+    "بأي رسالة لاحقة أو تقولي 'ما في مبلغ مطلوب' أو 'الموضوع انتهى' — إنتِ ألغيتِ الموعد فعلاً والرسم "
+    "انترتب فعلاً، والتراجع عنه بيخلي العيادة تخسر مبلغ وبيخلي كلامك متناقض قدام المريض.\n"
+    "- لو المريض سأل 'كيف أدفع' أو 'وين أدفع' أو أي سؤال عن دفع مبلغ مستحق: ما عندك أداة تشوف فيها "
+    "أرصدة المرضى، فممنوع تخمّني إنه مدين أو مش مدين. أكّدي بس المبلغ اللي إنتِ نفسك ذكرتيه بهاي "
+    "المحادثة، وقوليله إنه بيدفع بالعيادة أو إن حدا من الفريق رح يتواصل معه بالتفاصيل، وصعّدي "
+    "(needs_human=true). ممنوع تقولي 'ما في أي مبلغ مطلوب' إلا إذا كانت أداة رجعتلك هيك صراحة.\n"
     "- المواعيد المتاحة (find_available_slots) مرتبطة بجدول الطبيب نفسه، مش بخدمة معينة — يعني عدم "
     "وجود موعد ليوم/طبيب معين ما يعني عدم وجود مواعيد لخدمة ثانية أو يوم ثاني. كل مرة المريض يسأل عن "
     "مواعيد متاحة (حتى لو سأل قبل بنفس المحادثة عن يوم مختلف)، استدعِ find_available_slots من جديد "
@@ -341,6 +352,31 @@ class ReplyResponse(BaseModel):
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
+# How long to stop attempting OpenAI after it fails in a way that won't fix
+# itself on the next message (billing exhausted, bad key). While OPENAI_API_KEY
+# was out of credit, every single patient message paid ~3s failing through
+# OpenAI — the SDK retries a 429 twice with backoff — before Gemini was even
+# asked, which on a plain greeting was most of the wait. Short enough that
+# topping the account up recovers on its own without a redeploy.
+_OPENAI_COOLDOWN_SECONDS = 600
+_openai_unusable_until = 0.0
+
+# Errors that mean "OpenAI will keep failing", as opposed to a transient blip
+# worth retrying on the next message.
+_OPENAI_HARD_FAILURES = ("insufficient_quota", "credit_balance_exhausted", "invalid_api_key", "account_deactivated")
+
+
+def _note_openai_failure(exc: Exception) -> None:
+    global _openai_unusable_until
+    text = str(exc).lower()
+    if any(marker in text for marker in _OPENAI_HARD_FAILURES) or "401" in text or "403" in text:
+        _openai_unusable_until = time.monotonic() + _OPENAI_COOLDOWN_SECONDS
+        logger.warning("OpenAI looks unusable; skipping it for %ss and using the fallback", _OPENAI_COOLDOWN_SECONDS)
+
+
+def _openai_in_cooldown() -> bool:
+    return time.monotonic() < _openai_unusable_until
+
 
 def _load_provider_overrides(db: Client) -> dict:
     """Lets clinic staff change the OpenAI/Gemini key from the dashboard
@@ -373,7 +409,10 @@ def _get_openai(db: Client = Depends(get_supabase), settings: Settings = Depends
             status_code=501,
             detail="OPENAI_API_KEY not configured — set it in .env or the dashboard's AI settings page.",
         )
-    return OpenAI(api_key=api_key)
+    # No in-band retries: a Gemini fallback is already wired up, so retrying a
+    # failing OpenAI call here only adds seconds to the patient's wait before
+    # we reach for the thing that actually works.
+    return OpenAI(api_key=api_key, max_retries=0)
 
 
 def _get_gemini_fallback(
@@ -656,19 +695,25 @@ def _run_conversation_turn(
 ) -> tuple[str, bool]:
     messages = [{"role": "system", "content": system_prompt}] + history
     active_client, active_model = client, "gpt-4o-mini"
+    if fallback and _openai_in_cooldown():
+        # OpenAI failed recently in a way that won't have fixed itself, so go
+        # straight to the fallback rather than making every patient wait on a
+        # call we already know fails.
+        active_client, active_model = fallback
     for _ in range(_MAX_TOOL_ROUNDS):
         kwargs = {"model": active_model, "messages": messages, "response_format": REPLY_SCHEMA}
         if tools:
             kwargs["tools"] = tools
         try:
             completion = active_client.chat.completions.create(**kwargs)
-        except Exception:
+        except Exception as exc:
             # OpenAI outage/rate limit/etc mid-turn — switch to Gemini for
             # the rest of this turn (not just this one call) so a down
             # OpenAI doesn't mean re-failing on every remaining tool-call
             # round-trip before finally giving up.
             if active_client is not client or fallback is None:
                 raise
+            _note_openai_failure(exc)
             logger.warning("OpenAI call failed, switching to Gemini fallback for this turn", exc_info=True)
             active_client, active_model = fallback
             kwargs["model"] = active_model
