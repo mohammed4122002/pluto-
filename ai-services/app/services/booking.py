@@ -120,11 +120,29 @@ def search_available_slots(
     if doctor_name:
         doctor_id = _resolve_doctor_id(db, branch_id, doctor_name)
         if not doctor_id:
-            return {"slots": [], "alternative_doctors": []}
+            # Distinct from "this doctor has no free slots" — returning the
+            # same empty shape for both made the model tell patients that a
+            # doctor who doesn't work here is merely fully booked, which
+            # invents a colleague and leaves them trying again for someone
+            # who will never have availability.
+            return {
+                "slots": [],
+                "alternative_doctors": [],
+                "doctor_not_found": True,
+                "error": f"ما في طبيب بهذا الاسم '{doctor_name}' بهذا الفرع — قولي للمريض صراحة إنه ما في "
+                "دكتور بهالاسم عنا (لا تقولي إنه محجوز أو ما عنده مواعيد)، واستدعي find_doctors لتعرضي "
+                "الأطباء الموجودين فعلاً.",
+            }
 
     specialty_doctor_ids = _resolve_specialty_doctor_ids(db, branch_id, specialty_query) if specialty_query else None
     if specialty_doctor_ids is not None and not specialty_doctor_ids:
-        return {"slots": [], "alternative_doctors": []}
+        return {
+            "slots": [],
+            "alternative_doctors": [],
+            "specialty_not_found": True,
+            "error": f"ما في طبيب بتخصص '{specialty_query}' بهذا الفرع — قولي للمريض إن هذا التخصص مش "
+            "متوفر عنا (لا تقولي إنه ما في مواعيد)، واعرضي التخصصات الموجودة عبر find_doctors.",
+        }
 
     branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
     tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
