@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     supabase_service_key: str
     openai_api_key: str = ""
 
+    # Fallback used only when an OpenAI call fails mid-turn (outage, rate
+    # limit, ...) — see chat.py::_run_conversation_turn. Leave empty to
+    # disable the fallback (a failed OpenAI call then degrades straight to
+    # human handoff, as before).
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+
     # Used to build the appointment QR-code image URL handed back to n8n
     # after a successful booking (fetched server-side with the service
     # token, then relayed to the patient as a photo — never linked in text).

@@ -317,6 +317,9 @@ class ReplyResponse(BaseModel):
     image_url: str | None = None
 
 
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
 def _get_openai(settings: Settings = Depends(get_settings)) -> OpenAI:
     if not settings.openai_api_key:
         raise HTTPException(
@@ -324,6 +327,17 @@ def _get_openai(settings: Settings = Depends(get_settings)) -> OpenAI:
             detail="OPENAI_API_KEY not configured — set it in .env to enable reply generation.",
         )
     return OpenAI(api_key=settings.openai_api_key)
+
+
+def _get_gemini_fallback(settings: Settings = Depends(get_settings)) -> tuple[OpenAI, str] | None:
+    """Gemini exposes an OpenAI-compatible endpoint, so the same OpenAI SDK
+    client works against it (just a different base_url/api_key/model) — lets
+    _run_conversation_turn fall back without a second code path. Returns None
+    when GEMINI_API_KEY isn't set, in which case an OpenAI failure degrades
+    straight to human handoff, same as before this fallback existed."""
+    if not settings.gemini_api_key:
+        return None
+    return OpenAI(api_key=settings.gemini_api_key, base_url=GEMINI_BASE_URL), settings.gemini_model
 
 
 def _load_conversation(db: Client, conversation_id: str) -> dict:
@@ -538,14 +552,33 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
 
 
 def _run_conversation_turn(
-    client: OpenAI, system_prompt: str, history: list[dict], tools: list[dict], db: Client, ctx: dict
+    client: OpenAI,
+    system_prompt: str,
+    history: list[dict],
+    tools: list[dict],
+    db: Client,
+    ctx: dict,
+    fallback: tuple[OpenAI, str] | None = None,
 ) -> tuple[str, bool]:
     messages = [{"role": "system", "content": system_prompt}] + history
+    active_client, active_model = client, "gpt-4o-mini"
     for _ in range(5):
-        kwargs = {"model": "gpt-4o-mini", "messages": messages, "response_format": REPLY_SCHEMA}
+        kwargs = {"model": active_model, "messages": messages, "response_format": REPLY_SCHEMA}
         if tools:
             kwargs["tools"] = tools
-        completion = client.chat.completions.create(**kwargs)
+        try:
+            completion = active_client.chat.completions.create(**kwargs)
+        except Exception:
+            # OpenAI outage/rate limit/etc mid-turn — switch to Gemini for
+            # the rest of this turn (not just this one call) so a down
+            # OpenAI doesn't mean re-failing on every remaining tool-call
+            # round-trip before finally giving up.
+            if active_client is not client or fallback is None:
+                raise
+            logger.warning("OpenAI call failed, switching to Gemini fallback for this turn", exc_info=True)
+            active_client, active_model = fallback
+            kwargs["model"] = active_model
+            completion = active_client.chat.completions.create(**kwargs)
         message = completion.choices[0].message
 
         if message.tool_calls:
@@ -601,6 +634,7 @@ def generate_reply(
     payload: ReplyRequest,
     db: Client = Depends(get_supabase),
     client: OpenAI = Depends(_get_openai),
+    fallback: tuple[OpenAI, str] | None = Depends(_get_gemini_fallback),
     settings: Settings = Depends(get_settings),
 ):
     """Called by the backend (or directly by n8n) to turn an inbound patient
@@ -638,7 +672,7 @@ def generate_reply(
     tools = _select_tools(ch_settings)
 
     try:
-        reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx)
+        reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
     except Exception as exc:
         # Whatever broke (OpenAI outage/rate limit, an unexpected tool
         # failure, ...) — a patient waiting on a reply must never see a raw
@@ -676,7 +710,11 @@ def generate_reply(
 
 
 @router.post("/reclaim-stale", dependencies=[Depends(require_service_token)])
-def reclaim_stale_conversations(db: Client = Depends(get_supabase), client: OpenAI = Depends(_get_openai)):
+def reclaim_stale_conversations(
+    db: Client = Depends(get_supabase),
+    client: OpenAI = Depends(_get_openai),
+    fallback: tuple[OpenAI, str] | None = Depends(_get_gemini_fallback),
+):
     """Polled periodically by an external scheduler (n8n Schedule Trigger),
     same pattern as backend's /notifications/process-due. Finds conversations
     escalated to a human that no staff member answered within the channel's
@@ -720,7 +758,7 @@ def reclaim_stale_conversations(db: Client = Depends(get_supabase), client: Open
             }
             tools = _select_tools(ch_settings)
 
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx)
+            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
             _store_reply(db, row["id"], reply)
             if needs_human:
                 _escalate(db, row["id"])
