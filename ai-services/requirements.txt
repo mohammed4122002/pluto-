@@ -6,3 +6,4 @@ pydantic-settings>=2.7
 python-dotenv>=1.0
 openai>=1.59
 httpx>=0.28
+cryptography>=44.0

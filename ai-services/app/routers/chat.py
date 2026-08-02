@@ -10,6 +10,7 @@ from supabase import Client
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_supabase
+from app.core.security import decrypt_secret
 from app.core.service_auth import require_service_token
 from app.services.appointments import (
     cancel_patient_appointment,
@@ -320,24 +321,55 @@ class ReplyResponse(BaseModel):
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
-def _get_openai(settings: Settings = Depends(get_settings)) -> OpenAI:
-    if not settings.openai_api_key:
+def _load_provider_overrides(db: Client) -> dict:
+    """Lets clinic staff change the OpenAI/Gemini key from the dashboard
+    (backend's /settings/ai-providers) without a redeploy — checked on every
+    call so a key change takes effect immediately. Falls back to the
+    OPENAI_API_KEY/GEMINI_API_KEY env vars (via the caller) when a column
+    here is null, and never lets a lookup hiccup break reply generation."""
+    try:
+        return db.table("ai_provider_settings").select("*").limit(1).single().execute().data or {}
+    except Exception:
+        logger.exception("failed to load ai_provider_settings, falling back to env vars")
+        return {}
+
+
+def _decrypt_or_none(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return decrypt_secret(value)
+    except Exception:
+        logger.exception("failed to decrypt a stored AI provider key, falling back to env var")
+        return None
+
+
+def _get_openai(db: Client = Depends(get_supabase), settings: Settings = Depends(get_settings)) -> OpenAI:
+    overrides = _load_provider_overrides(db)
+    api_key = _decrypt_or_none(overrides.get("openai_api_key_encrypted")) or settings.openai_api_key
+    if not api_key:
         raise HTTPException(
             status_code=501,
-            detail="OPENAI_API_KEY not configured — set it in .env to enable reply generation.",
+            detail="OPENAI_API_KEY not configured — set it in .env or the dashboard's AI settings page.",
         )
-    return OpenAI(api_key=settings.openai_api_key)
+    return OpenAI(api_key=api_key)
 
 
-def _get_gemini_fallback(settings: Settings = Depends(get_settings)) -> tuple[OpenAI, str] | None:
+def _get_gemini_fallback(
+    db: Client = Depends(get_supabase), settings: Settings = Depends(get_settings)
+) -> tuple[OpenAI, str] | None:
     """Gemini exposes an OpenAI-compatible endpoint, so the same OpenAI SDK
     client works against it (just a different base_url/api_key/model) — lets
     _run_conversation_turn fall back without a second code path. Returns None
-    when GEMINI_API_KEY isn't set, in which case an OpenAI failure degrades
-    straight to human handoff, same as before this fallback existed."""
-    if not settings.gemini_api_key:
+    when no Gemini key is configured (dashboard or env), in which case an
+    OpenAI failure degrades straight to human handoff, same as before this
+    fallback existed."""
+    overrides = _load_provider_overrides(db)
+    api_key = _decrypt_or_none(overrides.get("gemini_api_key_encrypted")) or settings.gemini_api_key
+    if not api_key:
         return None
-    return OpenAI(api_key=settings.gemini_api_key, base_url=GEMINI_BASE_URL), settings.gemini_model
+    model = overrides.get("gemini_model") or settings.gemini_model
+    return OpenAI(api_key=api_key, base_url=GEMINI_BASE_URL), model
 
 
 def _load_conversation(db: Client, conversation_id: str) -> dict:

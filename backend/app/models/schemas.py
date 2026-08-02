@@ -787,6 +787,22 @@ class ClinicSettingsUpdate(BaseModel):
     same_day_cutoff_time: time | None = None
 
 
+class AiProviderSettings(BaseModel):
+    id: UUID
+    openai_api_key_masked: str | None = None
+    gemini_api_key_masked: str | None = None
+    gemini_model: str | None = None
+    updated_at: datetime
+
+
+class AiProviderSettingsUpdate(BaseModel):
+    # Omit a field to leave it unchanged; pass "" to clear it (falls back to
+    # the OPENAI_API_KEY/GEMINI_API_KEY env var again).
+    openai_api_key: str | None = None
+    gemini_api_key: str | None = None
+    gemini_model: str | None = None
+
+
 PaymentMethodType = Literal["mobile_cash", "bank_transfer", "cash", "other"]
 PaymentStatus = Literal["pending", "receipt_submitted", "verified", "rejected", "refunded", "partially_refunded"]
 PaymentType = Literal["deposit", "full", "balance", "package"]

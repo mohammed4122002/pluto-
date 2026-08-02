@@ -7,6 +7,7 @@ import { StaffPage } from "./pages/StaffPage";
 import { PatientsPage } from "./pages/PatientsPage";
 import { AppointmentsPage } from "./pages/AppointmentsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AiSettingsPage } from "./pages/AiSettingsPage";
 import { ImportPage } from "./pages/ImportPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { CalendarPage } from "./pages/CalendarPage";
@@ -30,6 +31,7 @@ import {
   PatientIcon,
   AppointmentIcon,
   SettingsIcon,
+  AiIcon,
   ImportIcon,
   PaymentIcon,
   CalendarIcon,
@@ -68,6 +70,7 @@ const groups = [
     label: "النظام",
     items: [
       { key: "settings", label: "إعدادات العيادة", Icon: SettingsIcon, Component: SettingsPage, requires: "clinic_settings.view" },
+      { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
     ],
   },

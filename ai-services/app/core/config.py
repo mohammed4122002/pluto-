@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
+    # Decrypts openai_api_key_encrypted/gemini_api_key_encrypted from the
+    # ai_provider_settings table (set via the dashboard's AI settings page) —
+    # same shared secret backend/app/core/security.py uses for MFA/channel
+    # credentials. See chat.py::_load_provider_overrides.
+    encryption_key: str = ""
+
     # Used to build the appointment QR-code image URL handed back to n8n
     # after a successful booking (fetched server-side with the service
     # token, then relayed to the patient as a photo — never linked in text).
