@@ -19,7 +19,11 @@ class Settings(BaseSettings):
     # lost its free-tier allocation (429 "limit: 0") and gemini-2.5-* got
     # retired for new keys, which took the fallback down exactly when OpenAI
     # was already failing. An alias keeps pointing at a model that still exists.
-    gemini_model: str = "gemini-flash-latest"
+    # -lite specifically: the plain -latest alias resolves to the newest flash
+    # model, which is capped at 5 req/min on the free tier — and one reply costs
+    # several requests (an extra round-trip per tool call), so a couple of quick
+    # messages already trip it. The lite alias measured 15 req/min.
+    gemini_model: str = "gemini-flash-lite-latest"
 
     # Decrypts openai_api_key_encrypted/gemini_api_key_encrypted from the
     # ai_provider_settings table (set via the dashboard's AI settings page) —
