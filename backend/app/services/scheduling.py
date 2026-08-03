@@ -412,15 +412,20 @@ def check_in_appointment(
     arrival_status = _arrival_status(datetime.fromisoformat(appt["scheduled_at"]), now)
 
     queue_date = now.date().isoformat()
-    queue_rows = (
+    queue_query = (
         db.table("queues")
         .select("id")
         .eq("branch_id", appt["branch_id"])
-        .eq("doctor_id", appt["staff_id"])
         .eq("queue_date", queue_date)
-        .execute()
-        .data
     )
+    # appt["staff_id"] is null for a walk-in registered without a specific
+    # doctor (register_walk_in allows doctor_id=None) — .eq("doctor_id", None)
+    # sends the literal string "None" to PostgREST, which then fails casting
+    # it to uuid (confirmed live: check-in on such an appointment 400s with
+    # 'invalid input syntax for type uuid: "None"'). A real NULL comparison
+    # needs .is_(), not .eq().
+    queue_query = queue_query.is_("doctor_id", "null") if appt["staff_id"] is None else queue_query.eq("doctor_id", appt["staff_id"])
+    queue_rows = queue_query.execute().data
     if queue_rows:
         queue_id = queue_rows[0]["id"]
     else:
