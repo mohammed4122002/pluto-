@@ -12,6 +12,61 @@ class BookingError(Exception):
     pass
 
 
+def _is_placeholder_name(name: str | None, phone: str | None) -> bool:
+    """A patient record's full_name is auto-filled at first contact (Telegram
+    display name, or the phone/synthetic id itself when no display name was
+    sent) — this tells apart a name the patient actually gave us from one we
+    made up to satisfy the not-null column."""
+    return not name or name.startswith("tg:") or name == phone
+
+
+def _is_placeholder_phone(phone: str | None) -> bool:
+    """A synthetic 'tg:{chat_id}' value (still sent by n8n's legacy Telegram
+    workflows) satisfies the patients.phone NOT NULL/unique constraint but
+    isn't a number anyone can actually be called or texted on."""
+    return not phone or phone.startswith("tg:")
+
+
+def missing_contact_fields(db: Client, patient_id: str) -> list[str]:
+    """Which of "name"/"phone" are still placeholders for this patient —
+    booking must not proceed until both are real, since without a real name
+    the confirmation is unattributed and without a real phone the clinic has
+    no way to reach the patient about this appointment (reminders, changes,
+    payment follow-up)."""
+    rows = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data
+    if not rows:
+        return ["name", "phone"]
+    patient = rows[0]
+    missing = []
+    if _is_placeholder_name(patient.get("full_name"), patient.get("phone")):
+        missing.append("name")
+    if _is_placeholder_phone(patient.get("phone")):
+        missing.append("phone")
+    return missing
+
+
+def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str) -> dict:
+    """Persists the name/phone the patient just gave in chat, so
+    missing_contact_fields stops blocking book_appointment. A phone that
+    already belongs to another patient record (same person previously
+    messaged a different channel with their real number) is a dedup case for
+    staff, not something the bot should silently overwrite or merge."""
+    full_name = (full_name or "").strip()
+    phone = (phone or "").strip()
+    if not full_name or not phone:
+        raise BookingError("لازم الاسم ورقم الهاتف الاثنين مع بعض، مش وحدة بس.")
+
+    existing = db.table("patients").select("id").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
+    if existing:
+        raise BookingError(
+            "رقم الهاتف هذا مسجل مسبقاً بملف مريض ثاني عنا — لا تكمّلي الحجز، اشرحي للمريض إنه في تعارض "
+            "برقم الهاتف وصعّدي الموضوع لموظف يتحقق ويدمج الملفين."
+        )
+
+    db.table("patients").update({"full_name": full_name, "phone": phone}).eq("id", patient_id).execute()
+    return {"full_name": full_name, "phone": phone}
+
+
 def _resolve_doctor_id(db: Client, branch_id: str, doctor_name: str) -> str | None:
     # Plain ILIKE would miss "ايلا" vs "إيلا" (different hamza forms of the
     # same name) — fetch this branch's doctors and compare with
@@ -249,8 +304,7 @@ def book_slot_for_patient(
         patient_rows = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data
         patient = patient_rows[0] if patient_rows else {}
         current_name = patient.get("full_name")
-        is_placeholder_name = not current_name or current_name.startswith("tg:") or current_name == patient.get("phone")
-        if is_placeholder_name:
+        if _is_placeholder_name(current_name, patient.get("phone")):
             db.table("patients").update({"full_name": visit_for_name.strip()}).eq("id", patient_id).execute()
         elif visit_for_name.strip() != current_name:
             # Different name than what's on file for this contact -> booking

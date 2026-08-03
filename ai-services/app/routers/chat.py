@@ -18,7 +18,13 @@ from app.services.appointments import (
     confirm_booking_and_request_payment,
     find_upcoming_appointments_for_patient,
 )
-from app.services.booking import BookingError, book_by_doctor_and_time, search_available_slots
+from app.services.booking import (
+    BookingError,
+    book_by_doctor_and_time,
+    missing_contact_fields,
+    save_contact_info,
+    search_available_slots,
+)
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors
 
@@ -65,9 +71,13 @@ BASE_INSTRUCTIONS = (
     "'في دكتور اسنان؟') بدل ما تطلبي توضيح لأشياء واضحة من السياق.\n"
     "- لو المريض حكى اسمه، استخدميه بعدين بشكل طبيعي (مش بكل جملة) — متل موظفة استقبال حقيقية بتتذكر مين "
     "بتحكي معه.\n"
-    "- قبل ما تأكدي أي حجز (قبل استدعاء book_appointment)، إذا ما كنتي عارفة اسم المريض لسا من المحادثة، "
-    "لازم تسأليه عن اسمه أول (متل 'تمام، باسم مين أسجلّك الموعد؟') وتستنّي رده قبل ما تكمّلي — موظفة "
-    "الاستقبال الحقيقية دايماً بتاخذ الاسم قبل ما تثبّت أي حجز، مش بعده.\n\n"
+    "- قبل ما تأكدي أي حجز (قبل استدعاء book_appointment)، لازم يكون عندك اسم المريض الكامل ورقم هاتفه "
+    "الحقيقي — هذا شرط، مش اقتراح. إذا ما ذكرهم لسا بالمحادثة، اسأليه عنهم أول (متل 'تمام، باسم مين "
+    "ورقم تلفون مين أسجلّك الموعد؟') وتستنّي رده قبل ما تكمّلي، بالذات لو المحادثة عبر تيليجرام أو قناة "
+    "تانية ما بتوصلك فيها رقم حقيقي تلقائياً — موظفة الاستقبال الحقيقية دايماً بتاخذ الاسم والرقم قبل ما "
+    "تثبّت أي حجز، مش بعده. فور ما يجاوب المريض، استدعي save_contact_info فوراً لتحفظي المعلومتين قبل "
+    "ما تستدعي book_appointment — لو نسيتي واستدعيتي book_appointment بدونها، الأداة نفسها رح ترفض "
+    "وترجعلك خطأ يوضح شو الناقص بالضبط.\n\n"
     "قواعد صارمة بخصوص الحجز والمعلومات — ممنوع الكذب أو الاختراع:\n"
     "- ممنوع نهائياً ذكر اسم طبيب أو تخصص من عندك بدون استدعاء أداة find_doctors أولاً. وممنوع "
     "الاعتماد على اسم طبيب ذكرتيه إنتِ أو المريض بردود سابقة بنفس المحادثة — قائمة الأطباء ممكن تتغيّر "
@@ -229,6 +239,27 @@ TOOLS = [
                     "date_from",
                     "date_to",
                 ],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_contact_info",
+            "description": (
+                "احفظي اسم المريض الكامل ورقم هاتفه الحقيقي بعد ما يعطيكِ إياهم بالمحادثة. استدعيها فور "
+                "ما يذكر المريض اسمه ورقمه، قبل ما تحاولي تحجزي — book_appointment رح ترفض الحجز وترجع "
+                "خطأ لو لسا ناقص اسم حقيقي أو رقم حقيقي لهذا المريض."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "full_name": {"type": "string", "description": "اسم المريض الكامل كما ذكره بالضبط."},
+                    "phone": {"type": "string", "description": "رقم هاتف المريض كما ذكره بالضبط."},
+                },
+                "required": ["full_name", "phone"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -561,7 +592,11 @@ def _select_tools(ch_settings: dict) -> list[dict]:
     if mode == "greeting_only":
         return []
     if mode == "inquiry_only":
-        return [t for t in TOOLS if t["function"]["name"] not in ("book_appointment", "cancel_appointment")]
+        return [
+            t
+            for t in TOOLS
+            if t["function"]["name"] not in ("book_appointment", "cancel_appointment", "save_contact_info")
+        ]
     return TOOLS
 
 
@@ -581,11 +616,31 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 date_from=args.get("date_from") or None,
                 date_to=args.get("date_to") or None,
             )
+        if name == "save_contact_info":
+            if not ctx.get("patient_id"):
+                return {"error": "ما في مريض مرتبط بهذه المحادثة بعد."}
+            saved = save_contact_info(db, ctx["patient_id"], args["full_name"], args["phone"])
+            return {"saved": True, **saved}
         if name == "book_appointment":
             if not ctx.get("booking_enabled"):
                 return {"error": "الحجز غير متاح حالياً عبر هذه المحادثة."}
             if not ctx.get("patient_id"):
                 return {"error": "ما في رقم هاتف موثوق لهذا المستخدم بعد — اطلب منه رقمه قبل ما تكمل الحجز."}
+            missing = missing_contact_fields(db, ctx["patient_id"])
+            if missing:
+                # A hard gate, not just the prompt asking nicely: the prompt
+                # already told the model to collect the name first, but a
+                # model that skips or forgets that instruction used to book
+                # anyway with a placeholder name/phone (confirmed in
+                # production on Telegram, where the patient record only ever
+                # gets a synthetic "tg:{chat_id}" phone unless the bot asks
+                # for a real one). Blocking here means a skipped ask fails the
+                # tool call instead of silently completing the booking.
+                fields_ar = " و".join("الاسم" if f == "name" else "رقم الهاتف" for f in missing)
+                return {
+                    "error": f"لسا ناقص {fields_ar} الحقيقي لهذا المريض. اسأليه عنه/عنهم الآن، وبعد ما "
+                    "يجاوب استدعي save_contact_info لتحفظيه، وبس بعدها كمّلي الحجز — ممنوع تحجزي قبل هيك.",
+                }
             booking_result = book_by_doctor_and_time(
                 db,
                 ctx["branch_id"],
