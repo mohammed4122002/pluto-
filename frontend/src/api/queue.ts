@@ -25,8 +25,10 @@ export type QueueTicket = {
   ended_at: string | null;
 };
 
-export const listQueues = (branchId?: string) =>
-  api.get<Queue[]>("/queues", { params: branchId ? { branch_id: branchId } : {} }).then((res) => res.data);
+export const listQueues = (branchId?: string, queueDate?: string) =>
+  api
+    .get<Queue[]>("/queues", { params: { ...(branchId ? { branch_id: branchId } : {}), ...(queueDate ? { queue_date: queueDate } : {}) } })
+    .then((res) => res.data);
 
 export const listQueueTickets = (queueId: string) =>
   api.get<QueueTicket[]>(`/queues/${queueId}/tickets`).then((res) => res.data);

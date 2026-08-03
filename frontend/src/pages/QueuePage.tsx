@@ -14,6 +14,10 @@ const statusLabel: Record<QueueTicket["status"], string> = {
   skipped: "تم تخطيه",
 };
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function QueuePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -26,12 +30,17 @@ export function QueuePage() {
   const loadQueues = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listBranches(), listPatients(), listQueues()])
+    // Scoped to today by default -- staff used to have to hunt through every
+    // open queue ever created (yesterday's, the day before's...) to find
+    // today's. Computed fresh on every load, so it's always "today" without
+    // anyone having to pick a date.
+    const today = todayIso();
+    Promise.all([listBranches(), listPatients(), listQueues(undefined, today)])
       .then(([branchList, patientList, queueList]) => {
         setBranches(branchList);
         setPatients(patientList);
         setQueues(queueList);
-        setSelectedQueue((prev) => prev || queueList[0]?.id || "");
+        setSelectedQueue(queueList[0]?.id || "");
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
       .finally(() => setLoading(false));
