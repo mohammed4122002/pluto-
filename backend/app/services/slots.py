@@ -1,9 +1,30 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from supabase import Client
 
 _DOW_LOOKUP = tuple(range(7))  # 0=Sunday..6=Saturday, matches doctor_availability.day_of_week
+
+
+def block_future_available_slots(db: Client, staff_id: str) -> int:
+    """Deactivating (or soft-deleting) a doctor must stop patients from
+    booking them going forward — book_slot() only checks a slot's own
+    status, never staff.is_active, so a deactivated doctor's still-'available'
+    future slots stayed fully bookable through the dashboard search and the
+    AI chat (confirmed live: 176 slots for a QA doctor stayed 'available'
+    after is_active was set to false). Only touches slots still 'available';
+    a slot already booked/held keeps its real appointment untouched — this
+    doesn't cancel anyone's existing visit, it just closes the booking gap."""
+    rows = (
+        db.table("slots")
+        .update({"status": "blocked", "block_reason": "doctor_deactivated"})
+        .eq("doctor_id", staff_id)
+        .eq("status", "available")
+        .gte("start_at", datetime.now(timezone.utc).isoformat())
+        .execute()
+        .data
+    )
+    return len(rows)
 
 
 def _iso_day_of_week(d: date) -> int:

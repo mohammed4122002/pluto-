@@ -9,7 +9,7 @@ from app.core.database import get_supabase
 from app.core.rbac import sync_legacy_role
 from app.core.security import hash_password
 from app.models.schemas import SetPasswordRequest, Staff, StaffCreate, StaffUpdate
-from app.services.slots import generate_slots_for_doctor
+from app.services.slots import block_future_available_slots, generate_slots_for_doctor
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -239,6 +239,7 @@ def delete_staff(
             "deleted_at": datetime.now(timezone.utc).isoformat(),
         }
     ).eq("id", str(staff_id)).execute()
+    block_future_available_slots(db, str(staff_id))
     return {"deleted": True}
 
 
@@ -264,6 +265,8 @@ def update_staff(
     if "is_active" in updates:
         updates["deactivated_at"] = None if updates["is_active"] else datetime.now(timezone.utc).isoformat()
     updated = db.table("staff").update(updates).eq("id", str(staff_id)).execute().data[0]
+    if updates.get("is_active") is False:
+        block_future_available_slots(db, str(staff_id))
     return _attach_all(db, [updated])[0]
 
 
