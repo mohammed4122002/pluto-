@@ -3,6 +3,8 @@ import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
+import { listStaff } from "../api/staff";
+import type { Staff } from "../api/staff";
 import { callTicket, completeTicket, listQueues, listQueueTickets, skipTicket, startTicket } from "../api/queue";
 import type { Queue, QueueTicket } from "../api/queue";
 
@@ -21,6 +23,7 @@ function todayIso() {
 export function QueuePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<Staff[]>([]);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [selectedQueue, setSelectedQueue] = useState<string>("");
   const [tickets, setTickets] = useState<QueueTicket[]>([]);
@@ -35,10 +38,11 @@ export function QueuePage() {
     // today's. Computed fresh on every load, so it's always "today" without
     // anyone having to pick a date.
     const today = todayIso();
-    Promise.all([listBranches(), listPatients(), listQueues(undefined, today)])
-      .then(([branchList, patientList, queueList]) => {
+    Promise.all([listBranches(), listPatients(), listStaff(), listQueues(undefined, today)])
+      .then(([branchList, patientList, staffList, queueList]) => {
         setBranches(branchList);
         setPatients(patientList);
+        setDoctors(staffList.filter((s) => s.role === "doctor"));
         setQueues(queueList);
         setSelectedQueue(queueList[0]?.id || "");
       })
@@ -89,7 +93,10 @@ export function QueuePage() {
                 className={selectedQueue === q.id ? "nav-item active" : "nav-item"}
                 onClick={() => setSelectedQueue(q.id)}
               >
-                {nameOf(branches, q.branch_id)} — {q.queue_date}
+                {/* Each queue is scoped to one doctor at one branch on one day -- two
+                    doctors at the same branch today means two tabs that look identical
+                    without this, since branch+date alone can't tell them apart. */}
+                {nameOf(branches, q.branch_id)} — {q.doctor_id ? nameOf(doctors, q.doctor_id) : "بدون طبيب محدد"}
               </button>
             ))}
           </div>
