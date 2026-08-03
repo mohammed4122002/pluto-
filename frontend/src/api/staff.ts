@@ -65,3 +65,6 @@ export const removeStaffBranch = (staffId: string, branchId: string) =>
   api.delete(`/staff/${staffId}/branches/${branchId}`).then((res) => res.data);
 
 export const deleteStaff = (staffId: string) => api.delete(`/staff/${staffId}`).then((res) => res.data);
+
+export const setStaffPassword = (staffId: string, newPassword: string) =>
+  api.post<{ password_set: boolean }>(`/staff/${staffId}/set-password`, { new_password: newPassword }).then((res) => res.data);

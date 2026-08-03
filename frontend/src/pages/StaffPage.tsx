@@ -13,6 +13,7 @@ import {
   removeStaffBranch,
   removeStaffService,
   removeStaffSpecialty,
+  setStaffPassword,
   updateStaff,
 } from "../api/staff";
 import type { Staff, StaffCreate, StaffRole, StaffUpdate } from "../api/staff";
@@ -30,6 +31,13 @@ import { generateSlots } from "../api/slots";
 
 const roles: StaffRole[] = ["admin", "doctor", "receptionist"];
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+function generatePassword(length = 12) {
+  const values = new Uint32Array(length);
+  crypto.getRandomValues(values);
+  return Array.from(values, (v) => PASSWORD_CHARS[v % PASSWORD_CHARS.length]).join("");
+}
 
 const emptyForm: StaffCreate = {
   full_name: "",
@@ -236,6 +244,10 @@ function EditStaffModal({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [newPassword, setNewPassword] = useState("");
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [passwordSetMessage, setPasswordSetMessage] = useState<string | null>(null);
+
   const [rows, setRows] = useState<DoctorAvailability[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const doctorBranches = branches.filter((b) => doctor.branch_ids.includes(b.id));
@@ -333,6 +345,21 @@ function EditStaffModal({
       .finally(() => setGenerating(false));
   };
 
+  const handleSetPassword = (e: FormEvent) => {
+    e.preventDefault();
+    if (!newPassword) return;
+    setSettingPassword(true);
+    setError(null);
+    setPasswordSetMessage(null);
+    setStaffPassword(doctor.id, newPassword)
+      .then(() => {
+        setPasswordSetMessage(`تم تعيين كلمة المرور — شاركها مع ${doctor.full_name} الآن، ما رح تظهر مرة ثانية.`);
+        setNewPassword("");
+      })
+      .catch((err) => setError(err.response?.data?.detail ?? err.message))
+      .finally(() => setSettingPassword(false));
+  };
+
   const handleDelete = () => {
     setDeleting(true);
     setError(null);
@@ -382,6 +409,31 @@ function EditStaffModal({
           </button>
         </div>
       </form>
+
+      <div className="form-section">
+        <label>الدخول إلى النظام</label>
+        <p className="settings-hint">
+          حساب جديد ينشأ بدون كلمة مرور ولا يقدر يسجل دخول قبل ما تعيّنلوا وحدة من هون. شاركها معه مباشرة
+          (واتساب/حكي) — ما رح تقدر تشوفها مرة ثانية بعد التعيين.
+        </p>
+        {passwordSetMessage && <p className="success">{passwordSetMessage}</p>}
+        <form className="data-form" onSubmit={handleSetPassword}>
+          <input
+            placeholder="كلمة مرور جديدة"
+            type="text"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            minLength={8}
+            required
+          />
+          <button type="button" onClick={() => setNewPassword(generatePassword())}>
+            توليد كلمة مرور
+          </button>
+          <button type="submit" disabled={settingPassword || !newPassword}>
+            {settingPassword ? "..." : "تعيين كلمة المرور"}
+          </button>
+        </form>
+      </div>
 
       <div className="form-section">
         <label>الفروع</label>
