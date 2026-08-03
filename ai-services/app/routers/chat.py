@@ -656,7 +656,12 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             if not ctx.get("patient_id"):
                 return {"error": "ما في مريض مرتبط بهذه المحادثة بعد."}
             saved = save_contact_info(db, ctx["patient_id"], args["full_name"], args["phone"])
-            return {"saved": True, **saved}
+            # A phone match with a different patient re-links this
+            # conversation to that (real, already-known) record instead of
+            # raising — every tool call for the rest of this turn must book
+            # against that same real identity, not the abandoned placeholder.
+            ctx["patient_id"] = saved["patient_id"]
+            return {"saved": True, "full_name": saved["full_name"], "phone": saved["phone"]}
         if name == "book_appointment":
             if not ctx.get("booking_enabled"):
                 return {"error": "الحجز غير متاح حالياً عبر هذه المحادثة."}

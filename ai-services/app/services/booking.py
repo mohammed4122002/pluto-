@@ -45,26 +45,50 @@ def missing_contact_fields(db: Client, patient_id: str) -> list[str]:
     return missing
 
 
+def _resolve_patient(db: Client, patient_id: str) -> str:
+    """Follows an is_merged_into chain to the record that's actually live —
+    a phone match can land on a patient who was themselves already merged
+    into someone else."""
+    seen = set()
+    current_id = patient_id
+    while current_id not in seen:
+        seen.add(current_id)
+        rows = db.table("patients").select("id, is_merged_into").eq("id", current_id).limit(1).execute().data
+        if not rows or not rows[0].get("is_merged_into"):
+            return current_id
+        current_id = rows[0]["is_merged_into"]
+    return current_id
+
+
 def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str) -> dict:
     """Persists the name/phone the patient just gave in chat, so
     missing_contact_fields stops blocking book_appointment. A phone that
-    already belongs to another patient record (same person previously
-    messaged a different channel with their real number) is a dedup case for
-    staff, not something the bot should silently overwrite or merge."""
+    already belongs to a different patient record means this contact IS that
+    other (real, already-known) patient — patients.phone is unique, so we
+    physically cannot write the same number onto two rows anyway. Rather
+    than block the booking and escalate to a human over what's almost always
+    the same person reachable from a second channel (confirmed live: this
+    is exactly what happened mid-booking to a real patient, who just wanted
+    an appointment), repoint this conversation/channel identity to the real
+    record and let booking continue under it. The abandoned placeholder
+    patient is tombstoned the same way patient-merge already does it."""
     full_name = (full_name or "").strip()
     phone = (phone or "").strip()
     if not full_name or not phone:
         raise BookingError("لازم الاسم ورقم الهاتف الاثنين مع بعض، مش وحدة بس.")
 
-    existing = db.table("patients").select("id").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
+    existing = db.table("patients").select("id, full_name").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
     if existing:
-        raise BookingError(
-            "رقم الهاتف هذا مسجل مسبقاً بملف مريض ثاني عنا — لا تكمّلي الحجز، اشرحي للمريض إنه في تعارض "
-            "برقم الهاتف وصعّدي الموضوع لموظف يتحقق ويدمج الملفين."
-        )
+        real_patient_id = _resolve_patient(db, existing[0]["id"])
+        real = db.table("patients").select("full_name").eq("id", real_patient_id).limit(1).execute().data[0]
+        db.table("conversations").update({"patient_id": real_patient_id}).eq("patient_id", patient_id).execute()
+        db.table("patient_channel_identities").update({"patient_id": real_patient_id}).eq("patient_id", patient_id).execute()
+        if patient_id != real_patient_id:
+            db.table("patients").update({"is_merged_into": real_patient_id}).eq("id", patient_id).execute()
+        return {"full_name": real["full_name"], "phone": phone, "patient_id": real_patient_id}
 
     db.table("patients").update({"full_name": full_name, "phone": phone}).eq("id", patient_id).execute()
-    return {"full_name": full_name, "phone": phone}
+    return {"full_name": full_name, "phone": phone, "patient_id": patient_id}
 
 
 def _resolve_doctor_id(db: Client, branch_id: str, doctor_name: str) -> str | None:
