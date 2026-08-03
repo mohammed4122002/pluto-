@@ -37,6 +37,18 @@ def generate_slots_for_doctor(db: Client, staff_id: str, branch_id: str, from_da
     Never touches slots that are already held/booked/blocked — only clears and
     replaces slots still in 'available' status, so it's safe to call again
     after a schedule edit."""
+    staff_rows = db.table("staff").select("is_active").eq("id", staff_id).limit(1).execute().data
+    if not staff_rows or not staff_rows[0]["is_active"]:
+        # A deactivated doctor's future slots get explicitly blocked
+        # (block_future_available_slots) so patients can't book them — but
+        # nothing stopped a later "generate slots" call (e.g. extending
+        # everyone's calendar another 30 days, a routine admin action) from
+        # silently creating brand-new 'available' slots for that same
+        # doctor, undoing the block (confirmed live: generating slots for an
+        # already-deactivated QA doctor created 88 fresh bookable slots).
+        # Regenerating a leaving/left doctor's schedule should be a no-op.
+        return 0
+
     availability = (
         db.table("doctor_availability")
         .select("*")
