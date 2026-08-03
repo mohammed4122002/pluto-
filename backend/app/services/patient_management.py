@@ -14,6 +14,21 @@ _MERGE_TABLES = [
     ("payments", "patient_id"),
     ("waitlist", "patient_id"),
     ("patient_packages", "patient_id"),
+    # invoices.patient_id is set once at issue_invoice() time from the
+    # appointment's patient, not derived from appointments at read time — so
+    # without this a merged invoice kept pointing at the tombstoned loser
+    # even though its own appointment had just been repointed to the
+    # survivor above (confirmed live: after merging two QA patients, the
+    # appointment's patient_id followed the merge but the invoice's didn't).
+    ("invoices", "patient_id"),
+    # patient_channel_identities.patient_id is what handle_inbound_message
+    # actually reads to resolve a returning WhatsApp/Telegram sender to a
+    # patient (app/routers/conversations.py) — without repointing it here,
+    # the very next message from someone whose duplicate record just got
+    # merged away would resolve straight back to the tombstoned loser
+    # (is_merged_into set, but nothing routes future messages around it),
+    # silently undoing the merge for that channel on their first reply.
+    ("patient_channel_identities", "patient_id"),
     # notification_log is keyed by appointment_id only — it follows the
     # patient automatically once appointments.patient_id is repointed above.
 ]
