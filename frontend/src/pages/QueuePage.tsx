@@ -20,7 +20,13 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function QueuePage() {
+type QueuePageProps = {
+  // Passed only for the doctor role -- everyone else (reception/admin) keeps
+  // managing every doctor's queue, so this stays undefined for them.
+  currentDoctor?: { id: string };
+};
+
+export function QueuePage({ currentDoctor }: QueuePageProps) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Staff[]>([]);
@@ -43,8 +49,11 @@ export function QueuePage() {
         setBranches(branchList);
         setPatients(patientList);
         setDoctors(staffList.filter((s) => s.role === "doctor"));
-        setQueues(queueList);
-        setSelectedQueue(queueList[0]?.id || "");
+        // A doctor only ever sees their own queue -- no switcher, no other
+        // doctor's patients, straight to "who's waiting for me today".
+        const scoped = currentDoctor ? queueList.filter((q) => q.doctor_id === currentDoctor.id) : queueList;
+        setQueues(scoped);
+        setSelectedQueue(scoped[0]?.id || "");
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
       .finally(() => setLoading(false));
@@ -78,28 +87,34 @@ export function QueuePage() {
   return (
     <div className="page">
       <p className="settings-hint">
-        الطابور يُنشأ تلقائياً عند أول تسجيل حضور لطبيب باليوم — لا حاجة لإنشائه يدوياً. سجّل الحضور من صفحة المواعيد.
+        {currentDoctor
+          ? "مرضاك المسجّلين اليوم بالطابور — يتحدّث تلقائياً كل يوم."
+          : "الطابور يُنشأ تلقائياً عند أول تسجيل حضور لطبيب باليوم — لا حاجة لإنشائه يدوياً. سجّل الحضور من صفحة المواعيد."}
       </p>
       {error && <p className="error">{error}</p>}
 
       {queues.length === 0 ? (
-        <p className="inbox-empty">لا يوجد طابور نشط اليوم بعد — سيظهر هنا بعد أول تسجيل حضور.</p>
+        <p className="inbox-empty">
+          {currentDoctor ? "ما في مرضى مسجّلين إلك اليوم لسا." : "لا يوجد طابور نشط اليوم بعد — سيظهر هنا بعد أول تسجيل حضور."}
+        </p>
       ) : (
         <>
-          <div className="inbox-filter">
-            {queues.map((q) => (
-              <button
-                key={q.id}
-                className={selectedQueue === q.id ? "nav-item active" : "nav-item"}
-                onClick={() => setSelectedQueue(q.id)}
-              >
-                {/* Each queue is scoped to one doctor at one branch on one day -- two
-                    doctors at the same branch today means two tabs that look identical
-                    without this, since branch+date alone can't tell them apart. */}
-                {nameOf(branches, q.branch_id)} — {q.doctor_id ? nameOf(doctors, q.doctor_id) : "بدون طبيب محدد"}
-              </button>
-            ))}
-          </div>
+          {!currentDoctor && (
+            <div className="inbox-filter">
+              {queues.map((q) => (
+                <button
+                  key={q.id}
+                  className={selectedQueue === q.id ? "nav-item active" : "nav-item"}
+                  onClick={() => setSelectedQueue(q.id)}
+                >
+                  {/* Each queue is scoped to one doctor at one branch on one day -- two
+                      doctors at the same branch today means two tabs that look identical
+                      without this, since branch+date alone can't tell them apart. */}
+                  {nameOf(branches, q.branch_id)} — {q.doctor_id ? nameOf(doctors, q.doctor_id) : "بدون طبيب محدد"}
+                </button>
+              ))}
+            </div>
+          )}
 
           {tickets.length === 0 ? (
             <p className="inbox-empty">لا يوجد أحد بالطابور حالياً.</p>
@@ -126,20 +141,25 @@ export function QueuePage() {
                       <span className="badge active">{statusLabel[t.status]}</span>
                     </td>
                     <td>
-                      {t.status === "waiting" && (
+                      {/* Doctors have queue.view but not queue.manage (they can see
+                          their line, not run it) -- the backend would 403 these
+                          actions for them, so don't offer buttons that can't work. */}
+                      {!currentDoctor && t.status === "waiting" && (
                         <>
                           <button onClick={() => act(callTicket, t.id)}>نداء</button>
                           <button onClick={() => act(startTicket, t.id)}>بدء الكشف</button>
                           <button onClick={() => act(skipTicket, t.id)}>تخطي</button>
                         </>
                       )}
-                      {t.status === "called" && (
+                      {!currentDoctor && t.status === "called" && (
                         <>
                           <button onClick={() => act(startTicket, t.id)}>بدء الكشف</button>
                           <button onClick={() => act(skipTicket, t.id)}>تخطي</button>
                         </>
                       )}
-                      {t.status === "in_progress" && <button onClick={() => act(completeTicket, t.id)}>إنهاء الكشف</button>}
+                      {!currentDoctor && t.status === "in_progress" && (
+                        <button onClick={() => act(completeTicket, t.id)}>إنهاء الكشف</button>
+                      )}
                     </td>
                   </tr>
                 ))}

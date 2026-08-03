@@ -85,7 +85,11 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
     .map((g) => ({ ...g, items: g.items.filter((t) => staff.permissions.includes(t.requires)) }))
     .filter((g) => g.items.length > 0);
 
-  const [tab, setTab] = useState<TabKey | undefined>(visible[0]?.key);
+  // A doctor's queue is the one thing they actually need every day -- land
+  // them there directly instead of on whatever tab happens to be first.
+  const isDoctor = staff.role === "doctor";
+  const defaultTab = isDoctor && visible.some((t) => t.key === "queue") ? "queue" : visible[0]?.key;
+  const [tab, setTab] = useState<TabKey | undefined>(defaultTab);
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
   if (!active) {
@@ -135,7 +139,9 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           <h1>{active.label}</h1>
         </header>
         <main>
-          <Active />
+          {/* Doctors see only their own queue -- everyone else keeps managing
+              every doctor's queue exactly as before. */}
+          {active.key === "queue" ? <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} /> : <Active />}
         </main>
       </div>
     </div>
