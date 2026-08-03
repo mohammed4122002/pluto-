@@ -315,8 +315,16 @@ TOOLS = [
                         "type": "string",
                         "description": "سبب الزيارة/الأعراض كما وصفها المريض، أو نص فاضي.",
                     },
+                    "service_name": {
+                        "type": "string",
+                        "description": (
+                            "اسم الخدمة اللي حدّدها المريض بالضبط متل ما ذكرته أنتِ من قائمة الخدمات "
+                            "(مثلاً 'جلسة تنظيف بشرة' أو 'كشفية جلدية عام') — ضرورية عشان يترتب سعر/عربون "
+                            "صحيح على الحجز، لا تتركيها فاضية إذا كان المريض حدد نوع الخدمة."
+                        ),
+                    },
                 },
-                "required": ["doctor_name", "start_at", "visit_for_name", "reason_for_visit"],
+                "required": ["doctor_name", "start_at", "visit_for_name", "reason_for_visit", "service_name"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -677,6 +685,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 patient_id=ctx["patient_id"],
                 visit_for_name=args.get("visit_for_name") or None,
                 notes=args.get("reason_for_visit") or None,
+                service_name=args.get("service_name") or None,
             )
             if not booking_result["booked"]:
                 return {

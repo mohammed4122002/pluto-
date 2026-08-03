@@ -43,5 +43,7 @@ export const generateSlots = (payload: {
 export const holdSlot = (slotId: string, sessionId: string) =>
   api.post<Slot>(`/slots/${slotId}/hold`, { session_id: sessionId }).then((res) => res.data);
 
-export const bookSlot = (slotId: string, payload: { patient_id: string; session_id: string; notes?: string }) =>
-  api.post<{ appointment_id: string }>(`/slots/${slotId}/book`, payload).then((res) => res.data);
+export const bookSlot = (
+  slotId: string,
+  payload: { patient_id: string; session_id: string; notes?: string; service_id?: string },
+) => api.post<{ appointment_id: string }>(`/slots/${slotId}/book`, payload).then((res) => res.data);

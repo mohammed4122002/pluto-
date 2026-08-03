@@ -257,9 +257,16 @@ def book_slot(
         raise HTTPException(status_code=409, detail=exc.message) from exc
 
     appointment_id = result.data
-    db.table("appointments").update(
-        {"appointment_number": generate_appointment_number(), "confirmation_code": generate_confirmation_code()}
-    ).eq("id", appointment_id).execute()
+    updates = {"appointment_number": generate_appointment_number(), "confirmation_code": generate_confirmation_code()}
+    if payload.service_id:
+        # book_slot() never sets appointments.service_id -- slots themselves
+        # carry no service_id (generate_slots_for_doctor has no notion of
+        # "which service"), so without this every dashboard-booked
+        # appointment had no service on it at all: no price for invoicing,
+        # no deposit_amount to request. Confirmed live via a real invoice
+        # coming back subtotal=0 for a completed visit booked this way.
+        updates["service_id"] = str(payload.service_id)
+    db.table("appointments").update(updates).eq("id", appointment_id).execute()
     resolve_recalls_on_booking(db, str(payload.patient_id), appointment_id)
 
     return SlotBookResult(appointment_id=appointment_id)

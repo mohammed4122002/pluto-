@@ -279,6 +279,32 @@ def search_available_slots(
     return {"slots": matches, "alternative_doctors": alternative_doctors}
 
 
+def _resolve_service_id(db: Client, doctor_id: str, service_name: str | None) -> str | None:
+    """Slots carry no service_id at all (generate_slots_for_doctor creates
+    them from doctor_availability, which has no notion of "which service"),
+    so every appointment booked through the slots engine — AI chat and the
+    dashboard's own slot search alike — ended up with service_id=None
+    regardless of what the patient actually asked for. Confirmed live: an
+    invoice issued for a real completed AI-booked visit came back with
+    subtotal=0, and deposit requests never fire either, since both read
+    price/deposit_amount off appointments.services(...). Fuzzy-matches the
+    name the patient gave against services this doctor actually offers
+    first, falling back to any active service by that name."""
+    if not service_name or not service_name.strip():
+        return None
+    query = service_name.strip()
+
+    linked_ids = {r["service_id"] for r in db.table("service_doctors").select("service_id").eq("staff_id", doctor_id).execute().data}
+    candidates = db.table("services").select("id, name").eq("is_active", True).is_("deleted_at", "null").execute().data
+    doctor_candidates = [c for c in candidates if c["id"] in linked_ids] if linked_ids else []
+
+    for pool in (doctor_candidates, candidates):
+        matches = [c for c in pool if fuzzy_contains(c["name"], query)]
+        if matches:
+            return matches[0]["id"]
+    return None
+
+
 def _generate_appointment_number() -> str:
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     return f"APT-{today}-{secrets.token_hex(3).upper()}"
@@ -295,6 +321,7 @@ def book_slot_for_patient(
     patient_id: str,
     visit_for_name: str | None,
     notes: str | None,
+    service_id: str | None = None,
 ) -> dict:
     """Books via the same atomic book_slot() DB function the staff dashboard
     uses (db/migrations/0011_slots_engine.sql) — a caller only ever gets an
@@ -337,18 +364,16 @@ def book_slot_for_patient(
         raise BookingError("هذا الموعد لم يعد متاحاً، تم حجزه للتو من شخص آخر.") from exc
 
     appointment_id = result.data
-    appointment = (
-        db.table("appointments")
-        .update(
-            {
-                "appointment_number": _generate_appointment_number(),
-                "confirmation_code": _generate_confirmation_code(),
-            }
-        )
-        .eq("id", appointment_id)
-        .execute()
-        .data[0]
-    )
+    updates = {
+        "appointment_number": _generate_appointment_number(),
+        "confirmation_code": _generate_confirmation_code(),
+    }
+    if service_id:
+        # The slot itself never carried a service_id (see _resolve_service_id)
+        # -- this is the only place it gets attached, so invoicing/deposit
+        # logic downstream can actually find a price for this visit.
+        updates["service_id"] = service_id
+    appointment = db.table("appointments").update(updates).eq("id", appointment_id).execute().data[0]
     _resolve_recalls_on_booking(db, patient_id, appointment_id)
     return appointment
 
@@ -385,6 +410,7 @@ def book_by_doctor_and_time(
     patient_id: str,
     visit_for_name: str | None,
     notes: str | None,
+    service_name: str | None = None,
 ) -> dict:
     """Books directly from (doctor_name, requested time) instead of an opaque
     slot_id — the model only ever has to carry text it already generated
@@ -456,7 +482,8 @@ def book_by_doctor_and_time(
         }
 
     slot_id = slot_rows[0]["id"]
+    service_id = _resolve_service_id(db, doctor_id, service_name)
     appointment = book_slot_for_patient(
-        db, slot_id=slot_id, patient_id=patient_id, visit_for_name=visit_for_name, notes=notes
+        db, slot_id=slot_id, patient_id=patient_id, visit_for_name=visit_for_name, notes=notes, service_id=service_id
     )
     return {"booked": True, **appointment}

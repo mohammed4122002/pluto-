@@ -9,6 +9,8 @@ import { listAppointments, rescheduleAppointment } from "../api/appointments";
 import type { Appointment } from "../api/appointments";
 import { searchSlots, generateSlots, holdSlot, bookSlot } from "../api/slots";
 import type { Slot } from "../api/slots";
+import { listServices } from "../api/services";
+import type { Service } from "../api/services";
 
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
@@ -31,6 +33,7 @@ export function CalendarPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Staff[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [branchId, setBranchId] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [date, setDate] = useState(todayIso());
@@ -42,16 +45,18 @@ export function CalendarPage() {
   const [generating, setGenerating] = useState(false);
   const [bookingSlotId, setBookingSlotId] = useState<string | null>(null);
   const [bookingPatientId, setBookingPatientId] = useState("");
+  const [bookingServiceId, setBookingServiceId] = useState("");
   const [booking, setBooking] = useState(false);
   const [dragOverSlotId, setDragOverSlotId] = useState<string | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
   const draggedAppointmentId = useRef<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listBranches(), listStaff(), listPatients()]).then(([b, s, p]) => {
+    Promise.all([listBranches(), listStaff(), listPatients(), listServices()]).then(([b, s, p, sv]) => {
       setBranches(b);
       setDoctors(s.filter((x) => x.role === "doctor"));
       setPatients(p);
+      setServices(sv);
       if (b.length > 0) setBranchId((cur) => cur || b[0].id);
     });
   }, []);
@@ -91,15 +96,16 @@ export function CalendarPage() {
   };
 
   const handleBook = (slotId: string) => {
-    if (!bookingPatientId) return;
+    if (!bookingPatientId || !bookingServiceId) return;
     setBooking(true);
     setError(null);
     const sessionId = `dashboard-${Date.now()}`;
     holdSlot(slotId, sessionId)
-      .then(() => bookSlot(slotId, { patient_id: bookingPatientId, session_id: sessionId }))
+      .then(() => bookSlot(slotId, { patient_id: bookingPatientId, session_id: sessionId, service_id: bookingServiceId }))
       .then(() => {
         setBookingSlotId(null);
         setBookingPatientId("");
+        setBookingServiceId("");
         load();
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
@@ -250,10 +256,27 @@ export function CalendarPage() {
                               </option>
                             ))}
                           </select>
-                          <button type="button" disabled={booking} onClick={() => handleBook(s.id)}>
+                          <select value={bookingServiceId} onChange={(e) => setBookingServiceId(e.target.value)}>
+                            <option value="">اختر الخدمة</option>
+                            {services
+                              .filter((sv) => sv.doctor_ids.length === 0 || sv.doctor_ids.includes(s.doctor_id ?? ""))
+                              .map((sv) => (
+                                <option key={sv.id} value={sv.id}>
+                                  {sv.name}
+                                  {sv.price ? ` (${sv.price})` : ""}
+                                </option>
+                              ))}
+                          </select>
+                          <button type="button" disabled={booking || !bookingPatientId || !bookingServiceId} onClick={() => handleBook(s.id)}>
                             {booking ? "..." : "تأكيد الحجز"}
                           </button>
-                          <button type="button" onClick={() => setBookingSlotId(null)}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBookingSlotId(null);
+                              setBookingServiceId("");
+                            }}
+                          >
                             إلغاء
                           </button>
                         </span>

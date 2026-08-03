@@ -304,6 +304,7 @@ class SlotBookRequest(BaseModel):
     session_id: str
     notes: str | None = None
     source: str = "dashboard"
+    service_id: UUID | None = None
 
 
 class SlotBookResult(BaseModel):
