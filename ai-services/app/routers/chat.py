@@ -545,7 +545,18 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
 
     parts = [BASE_INSTRUCTIONS]
     if ch_settings.get("dialect"):
-        parts.append(f"استخدم لهجة: {ch_settings['dialect']}")
+        # BASE_INSTRUCTIONS hard-codes Jordanian/Levantine and explicitly
+        # bans slipping into Egyptian/Gulf phrasing -- appending just "use
+        # dialect: X" left two contradictory instructions in the same prompt
+        # for any channel configured with a different dialect (confirmed
+        # live: a real channel has dialect='مصري' while the base rule above
+        # forbids Egyptian words outright). This channel's explicit choice
+        # must override that default, not silently compete with it.
+        parts.append(
+            f"استثناء صريح يلغي قاعدة اللهجة الأردنية أعلاه لهذه القناة تحديداً: تكلمي بلهجة "
+            f"{ch_settings['dialect']} بدل الأردنية، والتزمي فيها بكل القواعد التانية (الأسلوب، "
+            "الحجز، الإلغاء، التصعيد) بدون أي تغيير."
+        )
 
     tz_name = (branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman"
     now_local = datetime.now(ZoneInfo(tz_name))
