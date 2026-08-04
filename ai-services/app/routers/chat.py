@@ -434,6 +434,21 @@ def _openai_in_cooldown() -> bool:
     return time.monotonic() < _openai_unusable_until
 
 
+# Both providers' own error text says these are transient ("usually temporary,
+# try again later" / "please retry in Xs") -- unlike _OPENAI_HARD_FAILURES,
+# retrying seconds later can genuinely succeed. Distinct from a real quota
+# exhaustion (credit_balance_exhausted, or a free-tier "limit: 0") which will
+# just fail again immediately.
+_RETRYABLE_MARKERS = ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")
+
+
+def _is_retryable_provider_error(exc: Exception) -> bool:
+    text = str(exc)
+    if any(marker in text for marker in _OPENAI_HARD_FAILURES):
+        return False
+    return any(marker in text for marker in _RETRYABLE_MARKERS)
+
+
 def _load_provider_overrides(db: Client) -> dict:
     """Lets clinic staff change the OpenAI/Gemini key from the dashboard
     (backend's /settings/ai-providers) without a redeploy — checked on every
@@ -925,7 +940,22 @@ def generate_reply(
     tools = _select_tools(ch_settings)
 
     try:
-        reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+        try:
+            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+        except Exception as exc:
+            if not _is_retryable_provider_error(exc):
+                raise
+            # A single transient blip on both providers back-to-back (rare but
+            # observed live) must not permanently hand a patient off to a human
+            # who may not see it for up to human_handoff_timeout_minutes -- one
+            # short retry recovers most of these.
+            logger.warning(
+                "chat turn failed transiently for conversation_id=%s, retrying once: %s",
+                payload.conversation_id,
+                exc,
+            )
+            time.sleep(2)
+            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
     except Exception as exc:
         # Whatever broke (OpenAI outage/rate limit, an unexpected tool
         # failure, ...) — a patient waiting on a reply must never see a raw
