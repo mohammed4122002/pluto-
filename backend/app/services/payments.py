@@ -15,6 +15,7 @@ _INSTRUCTIONS_TEMPLATE = (
 )
 _VERIFIED_TEMPLATE = "تم تأكيد استلام دفعتك لحجزك رقم {{appointment_number}}. شكراً إلك!"
 _REJECTED_TEMPLATE = "للأسف ما قدرنا نتحقق من الإيصال المرسل لحجزك رقم {{appointment_number}}. السبب: {{reason}}\nيرجى إرسال إيصال واضح مرة أخرى."
+_RECEIPT_RECEIVED_TEMPLATE = "وصلنا إيصال الدفع وهو قيد المراجعة الآن — رح نأكدلك خلال وقت قصير."
 
 
 def create_payment_for_appointment(db: Client, appointment_id: str) -> None:
@@ -255,7 +256,13 @@ def submit_receipt(db: Client, payment_id: str, receipt_image_url: str) -> dict:
     )
     if not rows:
         raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
-    return rows[0]
+    payment = rows[0]
+
+    channel = _resolve_channel_for_patient(db, payment["patient_id"])
+    if channel and channel.get("outbound_webhook_url"):
+        _deliver(db, channel, payment["patient_id"], _RECEIPT_RECEIVED_TEMPLATE)
+
+    return payment
 
 
 def attach_receipt_from_inbound_media(db: Client, patient_id: str, media_url: str) -> dict | None:
