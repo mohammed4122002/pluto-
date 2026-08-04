@@ -16,7 +16,13 @@ const emptyForm: ServiceCreate = {
   doctor_ids: [],
 };
 
-export function ServicesPage() {
+type ServicesPageProps = {
+  // Doctors have service.view only -- no create/update -- and only care
+  // about the services actually assigned to them, not the whole catalog.
+  currentDoctor?: { id: string };
+};
+
+export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
   const [services, setServices] = useState<Service[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [doctors, setDoctors] = useState<Staff[]>([]);
@@ -40,6 +46,10 @@ export function ServicesPage() {
   };
 
   useEffect(load, []);
+
+  const visibleServices = currentDoctor
+    ? services.filter((s) => s.doctor_ids.includes(currentDoctor.id))
+    : services;
 
   const specialtyName = (id: string | null) => specialties.find((s) => s.id === id)?.name_ar ?? "—";
   const doctorNames = (ids: string[]) =>
@@ -90,6 +100,7 @@ export function ServicesPage() {
     <div className="page">
       {error && <p className="error">{error}</p>}
 
+      {!currentDoctor && (
       <form className="data-form" onSubmit={handleCreate}>
         <input
           placeholder="اسم الخدمة"
@@ -129,8 +140,9 @@ export function ServicesPage() {
           {saving ? "..." : "إضافة خدمة"}
         </button>
       </form>
+      )}
 
-      {doctors.length > 0 && (
+      {!currentDoctor && doctors.length > 0 && (
         <div className="checkbox-group">
           {doctors.map((d) => (
             <label key={d.id}>
@@ -162,7 +174,7 @@ export function ServicesPage() {
             </tr>
           </thead>
           <tbody>
-            {services.map((service) => (
+            {visibleServices.map((service) => (
               <Fragment key={service.id}>
                 <tr>
                   <td>{service.name}</td>
@@ -177,15 +189,20 @@ export function ServicesPage() {
                     </span>
                   </td>
                   <td>
-                    <button onClick={() => setOpenFor(openFor === service.id ? null : service.id)}>
-                      {openFor === service.id ? "إخفاء" : "الأطباء"}
-                    </button>
-                    <button onClick={() => toggleActive(service)}>
-                      {service.is_active ? "إيقاف" : "تفعيل"}
-                    </button>
+                    {/* service.update isn't in the doctor role's grant -- read-only for them. */}
+                    {!currentDoctor && (
+                      <>
+                        <button onClick={() => setOpenFor(openFor === service.id ? null : service.id)}>
+                          {openFor === service.id ? "إخفاء" : "الأطباء"}
+                        </button>
+                        <button onClick={() => toggleActive(service)}>
+                          {service.is_active ? "إيقاف" : "تفعيل"}
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
-                {openFor === service.id && (
+                {!currentDoctor && openFor === service.id && (
                   <tr>
                     <td colSpan={8}>
                       <div className="checkbox-group">

@@ -139,9 +139,18 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           <h1>{active.label}</h1>
         </header>
         <main>
-          {/* Doctors see only their own queue -- everyone else keeps managing
-              every doctor's queue exactly as before. */}
-          {active.key === "queue" ? <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} /> : <Active />}
+          {/* Doctors see only their own queue/appointments/patients/services --
+              everyone else keeps managing everything exactly as before. */}
+          {active.key === "queue" && <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+          {active.key === "appointments" && (
+            <AppointmentsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />
+          )}
+          {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+          {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+          {active.key !== "queue" &&
+            active.key !== "appointments" &&
+            active.key !== "patients" &&
+            active.key !== "services" && <Active />}
         </main>
       </div>
     </div>

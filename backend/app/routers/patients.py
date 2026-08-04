@@ -68,6 +68,15 @@ def list_patients(
     allowed = allowed_branch_ids(current, "patient.view")
     if allowed is not None:
         visible_ids = _patient_ids_visible_in_branches(db, allowed)
+        if current.role == "doctor":
+            # "Their own patients only" (per the doctor role's own
+            # description) -- branch-wide visibility would otherwise include
+            # every other doctor's patients at the same branch.
+            own_ids = {
+                r["patient_id"]
+                for r in db.table("appointments").select("patient_id").eq("staff_id", current.id).execute().data
+            }
+            visible_ids &= own_ids
         if not visible_ids:
             return []
         query = query.in_("id", list(visible_ids))

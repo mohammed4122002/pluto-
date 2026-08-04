@@ -77,7 +77,13 @@ def list_appointments(
         query = query.eq("status", status)
     if patient_id:
         query = query.eq("patient_id", patient_id)
-    if staff_id:
+    # A doctor's permission grant is "their own schedule and patients only"
+    # (per the doctor role's own description) -- enforce that regardless of
+    # what staff_id they pass, rather than letting them see another doctor's
+    # appointments just by asking for it.
+    if current.role == "doctor":
+        query = query.eq("staff_id", current.id)
+    elif staff_id:
         query = query.eq("staff_id", staff_id)
     return query.execute().data
 

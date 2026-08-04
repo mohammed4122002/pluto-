@@ -34,7 +34,13 @@ function isMinor(dob: string | undefined): boolean {
   return age < 18;
 }
 
-export function PatientsPage() {
+type PatientsPageProps = {
+  // Doctors have patient.view only -- no create or tag, so hide controls
+  // that would just 403 for them.
+  currentDoctor?: { id: string };
+};
+
+export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +154,7 @@ export function PatientsPage() {
         )}
       </form>
 
+      {!currentDoctor && (
       <form className="data-form" onSubmit={handleCreate}>
         <input
           placeholder="الاسم الكامل"
@@ -181,8 +188,9 @@ export function PatientsPage() {
           {saving ? "..." : "إضافة مريض"}
         </button>
       </form>
+      )}
 
-      {isMinor(form.date_of_birth) && (
+      {!currentDoctor && isMinor(form.date_of_birth) && (
         <div className="data-form settings-hint">
           <strong style={{ width: "100%" }}>المريض قاصر — بيانات ولي الأمر إلزامية (BR-011)</strong>
           <input placeholder="اسم ولي الأمر" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} required />
@@ -214,25 +222,29 @@ export function PatientsPage() {
                   {(tagsByPatient[patient.id] ?? []).map((tag) => (
                     <span key={tag} className="badge active" style={{ marginInlineEnd: 4 }}>
                       {tagLabels[tag]}
-                      <button onClick={() => handleRemoveTag(patient.id, tag)} style={{ marginInlineStart: 4 }}>
-                        ×
-                      </button>
+                      {!currentDoctor && (
+                        <button onClick={() => handleRemoveTag(patient.id, tag)} style={{ marginInlineStart: 4 }}>
+                          ×
+                        </button>
+                      )}
                     </span>
                   ))}
-                  {addingTagFor === patient.id ? (
-                    <select autoFocus onChange={(e) => e.target.value && handleAddTag(patient.id, e.target.value as PatientTagValue)}>
-                      <option value="">اختر تصنيفاً</option>
-                      {allTags
-                        .filter((t) => !(tagsByPatient[patient.id] ?? []).includes(t))
-                        .map((t) => (
-                          <option key={t} value={t}>
-                            {tagLabels[t]}
-                          </option>
-                        ))}
-                    </select>
-                  ) : (
-                    <button onClick={() => setAddingTagFor(patient.id)}>+ تصنيف</button>
-                  )}
+                  {/* patient.tag isn't in the doctor role's grant -- read-only for them. */}
+                  {!currentDoctor &&
+                    (addingTagFor === patient.id ? (
+                      <select autoFocus onChange={(e) => e.target.value && handleAddTag(patient.id, e.target.value as PatientTagValue)}>
+                        <option value="">اختر تصنيفاً</option>
+                        {allTags
+                          .filter((t) => !(tagsByPatient[patient.id] ?? []).includes(t))
+                          .map((t) => (
+                            <option key={t} value={t}>
+                              {tagLabels[t]}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <button onClick={() => setAddingTagFor(patient.id)}>+ تصنيف</button>
+                    ))}
                 </td>
               </tr>
             ))}
