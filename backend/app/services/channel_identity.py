@@ -76,6 +76,33 @@ def link_patient_to_identity(db: Client, identity: dict, patient_id: str, phone_
     identity.update(updates)
 
 
+def resolve_delivery_recipient(db: Client, channel_id: str, patient_id: str) -> str | None:
+    """The outbound-webhook 'recipient' is NOT always patients.phone: once a
+    patient tells the AI their real phone number for booking/records, that
+    column no longer holds a synthetic routing id like Telegram's "tg:{chat_id}"
+    -- it holds their actual phone, which n8n's Telegram sender would treat as
+    a (bogus) chat_id. Resolve from this patient's channel identity for this
+    exact channel instead; fall back to phone for channels (WhatsApp/SMS)
+    where the phone number genuinely is the routing target."""
+    identity = (
+        db.table("patient_channel_identities")
+        .select("provider_type, external_user_id")
+        .eq("channel_id", channel_id)
+        .eq("patient_id", patient_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if identity:
+        provider_type = identity[0]["provider_type"]
+        external_user_id = identity[0]["external_user_id"]
+        if provider_type == "telegram":
+            return f"{_LEGACY_TELEGRAM_PREFIX}{external_user_id}"
+        return external_user_id
+    rows = db.table("patients").select("phone").eq("id", patient_id).limit(1).execute().data
+    return rows[0]["phone"] if rows else None
+
+
 def find_or_create_patient_by_phone(db: Client, phone: str, display_name: str | None) -> str:
     rows = db.table("patients").select("id").eq("phone", phone).limit(1).execute().data
     if rows:

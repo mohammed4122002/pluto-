@@ -22,6 +22,7 @@ from app.services.channel_identity import (
     find_or_create_patient_by_phone,
     is_real_phone,
     link_patient_to_identity,
+    resolve_delivery_recipient,
     resolve_external_user_id,
     resolve_identity,
 )
@@ -301,7 +302,7 @@ def staff_reply(
 
     conversation = (
         db.table("conversations")
-        .select("channel_id, patients(phone)")
+        .select("channel_id, patient_id")
         .eq("id", str(conversation_id))
         .single()
         .execute()
@@ -316,11 +317,12 @@ def staff_reply(
         .data
     )
     if channel and channel.get("outbound_webhook_url"):
+        recipient = resolve_delivery_recipient(db, conversation["channel_id"], conversation["patient_id"])
         try:
             httpx.post(
                 channel["outbound_webhook_url"],
                 json={
-                    "recipient": conversation["patients"]["phone"],
+                    "recipient": recipient,
                     "message": payload.message,
                     "channel_identifier": channel["identifier"],
                 },

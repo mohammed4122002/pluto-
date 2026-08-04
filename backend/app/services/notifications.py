@@ -22,7 +22,7 @@ def render_template(body_template: str, context: dict) -> str:
 def _resolve_channel_for_patient(db: Client, patient_id: str) -> dict | None:
     conv = (
         db.table("conversations")
-        .select("channel_id, channels(identifier, outbound_webhook_url, channel_type)")
+        .select("channel_id, channels(id, identifier, outbound_webhook_url, channel_type)")
         .eq("patient_id", patient_id)
         .order("created_at", desc=True)
         .limit(1)

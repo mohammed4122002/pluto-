@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from supabase import Client
 
+from app.services.channel_identity import resolve_delivery_recipient
 from app.services.notifications import _resolve_channel_for_patient, render_template
 
 logger = logging.getLogger(__name__)
@@ -290,12 +291,11 @@ def attach_receipt_from_inbound_media(db: Client, patient_id: str, media_url: st
 def _deliver(db: Client, channel: dict, patient_id: str, message: str) -> None:
     import httpx
 
-    patient = db.table("patients").select("phone").eq("id", patient_id).limit(1).execute().data
-    phone = patient[0]["phone"] if patient else None
+    recipient = resolve_delivery_recipient(db, channel["id"], patient_id)
     try:
         httpx.post(
             channel["outbound_webhook_url"],
-            json={"recipient": phone, "message": message, "channel_identifier": channel["identifier"]},
+            json={"recipient": recipient, "message": message, "channel_identifier": channel["identifier"]},
             timeout=10,
         )
     except httpx.HTTPError:
