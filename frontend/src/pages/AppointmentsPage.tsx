@@ -22,35 +22,98 @@ import type { Appointment, AppointmentCreate, AppointmentStatus } from "../api/a
 import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
 
+// Every status status_transitions can actually produce (confirmed against
+// the live table) -- not just the handful this UI creates directly, since
+// queue/check-in flows drive several of these (waiting, called,
+// in_consultation...) without going through this page's own dropdown.
 const statuses: AppointmentStatus[] = [
+  "draft",
   "requested",
+  "pending_review",
+  "pending_approval",
+  "pending_payment",
+  "pending_insurance_verification",
+  "pending_prior_authorization",
   "confirmed",
+  "patient_confirmed",
+  "waitlisted",
+  "rescheduled",
   "checked_in",
+  "arrived_late",
+  "waiting",
+  "called",
+  "in_consultation",
+  "procedure_started",
   "completed",
+  "checked_out",
   "cancelled",
+  "cancelled_by_patient",
+  "cancelled_by_clinic",
+  "cancelled_by_doctor",
+  "rejected",
   "no_show",
+  "expired",
+  "on_hold",
 ];
 
-// The type covers a much broader status domain than this app ever
-// actually creates -- statuses[] above is the real, exhaustive list, so
-// these stay partial with a raw-value fallback rather than requiring
-// every theoretical status to be mapped.
-const statusLabel: Partial<Record<AppointmentStatus, string>> = {
+const statusLabel: Record<AppointmentStatus, string> = {
+  draft: "مسودة",
   requested: "بانتظار التأكيد",
+  pending_review: "قيد المراجعة",
+  pending_approval: "بانتظار الموافقة",
+  pending_payment: "بانتظار الدفع",
+  pending_insurance_verification: "بانتظار التحقق من التأمين",
+  pending_prior_authorization: "بانتظار الموافقة المسبقة",
   confirmed: "مؤكد",
+  patient_confirmed: "أكّده المريض",
+  waitlisted: "قائمة انتظار",
+  rescheduled: "أُعيدت جدولته",
   checked_in: "سجّل حضوره",
+  arrived_late: "وصل متأخراً",
+  waiting: "بانتظار الدور",
+  called: "تم نداؤه",
+  in_consultation: "داخل الكشف",
+  procedure_started: "بدأ الإجراء",
   completed: "مكتمل",
+  checked_out: "غادر العيادة",
   cancelled: "ملغى",
+  cancelled_by_patient: "ألغاه المريض",
+  cancelled_by_clinic: "ألغته العيادة",
+  cancelled_by_doctor: "ألغاه الطبيب",
+  rejected: "مرفوض",
   no_show: "لم يحضر",
+  expired: "انتهت صلاحيته",
+  on_hold: "معلّق",
 };
 
-const statusBadgeClass: Partial<Record<AppointmentStatus, string>> = {
+const statusBadgeClass: Record<AppointmentStatus, string> = {
+  draft: "inactive",
   requested: "warning",
+  pending_review: "warning",
+  pending_approval: "warning",
+  pending_payment: "warning",
+  pending_insurance_verification: "warning",
+  pending_prior_authorization: "warning",
   confirmed: "active",
+  patient_confirmed: "active",
+  waitlisted: "warning",
+  rescheduled: "inactive",
   checked_in: "active",
+  arrived_late: "warning",
+  waiting: "active",
+  called: "active",
+  in_consultation: "active",
+  procedure_started: "active",
   completed: "inactive",
+  checked_out: "inactive",
   cancelled: "danger",
+  cancelled_by_patient: "danger",
+  cancelled_by_clinic: "danger",
+  cancelled_by_doctor: "danger",
+  rejected: "danger",
   no_show: "danger",
+  expired: "danger",
+  on_hold: "warning",
 };
 
 type ActionPanel = { appointmentId: string; kind: "reschedule" | "cancel" | "no_show" };
@@ -266,7 +329,7 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
         <form className="data-form" onSubmit={handleCheckInByCode}>
           <input
             autoFocus
-            placeholder="امسحي رمز QR أو اكتبي رمز التأكيد لتسجيل الحضور"
+            placeholder="امسحي رمز QR أو اكتبي رقم الحجز أو رمز التأكيد لتسجيل الحضور"
             value={checkInCode}
             onChange={(e) => setCheckInCode(e.target.value)}
           />
@@ -384,8 +447,8 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
                   <td>{nameOf(services, appt.service_id)}</td>
                   <td>{new Date(appt.scheduled_at).toLocaleString("ar-JO")}</td>
                   <td>
-                    <span className={`badge ${statusBadgeClass[appt.status] ?? "inactive"}`}>
-                      {statusLabel[appt.status] ?? appt.status}
+                    <span className={`badge ${statusBadgeClass[appt.status]}`}>
+                      {statusLabel[appt.status]}
                     </span>
                   </td>
                   <td>

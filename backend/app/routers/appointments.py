@@ -239,9 +239,13 @@ def check_in_by_code(
 ):
     """Lets front-desk staff check a patient in by scanning (or typing) the
     confirmation_code from their booking QR/confirmation message, instead of
-    hunting for them in the appointments list."""
+    hunting for them in the appointments list. Also accepts the booking
+    number (APT-...) since patients read either one out interchangeably and
+    staff have no way to tell which one they're being given."""
     code = payload.confirmation_code.strip().upper()
     rows = db.table("appointments").select("id, branch_id").eq("confirmation_code", code).limit(1).execute().data
+    if not rows:
+        rows = db.table("appointments").select("id, branch_id").eq("appointment_number", code).limit(1).execute().data
     if not rows:
         raise HTTPException(status_code=404, detail="لم يتم العثور على موعد بهذا الرمز")
     assert_branch_access(current, "appointment.check_in", rows[0]["branch_id"])
