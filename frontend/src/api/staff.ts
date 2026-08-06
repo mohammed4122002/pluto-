@@ -20,6 +20,7 @@ export type Staff = {
   branch_ids: string[];
   specialty_ids: string[];
   service_ids: string[];
+  telegram_linked: boolean;
 };
 
 export type StaffCreate = {
@@ -68,3 +69,8 @@ export const deleteStaff = (staffId: string) => api.delete(`/staff/${staffId}`).
 
 export const setStaffPassword = (staffId: string, newPassword: string) =>
   api.post<{ password_set: boolean }>(`/staff/${staffId}/set-password`, { new_password: newPassword }).then((res) => res.data);
+
+export type TelegramLinkCode = { code: string; expires_at: string };
+
+export const generateMyTelegramLinkCode = () =>
+  api.post<TelegramLinkCode>("/staff/me/telegram-link-code").then((res) => res.data);

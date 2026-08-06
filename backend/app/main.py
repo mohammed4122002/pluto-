@@ -15,6 +15,7 @@ from app.routers import (
     conversations,
     coupons,
     doctor_availability,
+    escalation_staff,
     imports,
     invoices,
     notifications,
@@ -30,6 +31,7 @@ from app.routers import (
     slots,
     specialties,
     staff,
+    staff_bot,
     waitlist,
 )
 
@@ -68,6 +70,7 @@ app.include_router(channels.router)
 app.include_router(conversations.router)
 app.include_router(coupons.router)
 app.include_router(doctor_availability.router)
+app.include_router(escalation_staff.router)
 app.include_router(imports.router)
 app.include_router(invoices.router)
 app.include_router(notifications.router)
@@ -83,6 +86,7 @@ app.include_router(setup.router)
 app.include_router(slots.router)
 app.include_router(specialties.router)
 app.include_router(staff.router)
+app.include_router(staff_bot.router)
 app.include_router(appointments.router)
 app.include_router(waitlist.router)
 

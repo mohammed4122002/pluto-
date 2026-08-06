@@ -1,17 +1,20 @@
+import secrets
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 
-from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
+from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, get_current_staff, require_permission
 from app.core.database import get_supabase
 from app.core.rbac import sync_legacy_role
 from app.core.security import hash_password
-from app.models.schemas import SetPasswordRequest, Staff, StaffCreate, StaffUpdate
+from app.models.schemas import SetPasswordRequest, Staff, StaffCreate, StaffUpdate, TelegramLinkCode
 from app.services.slots import block_future_available_slots, generate_slots_for_doctor
 
 router = APIRouter(prefix="/staff", tags=["staff"])
+
+_TELEGRAM_LINK_CODE_MINUTES = 10
 
 
 def _attach_branch_ids(db: Client, staff: list[dict]) -> list[dict]:
@@ -56,7 +59,10 @@ def _attach_service_ids(db: Client, staff: list[dict]) -> list[dict]:
 
 
 def _attach_all(db: Client, staff: list[dict]) -> list[dict]:
-    return _attach_service_ids(db, _attach_specialty_ids(db, _attach_branch_ids(db, staff)))
+    staff = _attach_service_ids(db, _attach_specialty_ids(db, _attach_branch_ids(db, staff)))
+    for s in staff:
+        s["telegram_linked"] = bool(s.get("telegram_chat_id"))
+    return staff
 
 
 @router.get("", response_model=list[Staff])
@@ -279,3 +285,20 @@ def set_password(
 ):
     db.table("staff").update({"password_hash": hash_password(payload.new_password)}).eq("id", str(staff_id)).execute()
     return {"password_set": True}
+
+
+@router.post("/me/telegram-link-code", response_model=TelegramLinkCode)
+def generate_my_telegram_link_code(
+    current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)
+):
+    """Self-service: any logged-in staff member can link their own Telegram
+    to receive escalation alerts and reply through the staff bot -- no
+    special permission needed beyond being a real, active staff account.
+    The code is single-use and short-lived; the staff bot's n8n workflow
+    calls POST /staff-bot/telegram-link with whatever the person sends it."""
+    code = "".join(secrets.choice("0123456789") for _ in range(6))
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=_TELEGRAM_LINK_CODE_MINUTES)
+    db.table("staff").update(
+        {"telegram_link_code": code, "telegram_link_code_expires_at": expires_at.isoformat()}
+    ).eq("id", current.id).execute()
+    return TelegramLinkCode(code=code, expires_at=expires_at)

@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from openai import OpenAI
 from pydantic import BaseModel
@@ -1048,6 +1049,21 @@ def _escalate(db: Client, conversation_id: str) -> None:
     db.table("conversations").update(
         {"mode": "human", "needs_attention": True, "escalated_at": datetime.now(timezone.utc).isoformat()}
     ).eq("id", conversation_id).execute()
+
+    settings = get_settings()
+    if settings.backend_public_url and settings.service_token:
+        # Best-effort: picks a staff member from the configured escalation
+        # pool and alerts them via the staff Telegram bot, if any is set up.
+        # A failure here must never break the escalation itself -- the
+        # conversation is already correctly marked mode=human either way.
+        try:
+            httpx.post(
+                f"{settings.backend_public_url}/conversations/{conversation_id}/auto-assign-escalation",
+                headers={"x-service-token": settings.service_token},
+                timeout=10,
+            )
+        except httpx.HTTPError:
+            logger.exception("auto-assign-escalation call failed for conversation_id=%s", conversation_id)
 
 
 @router.post("/reply", response_model=ReplyResponse, dependencies=[Depends(require_service_token)])

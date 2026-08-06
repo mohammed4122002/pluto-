@@ -26,6 +26,7 @@ from app.services.channel_identity import (
     resolve_external_user_id,
     resolve_identity,
 )
+from app.services.escalation import auto_assign_conversation
 from app.services.payments import attach_receipt_from_inbound_media
 
 logger = logging.getLogger(__name__)
@@ -292,40 +293,32 @@ def _summary_of(db: Client, conversation_id: UUID) -> ConversationSummary:
     )
 
 
-@router.post("/{conversation_id}/reply", response_model=Message)
-def staff_reply(
-    conversation_id: UUID,
-    payload: StaffReplyCreate,
-    current: CurrentStaff = Depends(require_permission("conversation.update")),
-    db: Client = Depends(get_supabase),
-):
-    """A staff member replies from the dashboard. Records the message, switches
-    the conversation to human-handled, clears the escalation flag, and — if the
-    channel has an outbound webhook configured — pushes the reply out through
-    n8n to the real WhatsApp/Telegram chat."""
-    assert_branch_access(current, "conversation.update", _conversation_branch_id(db, str(conversation_id)))
+def deliver_staff_reply(db: Client, conversation_id: str, message_text: str) -> dict:
+    """Records a staff reply, switches the conversation to human-handled,
+    clears the escalation flag, and -- if the channel has an outbound
+    webhook configured -- pushes the reply out through n8n to the real
+    WhatsApp/Telegram chat. Shared by the dashboard reply box and the staff
+    Telegram bot bridge, which both end up doing exactly this."""
     message = (
         db.table("messages")
         .insert(
             {
-                "conversation_id": str(conversation_id),
+                "conversation_id": conversation_id,
                 "direction": "outbound",
                 "sender_type": "staff",
-                "content": payload.message,
+                "content": message_text,
             }
         )
         .execute()
         .data[0]
     )
-    _touch_conversation(db, str(conversation_id), payload.message, "staff")
-    db.table("conversations").update({"mode": "human", "needs_attention": False}).eq(
-        "id", str(conversation_id)
-    ).execute()
+    _touch_conversation(db, conversation_id, message_text, "staff")
+    db.table("conversations").update({"mode": "human", "needs_attention": False}).eq("id", conversation_id).execute()
 
     conversation = (
         db.table("conversations")
         .select("channel_id, patient_id")
-        .eq("id", str(conversation_id))
+        .eq("id", conversation_id)
         .single()
         .execute()
         .data
@@ -345,7 +338,7 @@ def staff_reply(
                 channel["outbound_webhook_url"],
                 json={
                     "recipient": recipient,
-                    "message": payload.message,
+                    "message": message_text,
                     "channel_identifier": channel["identifier"],
                 },
                 timeout=10,
@@ -353,4 +346,27 @@ def staff_reply(
         except httpx.HTTPError:
             pass
 
-    return Message(**message)
+    return message
+
+
+@router.post("/{conversation_id}/auto-assign-escalation", dependencies=[Depends(require_service_token)])
+def auto_assign_escalation_endpoint(conversation_id: UUID, db: Client = Depends(get_supabase)):
+    """Called by ai-services right after it escalates a conversation to
+    human -- picks a staff member from the configured escalation pool (see
+    escalation_staff) and alerts them via the staff Telegram bot, if one is
+    linked. A no-op (returns assigned_staff_id=null) when the pool is empty
+    for this branch, same as before this feature existed."""
+    staff_id = auto_assign_conversation(db, str(conversation_id))
+    return {"assigned_staff_id": staff_id}
+
+
+@router.post("/{conversation_id}/reply", response_model=Message)
+def staff_reply(
+    conversation_id: UUID,
+    payload: StaffReplyCreate,
+    current: CurrentStaff = Depends(require_permission("conversation.update")),
+    db: Client = Depends(get_supabase),
+):
+    """A staff member replies from the dashboard."""
+    assert_branch_access(current, "conversation.update", _conversation_branch_id(db, str(conversation_id)))
+    return Message(**deliver_staff_reply(db, str(conversation_id), payload.message))

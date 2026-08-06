@@ -17,6 +17,7 @@ import { QueuePage } from "./pages/QueuePage";
 import { PackagesPage } from "./pages/PackagesPage";
 import { CouponsPage } from "./pages/CouponsPage";
 import { CancellationPoliciesPage } from "./pages/CancellationPoliciesPage";
+import { EscalationStaffPage } from "./pages/EscalationStaffPage";
 import { BotPerformancePage } from "./pages/BotPerformancePage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
 import { SetupWizard } from "./pages/SetupWizard";
@@ -25,6 +26,8 @@ import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
+import { generateMyTelegramLinkCode } from "./api/staff";
+import type { TelegramLinkCode } from "./api/staff";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -83,6 +86,13 @@ const groups = [
         Component: CancellationPoliciesPage,
         requires: "clinic_settings.view",
       },
+      {
+        key: "escalation-staff",
+        label: "فريق التصعيد",
+        Icon: AlertIcon,
+        Component: EscalationStaffPage,
+        requires: "clinic_settings.view",
+      },
       { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
       { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "appointment.view" },
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
@@ -105,6 +115,16 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const defaultTab = isDoctor && visible.some((t) => t.key === "queue") ? "queue" : visible[0]?.key;
   const [tab, setTab] = useState<TabKey | undefined>(defaultTab);
   const active = visible.find((t) => t.key === tab) ?? visible[0];
+
+  const [telegramLinkCode, setTelegramLinkCode] = useState<TelegramLinkCode | null>(null);
+  const [generatingLinkCode, setGeneratingLinkCode] = useState(false);
+  const handleGenerateLinkCode = () => {
+    setGeneratingLinkCode(true);
+    generateMyTelegramLinkCode()
+      .then(setTelegramLinkCode)
+      .catch(() => {})
+      .finally(() => setGeneratingLinkCode(false));
+  };
 
   const canSeeInbox = visible.some((t) => t.key === "inbox");
   const [attentionCount, setAttentionCount] = useState(0);
@@ -154,6 +174,19 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
         </nav>
         <div className="nav-group" style={{ marginTop: "auto" }}>
           <div className="nav-group-label">{staff.full_name}</div>
+          {telegramLinkCode ? (
+            <div className="settings-hint" style={{ padding: "8px 12px" }}>
+              افتحي بوت تنبيهات الموظفين بتيليجرام وابعتي:
+              <br />
+              <strong dir="ltr">/start {telegramLinkCode.code}</strong>
+              <br />
+              الكود صالح 10 دقايق.
+            </div>
+          ) : (
+            <button className="nav-item" onClick={handleGenerateLinkCode} disabled={generatingLinkCode}>
+              {generatingLinkCode ? "..." : "ربط بوت التنبيهات"}
+            </button>
+          )}
           <button className="nav-item" onClick={onLogout}>
             تسجيل الخروج
           </button>
