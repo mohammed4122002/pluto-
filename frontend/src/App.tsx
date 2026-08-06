@@ -24,6 +24,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
+import { getAttentionCount } from "./api/conversations";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -105,6 +106,16 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const [tab, setTab] = useState<TabKey | undefined>(defaultTab);
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
+  const canSeeInbox = visible.some((t) => t.key === "inbox");
+  const [attentionCount, setAttentionCount] = useState(0);
+  useEffect(() => {
+    if (!canSeeInbox) return;
+    const poll = () => getAttentionCount().then(setAttentionCount).catch(() => {});
+    poll();
+    const interval = setInterval(poll, 60000);
+    return () => clearInterval(interval);
+  }, [canSeeInbox]);
+
   if (!active) {
     return (
       <div className="app-shell">
@@ -135,6 +146,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
                 >
                   <t.Icon className="nav-icon" />
                   {t.label}
+                  {t.key === "inbox" && attentionCount > 0 && <span className="nav-badge">{attentionCount}</span>}
                 </button>
               ))}
             </div>
@@ -160,10 +172,12 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           )}
           {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
           {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+          {active.key === "inbox" && <InboxPage currentStaffId={staff.id} />}
           {active.key !== "queue" &&
             active.key !== "appointments" &&
             active.key !== "patients" &&
-            active.key !== "services" && <Active />}
+            active.key !== "services" &&
+            active.key !== "inbox" && <Active />}
         </main>
       </div>
     </div>

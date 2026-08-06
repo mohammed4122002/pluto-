@@ -12,7 +12,13 @@ const channelLabel: Record<string, string> = {
   messenger: "ماسنجر",
 };
 
-export function InboxPage() {
+type InboxPageProps = {
+  // So the "معي" filter can default to the logged-in staff member's own
+  // assigned conversations without them picking themselves from a list.
+  currentStaffId?: string;
+};
+
+export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -21,15 +27,16 @@ export function InboxPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onlyNeedsAttention, setOnlyNeedsAttention] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
 
   const loadList = () => {
     setError(null);
-    listConversations(onlyNeedsAttention || undefined)
+    listConversations(onlyNeedsAttention || undefined, onlyMine && currentStaffId ? currentStaffId : undefined)
       .then(setConversations)
       .catch((err) => setError(err.message));
   };
 
-  useEffect(loadList, [onlyNeedsAttention]);
+  useEffect(loadList, [onlyNeedsAttention, onlyMine]);
   useEffect(() => {
     listStaff().then(setStaff).catch(() => {});
   }, []);
@@ -85,6 +92,12 @@ export function InboxPage() {
         />
         بس المحادثات المحتاجة متابعة
       </label>
+      {currentStaffId && (
+        <label className="inbox-filter">
+          <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
+          بس المحوّلة إلي
+        </label>
+      )}
 
       <div className="inbox-layout">
         <div className="inbox-list">

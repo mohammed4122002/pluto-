@@ -36,12 +36,18 @@ export type ConversationUpdate = {
   status?: string;
 };
 
-export const listConversations = (needsAttention?: boolean) =>
+export const listConversations = (needsAttention?: boolean, assignedStaffId?: string) =>
   api
     .get<ConversationSummary[]>("/conversations", {
-      params: needsAttention !== undefined ? { needs_attention: needsAttention } : {},
+      params: {
+        ...(needsAttention !== undefined ? { needs_attention: needsAttention } : {}),
+        ...(assignedStaffId ? { assigned_staff_id: assignedStaffId } : {}),
+      },
     })
     .then((res) => res.data);
+
+export const getAttentionCount = () =>
+  api.get<{ count: number }>("/conversations/attention-count").then((res) => res.data.count);
 
 export const getConversation = (id: string) =>
   api.get<ConversationDetail>(`/conversations/${id}`).then((res) => res.data);

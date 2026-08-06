@@ -140,10 +140,30 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
     return InboundMessageResult(conversation_id=conversation_id, patient_id=patient_id, mode=mode)
 
 
+@router.get("/attention-count")
+def attention_count(
+    current: CurrentStaff = Depends(require_permission("conversation.view")), db: Client = Depends(get_supabase)
+):
+    """Lightweight poll target for a sidebar badge -- avoids pulling full
+    conversation rows just to count them."""
+    rows = (
+        db.table("conversations")
+        .select("id, channels(branch_id)")
+        .eq("needs_attention", True)
+        .execute()
+        .data
+    )
+    allowed = allowed_branch_ids(current, "conversation.view")
+    if allowed is None:
+        return {"count": len(rows)}
+    return {"count": sum(1 for r in rows if (r.get("channels") or {}).get("branch_id") in allowed)}
+
+
 @router.get("", response_model=list[ConversationSummary])
 def list_conversations(
     needs_attention: bool | None = None,
     mode: str | None = None,
+    assigned_staff_id: str | None = None,
     current: CurrentStaff = Depends(require_permission("conversation.view")),
     db: Client = Depends(get_supabase),
 ):
@@ -156,6 +176,8 @@ def list_conversations(
         query = query.eq("needs_attention", needs_attention)
     if mode:
         query = query.eq("mode", mode)
+    if assigned_staff_id:
+        query = query.eq("assigned_staff_id", assigned_staff_id)
     rows = query.execute().data
 
     allowed = allowed_branch_ids(current, "conversation.view")
