@@ -1330,3 +1330,28 @@ class MyPatient(BaseModel):
     visits_count: int = 0
     last_visit_at: datetime | None = None
     next_appointment_at: datetime | None = None
+
+
+class SearchPatientResult(BaseModel):
+    id: UUID
+    full_name: str
+    phone: str | None = None
+
+
+class SearchAppointmentResult(BaseModel):
+    id: UUID
+    scheduled_at: datetime
+    status: AppointmentStatus
+    patient_name: str
+
+
+class SearchStaffResult(BaseModel):
+    id: UUID
+    full_name: str
+    role: StaffRole
+
+
+class SearchResults(BaseModel):
+    patients: list[SearchPatientResult] = []
+    appointments: list[SearchAppointmentResult] = []
+    staff: list[SearchStaffResult] = []

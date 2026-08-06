@@ -34,6 +34,7 @@ import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
 import { StaffAlertsPage } from "./pages/StaffAlertsPage";
 import { MyAccountPage } from "./pages/MyAccountPage";
+import { GlobalSearchBar } from "./components/GlobalSearchBar";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -194,6 +195,14 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
     setMobileMenuOpen(false);
   };
 
+  // Search only federates entities that already have their own page --
+  // gating it the same way keeps it from being a way to probe permissions
+  // you don't hold (the backend enforces this too, this just avoids showing
+  // an empty box to someone who could never get a result from it).
+  const canSearch =
+    staff.permissions.includes("patient.view") ||
+    staff.permissions.includes("appointment.view") ||
+    staff.permissions.includes("staff.view");
   const canSeeInbox = visible.some((t) => t.key === "inbox");
   const [attentionCount, setAttentionCount] = useState(0);
   useEffect(() => {
@@ -290,6 +299,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
                 <MenuIcon />
               </button>
               <h1>{active.label}</h1>
+              {canSearch && <GlobalSearchBar onNavigate={selectTab} isSelfScoped={isSelfScoped} />}
             </header>
             <main>
               {active.key === "home" ? (

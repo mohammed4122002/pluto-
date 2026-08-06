@@ -26,6 +26,7 @@ from app.routers import (
     queue,
     recalls,
     reports,
+    search,
     services,
     settings,
     setup,
@@ -82,6 +83,7 @@ app.include_router(payments.router)
 app.include_router(queue.router)
 app.include_router(recalls.router)
 app.include_router(reports.router)
+app.include_router(search.router)
 app.include_router(services.router)
 app.include_router(settings.router)
 app.include_router(setup.router)

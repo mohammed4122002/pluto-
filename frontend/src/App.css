@@ -177,6 +177,105 @@
   letter-spacing: -0.01em;
 }
 
+.global-search {
+  position: relative;
+  margin-inline-start: auto;
+  width: 320px;
+  max-width: 40vw;
+}
+
+.global-search-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted, #8a8a99);
+  pointer-events: none;
+}
+
+.global-search-input {
+  width: 100%;
+  padding: 8px 12px 8px 12px;
+  padding-inline-start: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+}
+
+.global-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.global-search-results {
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc(100% + 6px);
+  width: 100%;
+  min-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+  padding: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.global-search-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-muted, #8a8a99);
+  text-align: center;
+}
+
+.global-search-group + .global-search-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.global-search-group-label {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #8a8a99);
+}
+
+.global-search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-h);
+  text-align: start;
+  cursor: pointer;
+}
+
+.global-search-result:hover {
+  background: var(--accent-bg);
+}
+
+.global-search-result-meta {
+  font-size: 12px;
+  color: var(--text-muted, #8a8a99);
+  white-space: nowrap;
+}
+
 .page {
   padding: 30px 32px;
   max-width: 1120px;
@@ -1623,8 +1722,17 @@ button.btn-danger:hover:not(:disabled) {
   }
 
   .topbar {
-    padding: 0 16px;
-    gap: 12px;
+    padding: 10px 16px;
+    gap: 8px;
+    height: auto;
+    flex-wrap: wrap;
+  }
+
+  .global-search {
+    width: 100%;
+    max-width: 100%;
+    order: 3;
+    margin-inline-start: 0;
   }
 
   .page {
