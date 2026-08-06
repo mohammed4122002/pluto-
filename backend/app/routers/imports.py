@@ -8,7 +8,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from openpyxl import Workbook
 from supabase import Client
 
-from app.core.auth import CurrentStaff, assert_branch_access, get_current_staff, require_permission
+from app.core.auth import CurrentStaff, assert_branch_access, require_permission
 from app.core.database import get_supabase
 from app.core.security import encrypt_secret
 from app.core.service_auth import require_service_token
@@ -73,7 +73,7 @@ def preview_file(
     data_type: str = Form(...),
     sheet_tab: str | None = Form(None),
     file: UploadFile = None,
-    current: CurrentStaff = Depends(get_current_staff),
+    current: CurrentStaff = Depends(require_permission("import.execute")),
 ):
     if data_type not in FIELD_DEFINITIONS:
         raise HTTPException(status_code=400, detail="نوع بيانات غير معروف")
@@ -100,7 +100,7 @@ def preview_file(
 
 @router.post("/test-google-sheets")
 def test_google_sheets(
-    payload: SourcePreviewRequest, current: CurrentStaff = Depends(get_current_staff)
+    payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))
 ):
     if not payload.service_account_json or not payload.spreadsheet_id:
         raise HTTPException(status_code=400, detail="أدخل مفتاح حساب الخدمة ومعرّف الشيت")
@@ -116,7 +116,7 @@ def test_google_sheets(
 
 
 @router.post("/preview-source/google-sheets", response_model=SourcePreviewResult)
-def preview_google_sheets(payload: SourcePreviewRequest, current: CurrentStaff = Depends(get_current_staff)):
+def preview_google_sheets(payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))):
     if payload.data_type not in FIELD_DEFINITIONS:
         raise HTTPException(status_code=400, detail="نوع بيانات غير معروف")
     _require_data_type_access(current, payload.data_type, None)
@@ -136,7 +136,7 @@ def preview_google_sheets(payload: SourcePreviewRequest, current: CurrentStaff =
 
 
 @router.post("/test-postgres")
-def test_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends(get_current_staff)):
+def test_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))):
     if not payload.connection_string:
         raise HTTPException(status_code=400, detail="أدخل connection string")
     try:
@@ -147,7 +147,7 @@ def test_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends
 
 
 @router.post("/preview-source/postgres", response_model=SourcePreviewResult)
-def preview_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends(get_current_staff)):
+def preview_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))):
     if payload.data_type not in FIELD_DEFINITIONS:
         raise HTTPException(status_code=400, detail="نوع بيانات غير معروف")
     _require_data_type_access(current, payload.data_type, None)
@@ -207,7 +207,7 @@ print("تم التصدير إلى {data_type}_export.xlsx — ارفعه الآ�
 
 
 @router.post("/scan-prompts")
-def scan_prompts(payload: ScanPromptsRequest, _current: CurrentStaff = Depends(get_current_staff)):
+def scan_prompts(payload: ScanPromptsRequest, _current: CurrentStaff = Depends(require_permission("import.execute"))):
     prompt = scan_for_date_prompts(payload.rows, payload.column_mapping, payload.data_type, payload.options)
     return {"prompt": prompt}
 
@@ -253,7 +253,7 @@ def _create_job_with_rows(db: Client, data_type, source_type, source_label, bran
 
 
 @router.post("/dry-run", response_model=DryRunResult)
-def dry_run(payload: DryRunRequest, current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
+def dry_run(payload: DryRunRequest, current: CurrentStaff = Depends(require_permission("import.execute")), db: Client = Depends(get_supabase)):
     if payload.data_type not in FIELD_DEFINITIONS:
         raise HTTPException(status_code=400, detail="نوع بيانات غير معروف")
     _require_data_type_access(current, payload.data_type, str(payload.branch_id) if payload.branch_id else None)
@@ -315,7 +315,7 @@ def _run_execute(job_id: str):
 
 
 @router.post("/jobs/{job_id}/execute", response_model=ImportJob)
-def execute(job_id: UUID, background_tasks: BackgroundTasks, current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
+def execute(job_id: UUID, background_tasks: BackgroundTasks, current: CurrentStaff = Depends(require_permission("import.execute")), db: Client = Depends(get_supabase)):
     job = db.table("import_jobs").select("*").eq("id", str(job_id)).limit(1).execute().data
     if not job:
         raise HTTPException(status_code=404, detail="المهمة غير موجودة")
@@ -400,7 +400,7 @@ def undo(job_id: UUID, current: CurrentStaff = Depends(require_permission("impor
 
 
 @router.post("/profiles", response_model=ImportProfile)
-def create_profile(payload: ImportProfileCreate, current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
+def create_profile(payload: ImportProfileCreate, current: CurrentStaff = Depends(require_permission("import.execute")), db: Client = Depends(get_supabase)):
     _require_data_type_access(current, payload.data_type, str(payload.branch_id) if payload.branch_id else None)
     row = {
         "name": payload.name,
@@ -456,7 +456,7 @@ def _run_profile_sync(db: Client, profile: dict) -> dict:
 
 
 @router.post("/profiles/{profile_id}/sync-now", response_model=ImportJob)
-def sync_now(profile_id: UUID, current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
+def sync_now(profile_id: UUID, current: CurrentStaff = Depends(require_permission("import.execute")), db: Client = Depends(get_supabase)):
     profile = db.table("import_profiles").select("*").eq("id", str(profile_id)).limit(1).execute().data
     if not profile:
         raise HTTPException(status_code=404, detail="الملف الشخصي غير موجود")

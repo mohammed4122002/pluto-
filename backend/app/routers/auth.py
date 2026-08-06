@@ -1,7 +1,10 @@
+import base64
+import io
 from datetime import datetime, timedelta, timezone
 
 import jwt
 import pyotp
+import qrcode
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 
@@ -111,7 +114,10 @@ def setup_mfa(current: CurrentStaff = Depends(get_current_staff), db: Client = D
         "id", current.id
     ).execute()
     otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=current.email, issuer_name="PLUTO")
-    return MfaSetupResult(secret=secret, otpauth_url=otpauth_url)
+    buf = io.BytesIO()
+    qrcode.make(otpauth_url).save(buf, format="PNG")
+    qr_data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return MfaSetupResult(secret=secret, otpauth_url=otpauth_url, qr_data_uri=qr_data_uri)
 
 
 @router.post("/mfa/confirm")

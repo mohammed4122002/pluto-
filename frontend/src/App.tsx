@@ -27,13 +27,13 @@ import { MyQueuePage } from "./pages/workspace/MyQueuePage";
 import { MyCalendarPage } from "./pages/workspace/MyCalendarPage";
 import { MyPatientsPage } from "./pages/workspace/MyPatientsPage";
 import { MyServicesPage } from "./pages/workspace/MyServicesPage";
+import { TodayPage } from "./pages/workspace/TodayPage";
+import { AccountPage } from "./pages/workspace/AccountPage";
 import { LoginPage } from "./pages/LoginPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
-import { StaffAlertsPage } from "./pages/StaffAlertsPage";
-import { MyAccountPage } from "./pages/MyAccountPage";
 import { GlobalSearchBar } from "./components/GlobalSearchBar";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
@@ -57,6 +57,7 @@ import {
   AlertIcon,
   HomeIcon,
   MenuIcon,
+  UserIcon,
 } from "./icons";
 import "./App.css";
 
@@ -64,7 +65,10 @@ type Tab = {
   key: string;
   label: string;
   Icon: ComponentType<{ className?: string }>;
-  Component: ComponentType;
+  // Omitted for the few screens that need context the nav table can't carry
+  // (the signed-in staff member, or the ability to switch tabs). Those are
+  // rendered by name below, next to the one place that has both.
+  Component?: ComponentType;
   requires: string;
 };
 type NavGroup = { label: string | null; items: readonly Tab[] };
@@ -77,10 +81,34 @@ const inboxTab: Tab = {
   requires: "conversation.view",
 };
 
+// Available to every signed-in staff member -- "" means no permission gate.
+// These two are the same screens for a doctor and for an admin, so both navs
+// share the definitions rather than each declaring its own.
+const todayTab: Tab = { key: "today", label: "يومي", Icon: HomeIcon, requires: "" };
+const accountTab: Tab = { key: "account", label: "حسابي", Icon: UserIcon, requires: "" };
+
+// Not permission-gated like every other tab -- it's a light, graceful-
+// degrading summary (each section hides itself if the viewer lacks that
+// section's permission, same pattern as AlertsPage). Only shown to admin-
+// style roles: self-scoped roles land straight in their workspace instead,
+// since Home calls clinic-wide endpoints (/appointments, /payments, ...)
+// that self-scoped roles can't call.
+// HomePage needs staffName/onNavigate, unlike every other tab's
+// no-props Component -- it never renders through the generic <Active />
+// path below (that branch is skipped for key === "home"), so the cast is
+// safe: nothing ever mounts HomePage without those props.
+const homeTab: Tab = {
+  key: "home",
+  label: "الرئيسية",
+  Icon: HomeIcon,
+  Component: HomePage as unknown as ComponentType,
+  requires: "",
+};
+
 const adminGroups: readonly NavGroup[] = [
   {
     label: null,
-    items: [inboxTab],
+    items: [homeTab, inboxTab],
   },
   {
     label: "إدارة العيادة",
@@ -120,8 +148,8 @@ const adminGroups: readonly NavGroup[] = [
         requires: "clinic_settings.view",
       },
       { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
-      { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "appointment.view" },
-      { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
+      { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "bot_performance.view" },
+      { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "import.execute" },
     ],
   },
 ];
@@ -139,7 +167,7 @@ const SELF_SCOPED_ROLES = new Set(["doctor"]);
 const workspaceGroups: readonly NavGroup[] = [
   {
     label: null,
-    items: [inboxTab],
+    items: [todayTab, inboxTab],
   },
   {
     label: "شغلي",
@@ -152,47 +180,44 @@ const workspaceGroups: readonly NavGroup[] = [
   },
 ];
 
-// Not permission-gated like every other tab -- it's a light, graceful-
-// degrading summary (each section hides itself if the viewer lacks that
-// section's permission, same pattern as AlertsPage). Only shown to admin-
-// style roles: self-scoped roles land straight in their workspace instead,
-// since Home calls clinic-wide endpoints (/appointments, /payments, ...)
-// that self-scoped roles can't call.
-// HomePage needs staffName/onNavigate, unlike every other tab's
-// no-props Component -- it never renders through the generic <Active />
-// path below (that branch is skipped for key === "home"), so the cast is
-// safe: nothing ever mounts HomePage without those props.
-const homeTab: Tab = {
-  key: "home",
-  label: "الرئيسية",
-  Icon: HomeIcon,
-  Component: HomePage as unknown as ComponentType,
-  requires: "",
-};
+const roleLabel: Record<string, string> = { admin: "مدير", doctor: "طبيب", receptionist: "موظف استقبال" };
+
+/** Arabic doesn't shape into a two-letter monogram the way Latin initials do,
+ * and "د." is a title, not a name -- one letter of the actual name reads best. */
+function initial(fullName: string) {
+  return fullName.replace(/^د\.\s*/, "").trim()[0] ?? "؟";
+}
+
+function firstName(fullName: string) {
+  const stripped = fullName.replace(/^د\.\s*/, "").trim();
+  return stripped.split(/\s+/)[0] || fullName;
+}
 
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
   const isSelfScoped = SELF_SCOPED_ROLES.has(staff.role);
   const groups = isSelfScoped ? workspaceGroups : adminGroups;
   const allTabs = groups.flatMap((g) => g.items);
 
-  const visible = allTabs.filter((t) => staff.permissions.includes(t.requires));
+  const allows = (t: Tab) => t.requires === "" || staff.permissions.includes(t.requires);
+  // accountTab isn't in any nav group -- it's reached from the account menu,
+  // but it still has to be selectable as the active tab.
+  const visible = [...allTabs.filter(allows), accountTab];
   const visibleGroups = groups
-    .map((g) => ({ ...g, items: g.items.filter((t) => staff.permissions.includes(t.requires)) }))
+    .map((g) => ({ ...g, items: g.items.filter(allows) }))
     .filter((g) => g.items.length > 0);
 
-  // A doctor's queue is the one thing they actually need every day -- land
-  // them there directly instead of on whatever tab happens to be first.
-  // Everyone else lands on the home summary instead of an arbitrary tab.
-  const defaultTab = isSelfScoped ? visible.find((t) => t.key === "my-queue")?.key ?? visible[0]?.key : "home";
-  const [tab, setTab] = useState<string | undefined>(defaultTab);
-  const active = !isSelfScoped && tab === "home" ? homeTab : visible.find((t) => t.key === tab) ?? visible[0];
+  // Each role lands on the summary built for it: "يومي" is the personal one
+  // (my queue, my day, my escalations) and "الرئيسية" is the clinic-wide one,
+  // which calls endpoints a self-scoped role can't reach.
+  const [tab, setTab] = useState<string>(isSelfScoped ? "today" : "home");
+  const active = visible.find((t) => t.key === tab) ?? visible[0];
 
-  const [showStaffAlerts, setShowStaffAlerts] = useState(false);
-  const [showMyAccount, setShowMyAccount] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const selectTab = (key: string) => {
     setTab(key);
     setMobileMenuOpen(false);
+    setMenuOpen(false);
   };
 
   // Search only federates entities that already have their own page --
@@ -233,14 +258,6 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           <span className="brand-name">لوحة العيادة</span>
         </div>
         <nav className="nav">
-          {!isSelfScoped && (
-            <div className="nav-group">
-              <button className={active.key === "home" ? "nav-item active" : "nav-item"} onClick={() => selectTab("home")}>
-                <HomeIcon className="nav-icon" />
-                {homeTab.label}
-              </button>
-            </div>
-          )}
           {visibleGroups.map((group, i) => (
             <div className="nav-group" key={group.label ?? `g${i}`}>
               {group.label && <div className="nav-group-label">{group.label}</div>}
@@ -258,60 +275,54 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
             </div>
           ))}
         </nav>
-        <div className="nav-group" style={{ marginTop: "auto" }}>
-          <div className="nav-group-label">{staff.full_name}</div>
+        <div className="account-menu">
+          {menuOpen && (
+            <div className="account-menu-items">
+              <button className="nav-item" onClick={() => selectTab("account")}>
+                <UserIcon className="nav-icon" />
+                حسابي
+              </button>
+              <button className="nav-item" onClick={onLogout}>
+                تسجيل الخروج
+              </button>
+            </div>
+          )}
           <button
-            className="nav-item"
-            onClick={() => {
-              setShowMyAccount(true);
-              setMobileMenuOpen(false);
-            }}
+            className={menuOpen ? "account-trigger open" : "account-trigger"}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
           >
-            حسابي
-          </button>
-          <button
-            className="nav-item"
-            onClick={() => {
-              setShowStaffAlerts(true);
-              setMobileMenuOpen(false);
-            }}
-          >
-            ربط بوت التنبيهات
-          </button>
-          <button className="nav-item" onClick={onLogout}>
-            تسجيل الخروج
+            <span className="account-avatar">{initial(staff.full_name)}</span>
+            <span className="account-trigger-text">
+              <span className="account-trigger-name">{staff.full_name}</span>
+              <span className="account-trigger-role">{roleLabel[staff.role] ?? staff.role}</span>
+            </span>
+            <span className="account-trigger-caret" aria-hidden>
+              ⌃
+            </span>
           </button>
         </div>
       </aside>
       <div className="content-area">
-        {showStaffAlerts ? (
-          <main>
-            <StaffAlertsPage onBack={() => setShowStaffAlerts(false)} />
-          </main>
-        ) : showMyAccount ? (
-          <main>
-            <MyAccountPage onBack={() => setShowMyAccount(false)} />
-          </main>
-        ) : (
-          <>
-            <header className="topbar">
-              <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="القائمة">
-                <MenuIcon />
-              </button>
-              <h1>{active.label}</h1>
-              {canSearch && <GlobalSearchBar onNavigate={selectTab} isSelfScoped={isSelfScoped} />}
-            </header>
-            <main>
-              {active.key === "home" ? (
-                <HomePage staffName={staff.full_name} onNavigate={(key) => setTab(key)} />
-              ) : active.key === "inbox" ? (
-                <InboxPage currentStaffId={staff.id} />
-              ) : (
-                Active && <Active />
-              )}
-            </main>
-          </>
-        )}
+        <header className="topbar">
+          <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="القائمة">
+            <MenuIcon />
+          </button>
+          {canSearch && <GlobalSearchBar onNavigate={selectTab} isSelfScoped={isSelfScoped} />}
+        </header>
+        <main>
+          {active.key === "home" ? (
+            <HomePage staffName={firstName(staff.full_name)} onNavigate={selectTab} />
+          ) : active.key === "today" ? (
+            <TodayPage staffName={firstName(staff.full_name)} onGoTo={selectTab} />
+          ) : active.key === "account" ? (
+            <AccountPage staff={staff} />
+          ) : active.key === "inbox" ? (
+            <InboxPage currentStaffId={staff.id} />
+          ) : (
+            Active && <Active />
+          )}
+        </main>
       </div>
     </div>
   );

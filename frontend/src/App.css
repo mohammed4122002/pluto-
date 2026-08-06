@@ -292,10 +292,12 @@
 }
 
 .page-header-title {
-  font-size: 15px;
+  font-size: 21px;
   font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   color: var(--text-h);
-  margin: 0 0 4px;
+  margin: 0 0 5px;
 }
 
 .page-header-subtitle {
@@ -806,6 +808,8 @@ button.btn-secondary:hover:not(:disabled) {
 }
 
 .dot-alert {
+  display: inline-block;
+  vertical-align: middle;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -1807,4 +1811,386 @@ button.btn-danger:hover:not(:disabled) {
 .data-table tbody tr.row-muted td {
   color: var(--text);
   opacity: 0.72;
+}
+
+/* ===========================================================================
+   Staff workspace
+   The screens a staff member lives in all day. They share one rhythm: a
+   focus block for the single thing to act on now, stat tiles for the shape
+   of the day, then detail. Built on the same tokens as the admin pages so
+   the two never look like different products.
+   =========================================================================== */
+
+/* --- Account menu (sidebar footer) --- */
+
+.account-menu {
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-h);
+  text-align: start;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.account-trigger:hover,
+.account-trigger.open {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.account-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.account-trigger-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.account-trigger-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-trigger-role {
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.account-trigger-caret {
+  margin-inline-start: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+  transition: transform 0.15s;
+}
+
+.account-trigger.open .account-trigger-caret {
+  transform: rotate(180deg);
+}
+
+/* Opens upward — it lives at the bottom of the sidebar. */
+.account-menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 4px;
+}
+
+/* --- Account page --- */
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+  max-width: 900px;
+}
+
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-xs);
+}
+
+.account-card-wide {
+  grid-column: 1 / -1;
+}
+
+.account-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.account-card-hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.account-card-footnote {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 340px;
+}
+
+.account-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.account-form input {
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  color: var(--text-h);
+}
+
+.account-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.account-form button {
+  align-self: flex-start;
+}
+
+.account-steps {
+  margin: 0 0 14px;
+  padding-inline-start: 20px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 2;
+}
+
+.mfa-qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  image-rendering: pixelated;
+}
+
+.mfa-secret {
+  display: block;
+  margin-bottom: 14px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-h);
+  word-break: break-all;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-button:hover {
+  color: var(--accent-hover);
+}
+
+/* --- Today --- */
+
+/* A stat tile that navigates. Reset the button chrome so it reads as a card,
+   not a control, until you hover it. */
+.stat-card-link {
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.stat-card-link:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+/* Nothing to act on is a legitimate state, not an alarm — same shape as the
+   focus card, drained of urgency. */
+.focus-card-calm {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.focus-card-calm .focus-card-label {
+  color: var(--text-faint);
+}
+
+.focus-card-calm .focus-card-name {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.today-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.today-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-xs);
+}
+
+.today-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.today-panel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.today-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.today-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.today-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.today-list-time {
+  flex: none;
+  min-width: 56px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text-h);
+}
+
+.today-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  font-size: 13.5px;
+  color: var(--text-h);
+}
+
+.today-list-sub {
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Narrow screens --- */
+
+@media (max-width: 720px) {
+  .account-grid,
+  .today-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Latin tokens inside Arabic prose (/newbot, @BotFather, tokens, phone
+   numbers) get reordered by the bidi algorithm when they start or end with a
+   neutral character like "/" or "+". Isolating them keeps each one intact. */
+[dir="ltr"] {
+  unicode-bidi: isolate;
+}
+
+/* Date pickers appear in the queue and calendar headers; the browser default
+   ignores every token the rest of the form uses. */
+input[type="date"] {
+  padding: 8px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }

@@ -38,7 +38,10 @@ def dashboard(
     branch_id: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    current: CurrentStaff = Depends(require_permission("appointment.view")),
+    # Clinic-wide AI metrics, not a personal view -- it used to ride on
+    # appointment.view, which every clinical role holds, so reading your own
+    # schedule also handed you the clinic's bot analytics.
+    current: CurrentStaff = Depends(require_permission("bot_performance.view")),
     db: Client = Depends(get_supabase),
 ):
     branch_ids = _resolve_branch_ids(current, branch_id)

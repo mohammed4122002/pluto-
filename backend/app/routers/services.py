@@ -5,6 +5,7 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, require_permission
 from app.core.database import get_supabase
+from app.core.scoping import StaffScope, get_staff_scope
 from app.models.schemas import Service, ServiceCreate, ServiceUpdate
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -27,6 +28,7 @@ def _attach_doctor_ids(db: Client, services: list[dict]) -> list[dict]:
 def list_services(
     branch_id: str | None = None,
     _current: CurrentStaff = Depends(require_permission("service.view")),
+    scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
     if branch_id:
@@ -40,7 +42,12 @@ def list_services(
         services = [row["services"] for row in rows if row["services"] and row["services"].get("deleted_at") is None]
     else:
         services = db.table("services").select("*").is_("deleted_at", "null").order("name").execute().data
-    return _attach_doctor_ids(db, services)
+    services = _attach_doctor_ids(db, services)
+    # A self-scoped role provides specific services, they don't own the
+    # catalogue -- narrowing here rather than in the browser.
+    if scope.is_self_scoped:
+        services = [s for s in services if scope.staff_id in s["doctor_ids"]]
+    return services
 
 
 @router.post("", response_model=Service)
