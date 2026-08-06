@@ -1017,14 +1017,10 @@ class SetPasswordRequest(BaseModel):
     new_password: str
 
 
-class TelegramLinkCode(BaseModel):
-    code: str
-    expires_at: datetime
-
-
-class StaffBotSettings(BaseModel):
+class MyTelegramBotStatus(BaseModel):
     configured: bool
     username: str | None = None
+    linked: bool = False
 
 
 class StaffBotTokenUpdate(BaseModel):

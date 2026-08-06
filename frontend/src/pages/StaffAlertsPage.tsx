@@ -1,46 +1,34 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { generateMyTelegramLinkCode } from "../api/staff";
-import type { TelegramLinkCode } from "../api/staff";
-import { getStaffBotSettings, removeStaffBotToken, setStaffBotToken } from "../api/staffBot";
-import type { StaffBotSettings } from "../api/staffBot";
+import { getMyTelegramBot, removeMyTelegramBotToken, setMyTelegramBotToken } from "../api/staffBot";
+import type { MyTelegramBotStatus } from "../api/staffBot";
 
 type StaffAlertsPageProps = {
   onBack: () => void;
 };
 
 export function StaffAlertsPage({ onBack }: StaffAlertsPageProps) {
-  const [linkCode, setLinkCode] = useState<TelegramLinkCode | null>(null);
-  const [generatingCode, setGeneratingCode] = useState(false);
-
-  const [botSettings, setBotSettings] = useState<StaffBotSettings | null>(null);
-  const [canManageBot, setCanManageBot] = useState(true);
+  const [status, setStatus] = useState<MyTelegramBotStatus | null>(null);
   const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getStaffBotSettings()
-      .then(setBotSettings)
-      .catch(() => setCanManageBot(false));
-  }, []);
-
-  const handleGenerateCode = () => {
-    setGeneratingCode(true);
-    generateMyTelegramLinkCode()
-      .then(setLinkCode)
+    getMyTelegramBot()
+      .then(setStatus)
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
-      .finally(() => setGeneratingCode(false));
-  };
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleSaveToken = (e: FormEvent) => {
     e.preventDefault();
     if (!token.trim()) return;
     setSaving(true);
     setError(null);
-    setStaffBotToken(token.trim())
+    setMyTelegramBotToken(token.trim())
       .then((s) => {
-        setBotSettings(s);
+        setStatus(s);
         setToken("");
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
@@ -48,8 +36,8 @@ export function StaffAlertsPage({ onBack }: StaffAlertsPageProps) {
   };
 
   const handleRemoveToken = () => {
-    removeStaffBotToken()
-      .then(setBotSettings)
+    removeMyTelegramBotToken()
+      .then(setStatus)
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
@@ -60,81 +48,68 @@ export function StaffAlertsPage({ onBack }: StaffAlertsPageProps) {
       </button>
       <h1 style={{ marginBottom: 8 }}>تنبيهات المحادثات المحوّلة</h1>
       <p className="settings-hint">
-        لما محادثة تتحوّل تلقائياً لموظف (لأنها احتاجت رد بشري)، بتنبعثله رسالة تيليجرام فورية بدل ما ينتظر
-        يفتح لوحة التحكم. الموظف بيقدر يرد مباشرة من تيليجرام وردّه بيوصل للمريض تلقائياً.
+        لما محادثة تتحوّل تلقائياً إلك (لأنها احتاجت رد بشري)، بيوصلك تنبيه فوري ببوت تيليجرام خاص فيك —
+        فيه اسم المريض وآخر رسالة. بتقدر ترد مباشرة من تيليجرام وردّك بيوصل للمريض تلقائياً، بدل ما تنتظر
+        تفتح لوحة التحكم.
       </p>
 
       {error && <p className="error">{error}</p>}
 
-      <h2>الخطوة 1: ربط حسابك الشخصي</h2>
-      <p className="settings-hint">
-        كل موظف بدّه يستلم تنبيهات لازم يربط حسابه هو بنفسه (مرة وحدة بس). اضغطي الزر، افتحي البوت
-        بتيليجرام (اسألي مدير النظام عن اسمه لو ما تعرفينه)، وابعتيله الكود يلي رح يظهر.
-      </p>
-      {linkCode ? (
-        <div className="settings-form" style={{ maxWidth: 420 }}>
+      {loading ? (
+        <p>جاري التحميل...</p>
+      ) : status?.configured ? (
+        <div className="settings-form" style={{ maxWidth: 480 }}>
           <p>
-            ابعتي هالرسالة للبوت بتيليجرام:
-            <br />
-            <strong dir="ltr" style={{ fontSize: 18 }}>
-              /start {linkCode.code}
-            </strong>
+            بوتك: <strong dir="ltr">@{status.username}</strong>
           </p>
-          <p className="settings-hint">الكود صالح 10 دقايق فقط.</p>
-          <button onClick={handleGenerateCode} disabled={generatingCode}>
-            {generatingCode ? "..." : "توليد كود جديد"}
+          {status.linked ? (
+            <p style={{ color: "var(--success, #1a7f37)" }}>✅ حسابك مربوط — جاهز تستلم تنبيهات.</p>
+          ) : (
+            <>
+              <p className="settings-hint">بقي خطوة وحدة: افتحي البوت بتيليجرام وابعتيله:</p>
+              <p>
+                <strong dir="ltr" style={{ fontSize: 18 }}>
+                  /start
+                </strong>
+              </p>
+            </>
+          )}
+          <button className="btn-secondary" onClick={handleRemoveToken}>
+            فك الربط
           </button>
         </div>
       ) : (
-        <button onClick={handleGenerateCode} disabled={generatingCode}>
-          {generatingCode ? "..." : "توليد كود الربط"}
-        </button>
-      )}
-
-      {canManageBot && (
-        <>
-          <h2 style={{ marginTop: 32 }}>الخطوة 2: ربط بوت التيليجرام (مرة وحدة، لمدير النظام)</h2>
-          {botSettings?.configured ? (
-            <div className="settings-form" style={{ maxWidth: 420 }}>
-              <p>
-                البوت مربوط: <strong dir="ltr">@{botSettings.username}</strong>
-              </p>
-              <button className="btn-secondary" onClick={handleRemoveToken}>
-                فك الربط
-              </button>
-            </div>
-          ) : (
-            <form className="settings-form" onSubmit={handleSaveToken} style={{ maxWidth: 480 }}>
-              <p className="settings-hint">
-                1. افتحي محادثة مع <strong dir="ltr">@BotFather</strong> بتيليجرام.
-                <br />
-                2. ابعتيله <strong dir="ltr">/newbot</strong> واتبعي التعليمات (اسم البوت + username ينتهي بـ
-                bot).
-                <br />
-                3. بيديكي رمز (token) طويل — الصقيه هون واحفظي.
-              </p>
-              <label>
-                توكن البوت
-                <input
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="123456789:AAExampleTokenFromBotFather"
-                  dir="ltr"
-                />
-              </label>
-              <button type="submit" disabled={saving}>
-                {saving ? "..." : "ربط البوت"}
-              </button>
-            </form>
-          )}
-
-          <p className="settings-hint" style={{ marginTop: 16 }}>
-            واتساب: مو مدعوم حالياً — ربط بوت واتساب يحتاج حساب Meta Business موثّق وموافقة مسبقة، عكس
-            تيليجرام يلي بس محتاج توكن. ممكن نضيفه لاحقاً كخيار ثاني إذا حبيتوا.
+        <form className="settings-form" onSubmit={handleSaveToken} style={{ maxWidth: 480 }}>
+          <p className="settings-hint">
+            كل موظف بيعمل بوت خاص فيه (مرة وحدة، ياخد دقيقتين):
+            <br />
+            1. افتحي محادثة مع <strong dir="ltr">@BotFather</strong> بتيليجرام.
+            <br />
+            2. ابعتيله <strong dir="ltr">/newbot</strong> واتبعي التعليمات (اسم البوت + username ينتهي بـ
+            bot).
+            <br />
+            3. بيديكي رمز (token) طويل — الصقيه هون واحفظي.
           </p>
-        </>
+          <label>
+            توكن البوت
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="123456789:AAExampleTokenFromBotFather"
+              dir="ltr"
+            />
+          </label>
+          <button type="submit" disabled={saving}>
+            {saving ? "..." : "ربط البوت"}
+          </button>
+        </form>
       )}
+
+      <p className="settings-hint" style={{ marginTop: 16 }}>
+        واتساب: مو مدعوم حالياً — ربط بوت واتساب يحتاج حساب Meta Business موثّق وموافقة مسبقة، عكس
+        تيليجرام يلي بس محتاج توكن. ممكن نضيفه لاحقاً كخيار ثاني إذا حبيتوا.
+      </p>
     </div>
   );
 }
