@@ -12,7 +12,11 @@ router = APIRouter(prefix="/escalation-staff", tags=["escalation-staff"])
 
 @router.get("", response_model=list[EscalationStaffMember])
 def list_escalation_staff(
-    _current: CurrentStaff = Depends(require_permission("clinic_settings.view")), db: Client = Depends(get_supabase)
+    # conversation.view, not clinic_settings.view: any staff who can work the
+    # inbox needs this list to populate the manual-transfer dropdown -- only
+    # adding/removing pool membership stays admin-gated below.
+    _current: CurrentStaff = Depends(require_permission("conversation.view")),
+    db: Client = Depends(get_supabase),
 ):
     rows = db.table("escalation_staff").select("id, staff_id, branch_id, is_active, staff(full_name)").execute().data
     return [

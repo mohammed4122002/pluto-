@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { listConversations, getConversation, updateConversation, sendStaffReply } from "../api/conversations";
 import type { ConversationSummary, ConversationDetail } from "../api/conversations";
-import { listStaff } from "../api/staff";
-import type { Staff } from "../api/staff";
+import { listEscalationStaff } from "../api/escalationStaff";
+import type { EscalationStaffMember } from "../api/escalationStaff";
 
 const channelLabel: Record<string, string> = {
   whatsapp: "واتساب",
@@ -20,7 +20,7 @@ type InboxPageProps = {
 
 export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
+  const [pool, setPool] = useState<EscalationStaffMember[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -38,7 +38,9 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
 
   useEffect(loadList, [onlyNeedsAttention, onlyMine]);
   useEffect(() => {
-    listStaff().then(setStaff).catch(() => {});
+    listEscalationStaff()
+      .then((rows) => setPool(rows.filter((r) => r.is_active)))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -135,13 +137,13 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
                 </div>
                 <div className="inbox-thread-controls">
                   <button onClick={toggleMode}>
-                    {detail.mode === "ai" ? "حوّل لموظف" : "رجّع للـ AI"}
+                    {detail.mode === "ai" ? "حوّل لموظف (تلقائي)" : "رجّع للـ AI"}
                   </button>
                   <select value={detail.assigned_staff_id ?? ""} onChange={(e) => assignStaff(e.target.value)}>
                     <option value="">بدون تحويل</option>
-                    {staff.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name}
+                    {pool.map((s) => (
+                      <option key={s.staff_id} value={s.staff_id}>
+                        {s.staff_name}
                       </option>
                     ))}
                   </select>

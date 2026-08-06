@@ -266,6 +266,18 @@ def update_conversation(
         # see ai-services/app/routers/chat.py::_count_ai_turns.
         updates["ai_episode_started_at"] = datetime.now(timezone.utc).isoformat()
     db.table("conversations").update(updates).eq("id", str(conversation_id)).execute()
+
+    if updates.get("mode") == "human" and "assigned_staff_id" not in updates:
+        # Staff hit "حوّل لموظف" without picking anyone specific -- auto-assign
+        # from the escalation pool instead of leaving it unassigned, same as
+        # the AI-triggered escalation path. Skipped if already assigned so
+        # this can't clobber an existing manual pick on an unrelated update.
+        current_row = (
+            db.table("conversations").select("assigned_staff_id").eq("id", str(conversation_id)).single().execute().data
+        )
+        if not current_row.get("assigned_staff_id"):
+            auto_assign_conversation(db, str(conversation_id))
+
     return _summary_of(db, conversation_id)
 
 
