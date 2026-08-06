@@ -49,6 +49,7 @@ import {
   DuplicatesIcon,
   AlertIcon,
   HomeIcon,
+  MenuIcon,
 } from "./icons";
 import "./App.css";
 
@@ -125,6 +126,11 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const active = tab === "home" ? homeTab : visible.find((t) => t.key === tab) ?? homeTab;
 
   const [showStaffAlerts, setShowStaffAlerts] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const selectTab = (key: TabKey) => {
+    setTab(key);
+    setMobileMenuOpen(false);
+  };
 
   const canSeeInbox = visible.some((t) => t.key === "inbox");
   const [attentionCount, setAttentionCount] = useState(0);
@@ -142,7 +148,8 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const Active = active.key === "home" ? null : visible.find((t) => t.key === active.key)?.Component ?? null;
 
   return (
-    <div className="app-shell">
+    <div className={mobileMenuOpen ? "app-shell menu-open" : "app-shell"}>
+      <div className="sidebar-overlay" onClick={() => setMobileMenuOpen(false)} />
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">ع</span>
@@ -150,7 +157,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
         </div>
         <nav className="nav">
           <div className="nav-group">
-            <button className={active.key === "home" ? "nav-item active" : "nav-item"} onClick={() => setTab("home")}>
+            <button className={active.key === "home" ? "nav-item active" : "nav-item"} onClick={() => selectTab("home")}>
               <HomeIcon className="nav-icon" />
               {homeTab.label}
             </button>
@@ -162,7 +169,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
                 <button
                   key={t.key}
                   className={active.key === t.key ? "nav-item active" : "nav-item"}
-                  onClick={() => setTab(t.key)}
+                  onClick={() => selectTab(t.key)}
                 >
                   <t.Icon className="nav-icon" />
                   {t.label}
@@ -174,7 +181,13 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
         </nav>
         <div className="nav-group" style={{ marginTop: "auto" }}>
           <div className="nav-group-label">{staff.full_name}</div>
-          <button className="nav-item" onClick={() => setShowStaffAlerts(true)}>
+          <button
+            className="nav-item"
+            onClick={() => {
+              setShowStaffAlerts(true);
+              setMobileMenuOpen(false);
+            }}
+          >
             ربط بوت التنبيهات
           </button>
           <button className="nav-item" onClick={onLogout}>
@@ -190,6 +203,9 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
         ) : (
           <>
             <header className="topbar">
+              <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(true)} aria-label="القائمة">
+                <MenuIcon />
+              </button>
               <h1>{active.label}</h1>
             </header>
             <main>

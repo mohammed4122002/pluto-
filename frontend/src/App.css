@@ -21,6 +21,18 @@
   gap: 22px;
 }
 
+/* Mobile menu button — hidden on desktop, shown only below the breakpoint
+   where the sidebar becomes an off-canvas drawer (see the media query at
+   the end of this file). */
+
+.mobile-menu-btn {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -1557,4 +1569,85 @@ button.btn-danger:hover:not(:disabled) {
   border-color: var(--danger);
   background: var(--danger-bg);
   color: var(--danger-hover);
+}
+
+/* Responsive — below this width the fixed sidebar no longer fits next to
+   any usable amount of content, so it becomes an off-canvas drawer
+   instead of permanently eating two-thirds of the screen. */
+
+@media (max-width: 880px) {
+  .mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-h);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .sidebar {
+    /* The sidebar is the first flex child, which in this RTL layout means
+       it naturally sits at the visual right edge -- inset-inline-start
+       resolves to "right" here, matching where it already renders. */
+    position: fixed;
+    inset-inline-start: 0;
+    top: 0;
+    z-index: 60;
+    width: 260px;
+    max-width: 82vw;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-shell.menu-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .app-shell.menu-open .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 30, 0.45);
+    z-index: 50;
+  }
+
+  .content-area {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topbar {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .page {
+    padding: 18px 16px;
+  }
+
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .inbox-layout {
+    flex-direction: column;
+  }
+
+  .inbox-list {
+    width: 100%;
+    max-height: 40vh;
+  }
+
+  .stat-grid,
+  .channel-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
 }
