@@ -31,6 +31,7 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
   const [form, setForm] = useState<ServiceCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [openFor, setOpenFor] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -47,9 +48,11 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
 
   useEffect(load, []);
 
-  const visibleServices = currentDoctor
+  const scopedServices = currentDoctor
     ? services.filter((s) => s.doctor_ids.includes(currentDoctor.id))
     : services;
+  const q = search.trim().toLowerCase();
+  const visibleServices = q ? scopedServices.filter((s) => s.name.toLowerCase().includes(q)) : scopedServices;
 
   const specialtyName = (id: string | null) => specialties.find((s) => s.id === id)?.name_ar ?? "—";
   const doctorNames = (ids: string[]) =>
@@ -96,9 +99,31 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
       .catch((err) => setError(err.message));
   };
 
+  const activeCount = scopedServices.filter((s) => s.is_active).length;
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
+
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">الخدمات</p>
+          <p className="page-header-subtitle">كتالوج الخدمات، أسعارها، ومدتها، والأطباء المسؤولين عنها.</p>
+        </div>
+      </div>
+
+      {!loading && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{scopedServices.length}</div>
+            <div className="stat-card-label">إجمالي الخدمات</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{activeCount}</div>
+            <div className="stat-card-label">فعّالة</div>
+          </div>
+        </div>
+      )}
 
       {!currentDoctor && (
       <form className="data-form" onSubmit={handleCreate}>
@@ -157,8 +182,28 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
         </div>
       )}
 
+      {!loading && scopedServices.length > 0 && (
+        <div className="table-toolbar">
+          <div className="search-input">
+            <input placeholder="بحث باسم الخدمة..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        </div>
+      )}
+
       {loading ? (
-        <p>جاري التحميل...</p>
+        <table className="data-table skeleton-table">
+          <tbody>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: 8 }).map((__, j) => (
+                  <td key={j}>
+                    <div className="skeleton-block" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : (
         <table className="data-table">
           <thead>
@@ -222,6 +267,13 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
                 )}
               </Fragment>
             ))}
+            {visibleServices.length === 0 && (
+              <tr>
+                <td colSpan={8} className="table-empty">
+                  ما في خدمات مطابقة للبحث.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}

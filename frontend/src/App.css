@@ -611,6 +611,16 @@ button.btn-secondary:hover:not(:disabled) {
   background: var(--surface-2);
 }
 
+.badge.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.badge.danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
 /* Inbox */
 
 .inbox-page {

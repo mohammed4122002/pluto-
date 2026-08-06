@@ -12,6 +12,13 @@ const tabs: { key: PaymentStatus; label: string }[] = [
   { key: "refunded", label: "مسترجعة بالكامل" },
 ];
 
+const paymentTypeLabel: Record<Payment["payment_type"], string> = {
+  deposit: "عربون",
+  full: "دفعة كاملة",
+  balance: "باقي المبلغ",
+  package: "باقة",
+};
+
 type Panel = { paymentId: string; kind: "reject" | "coupon" | "refund" };
 
 export function PaymentsPage() {
@@ -23,6 +30,7 @@ export function PaymentsPage() {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [textValue, setTextValue] = useState("");
   const [amountValue, setAmountValue] = useState("");
+  const [search, setSearch] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -87,18 +95,29 @@ export function PaymentsPage() {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
+  const q = search.trim().toLowerCase();
+  const filteredPayments = q
+    ? payments.filter((p) => (p.patient_name ?? "").toLowerCase().includes(q) || (p.patient_phone ?? "").includes(q))
+    : payments;
+
   return (
     <div className="page">
-      <p className="settings-hint">
-        عند تأكيد أي حجز له خدمة بسعر أو عربون محدد، بينشئ النظام تلقائياً سجل دفعة ويرسل تعليمات الدفع للمريض. هون
-        بتقدر تراجع الإيصالات المرسلة وتعتمدها أو ترفضها، وتطبّق كوبونات، وتسترجع مبالغ، وتصدر فواتير.
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">المدفوعات</p>
+          <p className="page-header-subtitle">
+            عند تأكيد أي حجز له خدمة بسعر أو عربون محدد، بينشئ النظام تلقائياً سجل دفعة ويرسل تعليمات الدفع
+            للمريض. هون بتقدر تراجع الإيصالات المرسلة وتعتمدها أو ترفضها، وتطبّق كوبونات، وتسترجع مبالغ، وتصدر
+            فواتير.
+          </p>
+        </div>
+      </div>
 
-      <div className="inbox-filter">
+      <div className="tab-bar">
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={tab === t.key ? "nav-item active" : "nav-item"}
+            className={tab === t.key ? "tab-btn active" : "tab-btn"}
             onClick={() => setTab(t.key)}
           >
             {t.label}
@@ -112,8 +131,33 @@ export function PaymentsPage() {
           {notice} <button onClick={() => setNotice(null)}>إخفاء</button>
         </p>
       )}
+
+      {!loading && payments.length > 0 && (
+        <div className="table-toolbar">
+          <div className="search-input">
+            <input
+              placeholder="بحث باسم المريض أو الهاتف..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
       {loading ? (
-        <p>...جاري التحميل</p>
+        <table className="data-table skeleton-table">
+          <tbody>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: 7 }).map((__, j) => (
+                  <td key={j}>
+                    <div className="skeleton-block" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : payments.length === 0 ? (
         <p className="inbox-empty">ما في دفعات بهاي الحالة حالياً.</p>
       ) : (
@@ -130,7 +174,7 @@ export function PaymentsPage() {
             </tr>
           </thead>
           <tbody>
-            {payments.map((p) => (
+            {filteredPayments.map((p) => (
               <Fragment key={p.id}>
                 <tr>
                   <td>
@@ -139,7 +183,7 @@ export function PaymentsPage() {
                   </td>
                   <td>{p.appointment_number ?? (p.patient_package_id ? "باقة" : "—")}</td>
                   <td>{p.scheduled_at ? new Date(p.scheduled_at).toLocaleString("ar") : "—"}</td>
-                  <td>{p.payment_type}</td>
+                  <td>{paymentTypeLabel[p.payment_type] ?? p.payment_type}</td>
                   <td>
                     {p.amount} {p.currency}
                     {p.coupon_id && <div className="import-hint">بعد كوبون</div>}
@@ -215,6 +259,13 @@ export function PaymentsPage() {
                 )}
               </Fragment>
             ))}
+            {filteredPayments.length === 0 && (
+              <tr>
+                <td colSpan={7} className="table-empty">
+                  ما في دفعات مطابقة للبحث.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}

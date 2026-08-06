@@ -31,6 +31,28 @@ const statuses: AppointmentStatus[] = [
   "no_show",
 ];
 
+// The type covers a much broader status domain than this app ever
+// actually creates -- statuses[] above is the real, exhaustive list, so
+// these stay partial with a raw-value fallback rather than requiring
+// every theoretical status to be mapped.
+const statusLabel: Partial<Record<AppointmentStatus, string>> = {
+  requested: "بانتظار التأكيد",
+  confirmed: "مؤكد",
+  checked_in: "سجّل حضوره",
+  completed: "مكتمل",
+  cancelled: "ملغى",
+  no_show: "لم يحضر",
+};
+
+const statusBadgeClass: Partial<Record<AppointmentStatus, string>> = {
+  requested: "warning",
+  confirmed: "active",
+  checked_in: "active",
+  completed: "inactive",
+  cancelled: "danger",
+  no_show: "danger",
+};
+
 type ActionPanel = { appointmentId: string; kind: "reschedule" | "cancel" | "no_show" };
 
 type AppointmentsPageProps = {
@@ -57,6 +79,8 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
   const [checkInCode, setCheckInCode] = useState("");
   const [checkingInByCode, setCheckingInByCode] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "">("");
 
   const load = () => {
     setLoading(true);
@@ -187,6 +211,20 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
     );
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredAppointments = appointments.filter((appt) => {
+    if (statusFilter && appt.status !== statusFilter) return false;
+    if (!q) return true;
+    const patientName = nameOf(patients, appt.patient_id).toLowerCase();
+    const doctorName = nameOf(staff, appt.staff_id).toLowerCase();
+    return patientName.includes(q) || doctorName.includes(q);
+  });
+  const todayCount = appointments.filter(
+    (a) => new Date(a.scheduled_at).toDateString() === new Date().toDateString(),
+  ).length;
+  const confirmedCount = appointments.filter((a) => a.status === "confirmed" || a.status === "checked_in").length;
+  const cancelledCount = appointments.filter((a) => a.status === "cancelled" || a.status === "no_show").length;
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
@@ -194,6 +232,34 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
         <p className="settings-hint">
           {notice} <button onClick={() => setNotice(null)}>إخفاء</button>
         </p>
+      )}
+
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">المواعيد</p>
+          <p className="page-header-subtitle">حجز، متابعة، وإدارة كل مواعيد العيادة.</p>
+        </div>
+      </div>
+
+      {!loading && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{appointments.length}</div>
+            <div className="stat-card-label">إجمالي المواعيد</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{todayCount}</div>
+            <div className="stat-card-label">مواعيد اليوم</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{confirmedCount}</div>
+            <div className="stat-card-label">مؤكدة/تم الحضور</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{cancelledCount}</div>
+            <div className="stat-card-label">ملغاة/لم يحضر</div>
+          </div>
+        </div>
       )}
 
       {!currentDoctor && (
@@ -260,8 +326,40 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
         </form>
       )}
 
+      {!loading && appointments.length > 0 && (
+        <div className="table-toolbar">
+          <div className="search-input">
+            <input
+              placeholder="بحث باسم المريض أو الطبيب..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as AppointmentStatus | "")}>
+            <option value="">كل الحالات</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>
+                {statusLabel[s]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {loading ? (
-        <p>جاري التحميل...</p>
+        <table className="data-table skeleton-table">
+          <tbody>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: 8 }).map((__, j) => (
+                  <td key={j}>
+                    <div className="skeleton-block" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : (
         <table className="data-table">
           <thead>
@@ -277,7 +375,7 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
             </tr>
           </thead>
           <tbody>
-            {appointments.map((appt) => (
+            {filteredAppointments.map((appt) => (
               <Fragment key={appt.id}>
                 <tr>
                   <td>{nameOf(branches, appt.branch_id)}</td>
@@ -286,13 +384,15 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
                   <td>{nameOf(services, appt.service_id)}</td>
                   <td>{new Date(appt.scheduled_at).toLocaleString("ar-JO")}</td>
                   <td>
-                    <span className="badge active">{appt.status}</span>
+                    <span className={`badge ${statusBadgeClass[appt.status] ?? "inactive"}`}>
+                      {statusLabel[appt.status] ?? appt.status}
+                    </span>
                   </td>
                   <td>
                     <select value={appt.status} onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}>
                       {statuses.map((s) => (
                         <option key={s} value={s}>
-                          {s}
+                          {statusLabel[s]}
                         </option>
                       ))}
                     </select>
@@ -367,6 +467,13 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
                 )}
               </Fragment>
             ))}
+            {filteredAppointments.length === 0 && (
+              <tr>
+                <td colSpan={8} className="table-empty">
+                  ما في مواعيد مطابقة للبحث.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}

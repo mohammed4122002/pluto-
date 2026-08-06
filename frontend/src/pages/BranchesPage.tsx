@@ -78,6 +78,13 @@ export function BranchesPage() {
     <div className="page">
       {error && <p className="error">{error}</p>}
 
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">الفروع</p>
+          <p className="page-header-subtitle">فروع العيادة، عناوينها، ومواعيد دوامها.</p>
+        </div>
+      </div>
+
       <form className="data-form" onSubmit={handleCreate}>
         <input
           placeholder="اسم الفرع"

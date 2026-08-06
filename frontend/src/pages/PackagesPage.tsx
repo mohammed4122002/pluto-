@@ -16,6 +16,13 @@ const statusLabel: Record<PatientPackage["status"], string> = {
   expired: "منتهية",
 };
 
+const statusBadgeClass: Record<PatientPackage["status"], string> = {
+  pending_payment: "warning",
+  active: "active",
+  cancelled: "danger",
+  expired: "inactive",
+};
+
 export function PackagesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -98,6 +105,8 @@ export function PackagesPage() {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
+  const activeCount = patientPackages.filter((pp) => pp.status === "active").length;
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
@@ -105,6 +114,30 @@ export function PackagesPage() {
         <p className="settings-hint">
           {notice} <button onClick={() => setNotice(null)}>إخفاء</button>
         </p>
+      )}
+
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">الباقات</p>
+          <p className="page-header-subtitle">باقات الجلسات المتعددة، بيعها للمرضى، ومتابعة استهلاكها.</p>
+        </div>
+      </div>
+
+      {!loading && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{packages.length}</div>
+            <div className="stat-card-label">تعريفات الباقات</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{patientPackages.length}</div>
+            <div className="stat-card-label">باقات مباعة</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{activeCount}</div>
+            <div className="stat-card-label">مفعّلة حالياً</div>
+          </div>
+        </div>
       )}
 
       <h2>تعريف باقة جديدة</h2>
@@ -201,7 +234,7 @@ export function PackagesPage() {
                 <td>{nameOf(packages, pp.package_id)}</td>
                 <td>{pp.sessions_remaining}</td>
                 <td>
-                  <span className="badge active">{statusLabel[pp.status]}</span>
+                  <span className={`badge ${statusBadgeClass[pp.status]}`}>{statusLabel[pp.status]}</span>
                 </td>
                 <td>{new Date(pp.expires_at).toLocaleDateString("ar-JO")}</td>
                 <td>

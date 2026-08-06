@@ -87,9 +87,31 @@ export function CouponsPage() {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
+  const activeCount = coupons.filter((c) => c.is_active).length;
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
+
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">الكوبونات</p>
+          <p className="page-header-subtitle">أكواد خصم قابلة للتطبيق الذاتي من قبل المريض أو من الموظف.</p>
+        </div>
+      </div>
+
+      {!loading && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{coupons.length}</div>
+            <div className="stat-card-label">إجمالي الكوبونات</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{activeCount}</div>
+            <div className="stat-card-label">مفعّلة</div>
+          </div>
+        </div>
+      )}
 
       <form className="data-form" onSubmit={handleCreate}>
         <input
