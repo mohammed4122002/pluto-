@@ -18,6 +18,7 @@ from app.routers import (
     escalation_staff,
     imports,
     invoices,
+    me,
     notifications,
     packages,
     patients,
@@ -73,6 +74,7 @@ app.include_router(doctor_availability.router)
 app.include_router(escalation_staff.router)
 app.include_router(imports.router)
 app.include_router(invoices.router)
+app.include_router(me.router)
 app.include_router(notifications.router)
 app.include_router(packages.router)
 app.include_router(patients.router)

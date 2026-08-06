@@ -117,6 +117,12 @@ def create_staff(
     for bid in payload.branch_ids:
         assert_branch_access(current, "staff.create", str(bid))
 
+    if payload.role != "admin" and not payload.branch_ids:
+        # Their permissions are scoped per branch, so a branchless doctor or
+        # receptionist would end up with no usable grant at all. Catching it
+        # here gives the admin something to fix instead of a broken account.
+        raise HTTPException(status_code=400, detail="اختر فرعاً واحداً على الأقل — صلاحيات الموظف مرتبطة بفرعه")
+
     data = payload.model_dump(exclude={"branch_ids", "specialty_ids", "service_ids", "schedule"})
     created = db.table("staff").insert(data).execute().data[0]
     if payload.branch_ids:

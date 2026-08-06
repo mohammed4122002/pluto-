@@ -5,6 +5,7 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, require_permission
 from app.core.database import get_supabase
+from app.core.scoping import StaffScope, get_staff_scope
 from app.models.schemas import (
     Guardian,
     MergePatientsRequest,
@@ -53,30 +54,34 @@ def _patient_ids_visible_in_branches(db: Client, branch_ids: list[str]) -> set[s
 
 @router.get("/patients", response_model=list[Patient])
 def list_patients(
-    phone: str | None = None, current: CurrentStaff = Depends(require_permission("patient.view")), db: Client = Depends(get_supabase)
+    phone: str | None = None,
+    current: CurrentStaff = Depends(require_permission("patient.view")),
+    scope: StaffScope = Depends(get_staff_scope),
+    db: Client = Depends(get_supabase),
 ):
     query = db.table("patients").select("*").is_("is_merged_into", "null").is_("deleted_at", "null")
+
+    visible_ids: set[str] | None = None
     if phone:
         # A patient may be visiting this branch for the very first time —
-        # exact-phone lookup stays open regardless of branch scope so staff
-        # can find (or confirm the absence of) an existing record before booking.
+        # exact-phone lookup stays open across *branches* so staff can find
+        # (or confirm the absence of) an existing record before booking.
         # Still excludes merged-away tombstones — booking should always land
         # on the surviving record.
         query = query.eq("phone", phone)
-        return query.execute().data
+    else:
+        allowed = allowed_branch_ids(current, "patient.view")
+        if allowed is not None:
+            visible_ids = _patient_ids_visible_in_branches(db, allowed)
 
-    allowed = allowed_branch_ids(current, "patient.view")
-    if allowed is not None:
-        visible_ids = _patient_ids_visible_in_branches(db, allowed)
-        if current.role == "doctor":
-            # "Their own patients only" (per the doctor role's own
-            # description) -- branch-wide visibility would otherwise include
-            # every other doctor's patients at the same branch.
-            own_ids = {
-                r["patient_id"]
-                for r in db.table("appointments").select("patient_id").eq("staff_id", current.id).execute().data
-            }
-            visible_ids &= own_ids
+    # Self-scope applies last and unconditionally — including to the phone
+    # lookup above. Branch scope decides *where* you may look; it never decides
+    # *whose* records are yours. Keeping this outside the branch branch is the
+    # point: nested inside it, a doctor holding a clinic-wide grant skipped it
+    # entirely and read every patient in the clinic.
+    visible_ids = scope.narrow_patient_ids(visible_ids)
+
+    if visible_ids is not None:
         if not visible_ids:
             return []
         query = query.in_("id", list(visible_ids))

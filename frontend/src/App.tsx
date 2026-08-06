@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
 import { HomePage } from "./pages/HomePage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { InboxPage } from "./pages/InboxPage";
@@ -22,6 +23,10 @@ import { EscalationStaffPage } from "./pages/EscalationStaffPage";
 import { BotPerformancePage } from "./pages/BotPerformancePage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
 import { SetupWizard } from "./pages/SetupWizard";
+import { MyQueuePage } from "./pages/workspace/MyQueuePage";
+import { MyCalendarPage } from "./pages/workspace/MyCalendarPage";
+import { MyPatientsPage } from "./pages/workspace/MyPatientsPage";
+import { MyServicesPage } from "./pages/workspace/MyServicesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
@@ -53,16 +58,27 @@ import {
 } from "./icons";
 import "./App.css";
 
-// Not permission-gated like every other tab -- it's a light, graceful-
-// degrading summary (each section hides itself if the viewer lacks that
-// section's permission, same pattern as AlertsPage), so everyone lands
-// somewhere useful regardless of role.
-const homeTab = { key: "home", label: "الرئيسية", Icon: HomeIcon, Component: HomePage, requires: null } as const;
+type Tab = {
+  key: string;
+  label: string;
+  Icon: ComponentType<{ className?: string }>;
+  Component: ComponentType;
+  requires: string;
+};
+type NavGroup = { label: string | null; items: readonly Tab[] };
 
-const groups = [
+const inboxTab: Tab = {
+  key: "inbox",
+  label: "المحادثات",
+  Icon: InboxIcon,
+  Component: InboxPage,
+  requires: "conversation.view",
+};
+
+const adminGroups: readonly NavGroup[] = [
   {
     label: null,
-    items: [{ key: "inbox", label: "المحادثات", Icon: InboxIcon, Component: InboxPage, requires: "conversation.view" }],
+    items: [inboxTab],
   },
   {
     label: "إدارة العيادة",
@@ -106,12 +122,57 @@ const groups = [
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
     ],
   },
-] as const;
+];
 
-const allTabs = groups.map((g) => g.items).flat();
-type TabKey = (typeof allTabs)[number]["key"] | "home";
+// Self-scoped roles (the mirror of SELF_SCOPED_ROLES in backend
+// app/core/scoping.py) get a workspace of their own rather than a
+// permission-filtered slice of the admin dashboard. The filtered-admin
+// approach is what produced the 403 cascade in the first place: every admin
+// screen opens with clinic-wide lookups (/branches, /staff, /patients) these
+// roles can't call, so the first one to fail took the whole page with it.
+// These four screens read from /me/* instead, which is scoped server-side and
+// resolves its own names.
+const SELF_SCOPED_ROLES = new Set(["doctor"]);
+
+const workspaceGroups: readonly NavGroup[] = [
+  {
+    label: null,
+    items: [inboxTab],
+  },
+  {
+    label: "شغلي",
+    items: [
+      { key: "my-queue", label: "طابوري", Icon: QueueIcon, Component: MyQueuePage, requires: "queue.view" },
+      { key: "my-calendar", label: "تقويمي", Icon: CalendarIcon, Component: MyCalendarPage, requires: "slot.view" },
+      { key: "my-patients", label: "مرضاي", Icon: PatientIcon, Component: MyPatientsPage, requires: "patient.view" },
+      { key: "my-services", label: "خدماتي", Icon: ServiceIcon, Component: MyServicesPage, requires: "service.view" },
+    ],
+  },
+];
+
+// Not permission-gated like every other tab -- it's a light, graceful-
+// degrading summary (each section hides itself if the viewer lacks that
+// section's permission, same pattern as AlertsPage). Only shown to admin-
+// style roles: self-scoped roles land straight in their workspace instead,
+// since Home calls clinic-wide endpoints (/appointments, /payments, ...)
+// that self-scoped roles can't call.
+// HomePage needs staffName/onNavigate, unlike every other tab's
+// no-props Component -- it never renders through the generic <Active />
+// path below (that branch is skipped for key === "home"), so the cast is
+// safe: nothing ever mounts HomePage without those props.
+const homeTab: Tab = {
+  key: "home",
+  label: "الرئيسية",
+  Icon: HomeIcon,
+  Component: HomePage as unknown as ComponentType,
+  requires: "",
+};
 
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
+  const isSelfScoped = SELF_SCOPED_ROLES.has(staff.role);
+  const groups = isSelfScoped ? workspaceGroups : adminGroups;
+  const allTabs = groups.flatMap((g) => g.items);
+
   const visible = allTabs.filter((t) => staff.permissions.includes(t.requires));
   const visibleGroups = groups
     .map((g) => ({ ...g, items: g.items.filter((t) => staff.permissions.includes(t.requires)) }))
@@ -120,14 +181,13 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   // A doctor's queue is the one thing they actually need every day -- land
   // them there directly instead of on whatever tab happens to be first.
   // Everyone else lands on the home summary instead of an arbitrary tab.
-  const isDoctor = staff.role === "doctor";
-  const defaultTab: TabKey = isDoctor && visible.some((t) => t.key === "queue") ? "queue" : "home";
-  const [tab, setTab] = useState<TabKey>(defaultTab);
-  const active = tab === "home" ? homeTab : visible.find((t) => t.key === tab) ?? homeTab;
+  const defaultTab = isSelfScoped ? visible.find((t) => t.key === "my-queue")?.key ?? visible[0]?.key : "home";
+  const [tab, setTab] = useState<string | undefined>(defaultTab);
+  const active = !isSelfScoped && tab === "home" ? homeTab : visible.find((t) => t.key === tab) ?? visible[0];
 
   const [showStaffAlerts, setShowStaffAlerts] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const selectTab = (key: TabKey) => {
+  const selectTab = (key: string) => {
     setTab(key);
     setMobileMenuOpen(false);
   };
@@ -142,10 +202,16 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
     return () => clearInterval(interval);
   }, [canSeeInbox]);
 
-  // Derived only from `visible` (never homeTab) so every member shares the
-  // same no-required-props shape -- home renders through its own explicit
-  // branch below instead, since it needs staffName/onNavigate.
-  const Active = active.key === "home" ? null : visible.find((t) => t.key === active.key)?.Component ?? null;
+  if (!active) {
+    return (
+      <div className="app-shell">
+        <main className="page">
+          <p>لا توجد لديك أي صلاحية عرض بعد. تواصل مع مدير النظام.</p>
+        </main>
+      </div>
+    );
+  }
+  const Active = active.key === "home" ? null : active.Component;
 
   return (
     <div className={mobileMenuOpen ? "app-shell menu-open" : "app-shell"}>
@@ -156,12 +222,14 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           <span className="brand-name">لوحة العيادة</span>
         </div>
         <nav className="nav">
-          <div className="nav-group">
-            <button className={active.key === "home" ? "nav-item active" : "nav-item"} onClick={() => selectTab("home")}>
-              <HomeIcon className="nav-icon" />
-              {homeTab.label}
-            </button>
-          </div>
+          {!isSelfScoped && (
+            <div className="nav-group">
+              <button className={active.key === "home" ? "nav-item active" : "nav-item"} onClick={() => selectTab("home")}>
+                <HomeIcon className="nav-icon" />
+                {homeTab.label}
+              </button>
+            </div>
+          )}
           {visibleGroups.map((group, i) => (
             <div className="nav-group" key={group.label ?? `g${i}`}>
               {group.label && <div className="nav-group-label">{group.label}</div>}
@@ -209,25 +277,13 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
               <h1>{active.label}</h1>
             </header>
             <main>
-              {/* Doctors see only their own queue/appointments/patients/services --
-                  everyone else keeps managing everything exactly as before. */}
-              {active.key === "home" && (
-                <HomePage staffName={staff.full_name} onNavigate={(key) => setTab(key as TabKey)} />
+              {active.key === "home" ? (
+                <HomePage staffName={staff.full_name} onNavigate={(key) => setTab(key)} />
+              ) : active.key === "inbox" ? (
+                <InboxPage currentStaffId={staff.id} />
+              ) : (
+                Active && <Active />
               )}
-              {active.key === "queue" && <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-              {active.key === "appointments" && (
-                <AppointmentsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />
-              )}
-              {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-              {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-              {active.key === "inbox" && <InboxPage currentStaffId={staff.id} />}
-              {active.key !== "home" &&
-                active.key !== "queue" &&
-                active.key !== "appointments" &&
-                active.key !== "patients" &&
-                active.key !== "services" &&
-                active.key !== "inbox" &&
-                Active && <Active />}
             </main>
           </>
         )}

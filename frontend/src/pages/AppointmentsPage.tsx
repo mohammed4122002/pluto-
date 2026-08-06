@@ -118,13 +118,7 @@ const statusBadgeClass: Record<AppointmentStatus, string> = {
 
 type ActionPanel = { appointmentId: string; kind: "reschedule" | "cancel" | "no_show" };
 
-type AppointmentsPageProps = {
-  // Doctors have appointment.view/update only -- no create, check_in,
-  // reschedule, or cancel -- so those controls just 403 for them.
-  currentDoctor?: { id: string };
-};
-
-export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) {
+export function AppointmentsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -325,21 +319,19 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
         </div>
       )}
 
-      {!currentDoctor && (
-        <form className="data-form" onSubmit={handleCheckInByCode}>
-          <input
-            autoFocus
-            placeholder="امسحي رمز QR أو اكتبي رقم الحجز أو رمز التأكيد لتسجيل الحضور"
-            value={checkInCode}
-            onChange={(e) => setCheckInCode(e.target.value)}
-          />
-          <button type="submit" disabled={checkingInByCode || !checkInCode.trim()}>
-            تسجيل حضور
-          </button>
-        </form>
-      )}
+      <form className="data-form" onSubmit={handleCheckInByCode}>
+        <input
+          autoFocus
+          placeholder="امسحي رمز QR أو اكتبي رقم الحجز أو رمز التأكيد لتسجيل الحضور"
+          value={checkInCode}
+          onChange={(e) => setCheckInCode(e.target.value)}
+        />
+        <button type="submit" disabled={checkingInByCode || !checkInCode.trim()}>
+          تسجيل حضور
+        </button>
+      </form>
 
-      {!currentDoctor && form && (
+      {form && (
         <form className="data-form" onSubmit={handleCreate}>
           <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
             {branches.map((b) => (
@@ -464,11 +456,9 @@ export function AppointmentsPage({ currentDoctor }: AppointmentsPageProps = {}) 
                     {/* check_in/reschedule/cancel all need permissions doctors
                         don't have -- only status and no_show (appointment.update)
                         actually work for them. */}
-                    {!currentDoctor && <button onClick={() => handleCheckIn(appt)}>تسجيل حضور</button>}
-                    {!currentDoctor && <button onClick={() => openReschedule(appt)}>إعادة جدولة</button>}
-                    {!currentDoctor && (
-                      <button onClick={() => setPanel({ appointmentId: appt.id, kind: "cancel" })}>إلغاء</button>
-                    )}
+                    <button onClick={() => handleCheckIn(appt)}>تسجيل حضور</button>
+                    <button onClick={() => openReschedule(appt)}>إعادة جدولة</button>
+                    <button onClick={() => setPanel({ appointmentId: appt.id, kind: "cancel" })}>إلغاء</button>
                     <button onClick={() => setPanel({ appointmentId: appt.id, kind: "no_show" })}>لم يحضر</button>
                   </td>
                 </tr>
