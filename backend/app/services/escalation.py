@@ -98,7 +98,12 @@ def send_escalation_alert(db: Client, conversation_id: str, staff_id: str) -> No
 
         resp = httpx.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": message},
+            # force_reply auto-opens Telegram's reply box on this exact
+            # message when the staff member taps it -- without it people
+            # naturally just type in the normal chat box, which arrives as a
+            # plain message (no reply_to_message) that staff_bot.py can't
+            # trace back to a conversation.
+            json={"chat_id": chat_id, "text": message, "reply_markup": {"force_reply": True}},
             timeout=10,
         )
         data = resp.json()
