@@ -24,6 +24,16 @@ const tagLabels: Record<PatientTagValue, string> = {
 };
 const allTags = Object.keys(tagLabels) as PatientTagValue[];
 
+const avatarColors = ["#7c5cff", "#ff8a3d", "#22b07d", "#e5484d", "#0ea5b0", "#c026d3", "#f59e0b"];
+function avatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+function initial(name: string) {
+  return name.trim()[0] ?? "";
+}
+
 function isMinor(dob: string | undefined): boolean {
   if (!dob) return false;
   const birth = new Date(dob);
@@ -52,6 +62,7 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
   const [phoneSearch, setPhoneSearch] = useState("");
   const [tagsByPatient, setTagsByPatient] = useState<Record<string, PatientTagValue[]>>({});
   const [addingTagFor, setAddingTagFor] = useState<string | null>(null);
+  const [nameFilter, setNameFilter] = useState("");
 
   const load = (phone?: string) => {
     setLoading(true);
@@ -116,9 +127,36 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
+  const nq = nameFilter.trim().toLowerCase();
+  const filteredPatients = nq
+    ? patients.filter((p) => p.full_name.toLowerCase().includes(nq) || (p.phone ?? "").includes(nq))
+    : patients;
+  const taggedCount = patients.filter((p) => (tagsByPatient[p.id] ?? []).length > 0).length;
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
+
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">سجلات المرضى</p>
+          <p className="page-header-subtitle">كل مرضى العيادة، تصنيفاتهم، وسجل بياناتهم الأساسي.</p>
+        </div>
+      </div>
+
+      {!loading && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{patients.length}</div>
+            <div className="stat-card-label">إجمالي المرضى</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{taggedCount}</div>
+            <div className="stat-card-label">لديهم تصنيف</div>
+          </div>
+        </div>
+      )}
+
       {notice && (
         <div className="error">
           <strong>تنبيه: احتمال وجود سجلات مكررة</strong>
@@ -198,8 +236,32 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
         </div>
       )}
 
+      {!loading && patients.length > 0 && (
+        <div className="table-toolbar">
+          <div className="search-input">
+            <input
+              placeholder="فلترة سريعة بالاسم أو الهاتف (ضمن القائمة المحمّلة)..."
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
       {loading ? (
-        <p>جاري التحميل...</p>
+        <table className="data-table skeleton-table">
+          <tbody>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: 5 }).map((__, j) => (
+                  <td key={j}>
+                    <div className="skeleton-block" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : (
         <table className="data-table">
           <thead>
@@ -212,9 +274,16 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
             </tr>
           </thead>
           <tbody>
-            {patients.map((patient) => (
+            {filteredPatients.map((patient) => (
               <tr key={patient.id}>
-                <td>{patient.full_name}</td>
+                <td>
+                  <div className="avatar-row">
+                    <span className="avatar" style={{ background: avatarColor(patient.full_name) }}>
+                      {initial(patient.full_name)}
+                    </span>
+                    {patient.full_name}
+                  </div>
+                </td>
                 <td>{patient.phone}</td>
                 <td>{patient.email}</td>
                 <td>{patient.notes}</td>
@@ -248,6 +317,13 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
                 </td>
               </tr>
             ))}
+            {filteredPatients.length === 0 && (
+              <tr>
+                <td colSpan={5} className="table-empty">
+                  ما في مرضى مطابقين للفلترة.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}

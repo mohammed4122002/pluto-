@@ -30,7 +30,20 @@ import type { Service } from "../api/services";
 import { generateSlots } from "../api/slots";
 
 const roles: StaffRole[] = ["admin", "doctor", "receptionist"];
+const roleLabel: Record<StaffRole, string> = { admin: "مدير", doctor: "طبيب", receptionist: "موظف استقبال" };
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+const avatarColors = ["#7c5cff", "#ff8a3d", "#22b07d", "#e5484d", "#0ea5b0", "#c026d3", "#f59e0b"];
+function avatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+function initials(name: string) {
+  // Arabic letters don't shape/join cleanly as a two-letter monogram the way
+  // Latin initials do -- one letter reads far more clearly here.
+  return name.replace(/^د\.\s*/, "").trim()[0] ?? "";
+}
 
 const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
 function generatePassword(length = 12) {
@@ -129,7 +142,7 @@ function AddStaffModal({
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as StaffRole })}>
               {roles.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {roleLabel[r]}
                 </option>
               ))}
             </select>
@@ -388,7 +401,7 @@ function EditStaffModal({
           <select value={basic.role} onChange={(e) => setBasic({ ...basic, role: e.target.value as StaffRole })}>
             {roles.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {roleLabel[r]}
               </option>
             ))}
           </select>
@@ -587,6 +600,8 @@ export function StaffPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<StaffRole | "">("");
 
   const load = () => {
     setLoading(true);
@@ -612,16 +627,85 @@ export function StaffPage() {
 
   const editingMember = staff.find((s) => s.id === editingId) ?? null;
 
+  const activeCount = staff.filter((s) => s.is_active).length;
+  const doctorCount = staff.filter((s) => s.role === "doctor").length;
+
+  const q = search.trim().toLowerCase();
+  const filteredStaff = staff.filter((s) => {
+    if (roleFilter && s.role !== roleFilter) return false;
+    if (!q) return true;
+    return s.full_name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q);
+  });
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
 
-      <button className="btn-primary" onClick={() => setShowAdd(true)}>
-        + إضافة موظف
-      </button>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">فريق العيادة</p>
+          <p className="page-header-subtitle">إدارة حسابات الموظفين، أدوارهم، وربطهم بالفروع والخدمات.</p>
+        </div>
+        <button className="btn-primary" onClick={() => setShowAdd(true)}>
+          + إضافة موظف
+        </button>
+      </div>
+
+      {!loading && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{staff.length}</div>
+            <div className="stat-card-label">إجمالي الموظفين</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{activeCount}</div>
+            <div className="stat-card-label">فعّالين</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{staff.length - activeCount}</div>
+            <div className="stat-card-label">متوقفين</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{doctorCount}</div>
+            <div className="stat-card-label">أطباء</div>
+          </div>
+        </div>
+      )}
+
+      {!loading && (
+        <div className="table-toolbar">
+          <div className="search-input">
+            <input
+              placeholder="بحث بالاسم أو الإيميل..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as StaffRole | "")}>
+            <option value="">كل الأدوار</option>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {roleLabel[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {loading ? (
-        <p>جاري التحميل...</p>
+        <table className="data-table skeleton-table">
+          <tbody>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <tr key={i}>
+                {Array.from({ length: 8 }).map((__, j) => (
+                  <td key={j}>
+                    <div className="skeleton-block" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : (
         <table className="data-table">
           <thead>
@@ -637,11 +721,18 @@ export function StaffPage() {
             </tr>
           </thead>
           <tbody>
-            {staff.map((member) => (
+            {filteredStaff.map((member) => (
               <tr key={member.id}>
-                <td>{member.full_name}</td>
+                <td>
+                  <div className="avatar-row">
+                    <span className="avatar" style={{ background: avatarColor(member.full_name) }}>
+                      {initials(member.full_name)}
+                    </span>
+                    {member.full_name}
+                  </div>
+                </td>
                 <td>{member.email}</td>
-                <td>{member.role}</td>
+                <td>{roleLabel[member.role] ?? member.role}</td>
                 <td>{specialtyNames(member.specialty_ids) || member.specialty}</td>
                 <td>{serviceNames(member.service_ids)}</td>
                 <td>{member.branch_ids.map(branchName).join(", ")}</td>
@@ -655,6 +746,13 @@ export function StaffPage() {
                 </td>
               </tr>
             ))}
+            {filteredStaff.length === 0 && (
+              <tr>
+                <td colSpan={8} className="table-empty">
+                  ما في موظفين مطابقين للبحث.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}
