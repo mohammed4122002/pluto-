@@ -1,7 +1,18 @@
+import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+import httpx
 from supabase import Client
+
+from app.core.security import decrypt_secret
+
+logger = logging.getLogger(__name__)
+
+# Whoever holds one of these RBAC roles is "a manager" for the purpose of the
+# weekly report -- mirrors _CLINIC_WIDE_ROLES in app/core/rbac.py, since a
+# clinic-wide view is exactly what makes the summary meaningful to them.
+_WEEKLY_REPORT_ROLES = {"system_administrator", "clinic_manager", "branch_manager"}
 
 _CANCELLED_STATUSES = {"cancelled", "cancelled_by_patient", "cancelled_by_clinic", "cancelled_by_doctor"}
 
@@ -14,6 +25,73 @@ _NOT_IMPLEMENTED = [
 
 def _avg(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 1) if values else None
+
+
+def format_weekly_report_text(report: dict) -> str:
+    """Arabic plain-text summary of build_dashboard_report's output, sized for
+    a Telegram message rather than the dashboard's full breakdown -- a manager
+    reading this on their phone wants the week's headline numbers, not every
+    field the dashboard renders."""
+    appts = report["appointments"]
+    fin = report["financial"]
+    ai = report["ai_chat"]
+    date_from = report["period"]["date_from"][:10]
+    date_to = report["period"]["date_to"][:10]
+    return (
+        f"📊 تقرير العيادة الأسبوعي ({date_from} → {date_to})\n\n"
+        f"المواعيد: {appts['total']} إجمالي — {appts['completed']} مكتمل، "
+        f"{appts['cancelled']} ملغى، معدل التأكيد {appts['confirmation_rate']}%، معدل عدم الحضور {appts['no_show_rate']}%\n\n"
+        f"المالية: إيرادات {fin['revenue']} {fin['currency']}، عرابين {fin['deposits']} {fin['currency']}"
+        + (f"، مبالغ مُرجعة {fin['refunds']} {fin['currency']}" if fin["refunds"] else "")
+        + "\n\n"
+        f"المساعد الذكي: {ai['total_conversations']} محادثة، {ai['bookings']} حجز عبره، "
+        f"{ai['escalated_to_human']} تحويل لموظف بشري ({ai['escalation_rate']}%)\n\n"
+        f"مرضى جدد هالأسبوع: {report['breakdown']['new_patients']}"
+    )
+
+
+def send_weekly_report(db: Client) -> dict:
+    """Meant to be called weekly by an external scheduler (n8n Cron), same
+    pattern as the appointment-reminder and recall schedulers. Delivery reuses
+    each manager's own personal alert bot (see routers/staff_bot.py) rather
+    than a shared clinic channel -- there is no shared "management" channel,
+    and a manager who never linked their bot simply doesn't get this, same as
+    they'd miss any other staff-bot alert."""
+    now = datetime.now(timezone.utc)
+    date_from, date_to = (now - timedelta(days=7)).isoformat(), now.isoformat()
+    report = build_dashboard_report(db, None, date_from, date_to)
+    text = format_weekly_report_text(report)
+
+    recipients = (
+        db.table("user_roles")
+        .select("staff_id, roles(code), staff(telegram_bot_token_encrypted, telegram_chat_id)")
+        .execute()
+        .data
+    )
+    seen: set[str] = set()
+    sent = 0
+    for row in recipients:
+        role = (row.get("roles") or {}).get("code")
+        staff_row = row.get("staff") or {}
+        staff_id = row["staff_id"]
+        if role not in _WEEKLY_REPORT_ROLES or staff_id in seen:
+            continue
+        seen.add(staff_id)
+        token_encrypted = staff_row.get("telegram_bot_token_encrypted")
+        chat_id = staff_row.get("telegram_chat_id")
+        if not token_encrypted or not chat_id:
+            continue
+        try:
+            httpx.post(
+                f"https://api.telegram.org/bot{decrypt_secret(token_encrypted)}/sendMessage",
+                json={"chat_id": chat_id, "text": text},
+                timeout=10,
+            )
+            sent += 1
+        except httpx.HTTPError:
+            logger.exception("weekly report send failed for staff_id=%s", staff_id)
+
+    return {"eligible_managers": len(seen), "sent": sent}
 
 
 def build_dashboard_report(db: Client, branch_ids: list[str] | None, date_from: str, date_to: str) -> dict:

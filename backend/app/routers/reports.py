@@ -5,11 +5,13 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
 from app.core.database import get_supabase
+from app.core.service_auth import require_service_token
 from app.services.reports import (
     branch_comparison_report,
     build_dashboard_report,
     call_center_performance_report,
     nearest_slot_by_specialty,
+    send_weekly_report,
 )
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -72,6 +74,14 @@ def branch_comparison(
         branch_ids = [b["id"] for b in db.table("branches").select("id").execute().data]
     resolved_from, resolved_to = _resolve_window(date_from, date_to)
     return branch_comparison_report(db, branch_ids, resolved_from, resolved_to)
+
+
+@router.post("/send-weekly", dependencies=[Depends(require_service_token)])
+def send_weekly(db: Client = Depends(get_supabase)):
+    """Called by an external scheduler (n8n Cron), not the dashboard — gated
+    by the shared service token instead of a staff JWT, same pattern as
+    POST /notifications/process-due."""
+    return send_weekly_report(db)
 
 
 @router.get("/call-center-performance")
