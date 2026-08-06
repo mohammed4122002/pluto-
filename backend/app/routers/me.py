@@ -40,6 +40,8 @@ from app.models.schemas import (
     MyQueueDay,
     MyQueueTicket,
     MyService,
+    MyToday,
+    MyTodayConversation,
     QueueTicket,
 )
 from app.services.queue import call_ticket, complete_ticket, skip_ticket, start_ticket
@@ -420,3 +422,107 @@ def my_patients(
         )
         for p in patients
     ]
+
+
+# Statuses that mean the visit is over, so "what's left today" doesn't count them.
+_FINISHED_STATUSES = {"completed", "checked_out", "cancelled", "cancelled_by_patient",
+                      "cancelled_by_clinic", "cancelled_by_doctor", "no_show", "rejected", "expired"}
+
+
+@router.get("/today", response_model=MyToday)
+def my_today(
+    current: CurrentStaff = Depends(get_current_staff),
+    scope: StaffScope = Depends(get_staff_scope),
+    db: Client = Depends(get_supabase),
+):
+    """The landing screen: who's in front of me, what's left today, who's waiting on a reply.
+
+    Each block is gated on its own permission and simply stays empty when the
+    caller doesn't hold it — a staff member without queue.view still gets a
+    working screen rather than a 403. That is the property the old dashboard
+    lacked, and the reason its first paint could fail outright.
+    """
+    today = datetime.now(timezone.utc).date()
+    result = MyToday(date=today)
+
+    if current.has_permission("queue.view"):
+        queues = (
+            db.table("queues").select("id").eq("doctor_id", scope.staff_id)
+            .eq("queue_date", today.isoformat()).eq("is_active", True).execute().data
+        )
+        if queues:
+            tickets = (
+                db.table("queue_tickets").select("*")
+                .in_("queue_id", [q["id"] for q in queues]).order("ticket_number").execute().data
+            )
+            names = {
+                p["id"]: p
+                for p in db.table("patients").select("id, full_name, phone")
+                .in_("id", list({t["patient_id"] for t in tickets})).execute().data
+            } if tickets else {}
+
+            def _ticket(row: dict) -> MyQueueTicket:
+                patient = names.get(row["patient_id"], {})
+                return MyQueueTicket(
+                    **{k: row[k] for k in MyQueueTicket.model_fields if k in row},
+                    patient_name=patient.get("full_name", "—"),
+                    patient_phone=patient.get("phone"),
+                )
+
+            result.now_serving = next((_ticket(t) for t in tickets if t["status"] == "in_progress"), None)
+            result.up_next = next((_ticket(t) for t in tickets if t["status"] in ("waiting", "called")), None)
+            result.waiting_count = sum(t["status"] in ("waiting", "called") for t in tickets)
+
+    if current.has_permission("appointment.view"):
+        start, end = _day_bounds(today)
+        rows = (
+            db.table("appointments").select("*").eq("staff_id", scope.staff_id)
+            .is_("deleted_at", "null").gte("scheduled_at", start).lt("scheduled_at", end)
+            .order("scheduled_at").execute().data
+        )
+        branch_names = _name_map(db, "branches", {r["branch_id"] for r in rows})
+        service_names = _name_map(db, "services", {r.get("service_id") for r in rows})
+        patients = {
+            p["id"]: p
+            for p in db.table("patients").select("id, full_name, phone")
+            .in_("id", list({r["patient_id"] for r in rows})).execute().data
+        } if rows else {}
+        result.appointments = [
+            MyCalendarAppointment(
+                **{k: a[k] for k in ("id", "scheduled_at", "duration_minutes", "status", "patient_id",
+                                     "branch_id", "reason_for_visit", "queue_number", "check_in_time", "slot_id")},
+                patient_name=patients.get(a["patient_id"], {}).get("full_name", "—"),
+                patient_phone=patients.get(a["patient_id"], {}).get("phone"),
+                branch_name=branch_names.get(a["branch_id"], "—"),
+                service_name=service_names.get(a.get("service_id")),
+            )
+            for a in rows
+        ]
+        result.completed_appointments = sum(a["status"] in ("completed", "checked_out") for a in rows)
+        result.remaining_appointments = sum(a["status"] not in _FINISHED_STATUSES for a in rows)
+
+    if current.has_permission("conversation.view"):
+        rows = (
+            db.table("conversations")
+            .select("id, needs_attention, last_message_at, last_message_preview, "
+                    "channels(channel_type), patients(full_name)")
+            .eq("assigned_staff_id", scope.staff_id)
+            .order("last_message_at", desc=True, nullsfirst=False)
+            .limit(8)
+            .execute()
+            .data
+        )
+        result.conversations = [
+            MyTodayConversation(
+                id=r["id"],
+                patient_name=(r.get("patients") or {}).get("full_name", "—"),
+                last_message_preview=r.get("last_message_preview"),
+                last_message_at=r.get("last_message_at"),
+                needs_attention=r.get("needs_attention", False),
+                channel_type=(r.get("channels") or {}).get("channel_type", "—"),
+            )
+            for r in rows
+        ]
+        result.needs_attention_count = sum(c.needs_attention for c in result.conversations)
+
+    return result

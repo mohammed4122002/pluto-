@@ -5,6 +5,7 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
 from app.core.database import get_supabase
+from app.core.scoping import StaffScope, get_staff_scope
 from app.models.schemas import Queue, QueueTicket, QueueTicketUpdate, TriageRequest
 from app.services.queue import call_ticket, complete_ticket, skip_ticket, start_ticket, update_ticket
 from app.services.scheduling import record_triage
@@ -17,12 +18,17 @@ def list_queue_tickets(
     queue_id: UUID,
     status: str | None = None,
     current: CurrentStaff = Depends(require_permission("queue.view")),
+    scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
     queue_rows = db.table("queues").select("branch_id").eq("id", str(queue_id)).limit(1).execute().data
     if not queue_rows:
         raise HTTPException(status_code=404, detail="الطابور غير موجود")
     assert_branch_access(current, "queue.view", queue_rows[0]["branch_id"])
+    # Branch access alone would hand a doctor every colleague's line at their
+    # own branch -- ownership is the narrower rule and it wins.
+    if scope.is_self_scoped and not scope.owns_queue(str(queue_id)):
+        raise HTTPException(status_code=403, detail="هاد الطابور مو طابورك")
 
     query = db.table("queue_tickets").select("*").eq("queue_id", str(queue_id)).order("ticket_number")
     if status:
@@ -35,9 +41,12 @@ def list_queues(
     branch_id: str | None = None,
     queue_date: str | None = None,
     current: CurrentStaff = Depends(require_permission("queue.view")),
+    scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
     query = db.table("queues").select("*").eq("is_active", True)
+    if scope.is_self_scoped:
+        query = query.eq("doctor_id", scope.staff_id)
     if branch_id:
         assert_branch_access(current, "queue.view", branch_id)
         query = query.eq("branch_id", branch_id)

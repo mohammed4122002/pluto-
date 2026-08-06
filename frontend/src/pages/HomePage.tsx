@@ -61,7 +61,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
       <div className="page-header">
         <div>
           <p className="page-header-title">
-            {greeting()}، {staffName.split(" ")[0]}
+            {greeting()}، {staffName}
           </p>
           <p className="page-header-subtitle">لمحة سريعة على وضع العيادة اليوم.</p>
         </div>

@@ -1002,6 +1002,10 @@ class MfaVerifyRequest(BaseModel):
 class MfaSetupResult(BaseModel):
     secret: str
     otpauth_url: str
+    # Rendered server-side as a data: URI. The alternative is a QR library in
+    # the browser for the one screen that needs it, and the backend already
+    # has `qrcode` for appointment check-in codes.
+    qr_data_uri: str
 
 
 class MfaConfirmRequest(BaseModel):
@@ -1355,3 +1359,29 @@ class SearchResults(BaseModel):
     patients: list[SearchPatientResult] = []
     appointments: list[SearchAppointmentResult] = []
     staff: list[SearchStaffResult] = []
+
+
+class MyTodayConversation(BaseModel):
+    id: UUID
+    patient_name: str
+    last_message_preview: str | None = None
+    last_message_at: datetime | None = None
+    needs_attention: bool = False
+    channel_type: str
+
+
+class MyToday(BaseModel):
+    """One request behind the landing screen. Assembled server-side because
+    four round trips on first paint is what makes a dashboard feel slow, and
+    because each part needs a different permission — absent ones come back
+    empty rather than failing the whole screen."""
+
+    date: date
+    now_serving: MyQueueTicket | None = None
+    up_next: MyQueueTicket | None = None
+    waiting_count: int = 0
+    appointments: list[MyCalendarAppointment] = []
+    remaining_appointments: int = 0
+    completed_appointments: int = 0
+    conversations: list[MyTodayConversation] = []
+    needs_attention_count: int = 0
