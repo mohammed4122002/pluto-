@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HomePage } from "./pages/HomePage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { InboxPage } from "./pages/InboxPage";
 import { BranchesPage } from "./pages/BranchesPage";
@@ -47,8 +48,15 @@ import {
   CouponIcon,
   DuplicatesIcon,
   AlertIcon,
+  HomeIcon,
 } from "./icons";
 import "./App.css";
+
+// Not permission-gated like every other tab -- it's a light, graceful-
+// degrading summary (each section hides itself if the viewer lacks that
+// section's permission, same pattern as AlertsPage), so everyone lands
+// somewhere useful regardless of role.
+const homeTab = { key: "home", label: "الرئيسية", Icon: HomeIcon, Component: HomePage, requires: null } as const;
 
 const groups = [
   {
@@ -100,7 +108,7 @@ const groups = [
 ] as const;
 
 const allTabs = groups.map((g) => g.items).flat();
-type TabKey = (typeof allTabs)[number]["key"];
+type TabKey = (typeof allTabs)[number]["key"] | "home";
 
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
   const visible = allTabs.filter((t) => staff.permissions.includes(t.requires));
@@ -110,10 +118,11 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
 
   // A doctor's queue is the one thing they actually need every day -- land
   // them there directly instead of on whatever tab happens to be first.
+  // Everyone else lands on the home summary instead of an arbitrary tab.
   const isDoctor = staff.role === "doctor";
-  const defaultTab = isDoctor && visible.some((t) => t.key === "queue") ? "queue" : visible[0]?.key;
-  const [tab, setTab] = useState<TabKey | undefined>(defaultTab);
-  const active = visible.find((t) => t.key === tab) ?? visible[0];
+  const defaultTab: TabKey = isDoctor && visible.some((t) => t.key === "queue") ? "queue" : "home";
+  const [tab, setTab] = useState<TabKey>(defaultTab);
+  const active = tab === "home" ? homeTab : visible.find((t) => t.key === tab) ?? homeTab;
 
   const [showStaffAlerts, setShowStaffAlerts] = useState(false);
 
@@ -127,16 +136,10 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
     return () => clearInterval(interval);
   }, [canSeeInbox]);
 
-  if (!active) {
-    return (
-      <div className="app-shell">
-        <main className="page">
-          <p>لا توجد لديك أي صلاحية عرض بعد. تواصل مع مدير النظام.</p>
-        </main>
-      </div>
-    );
-  }
-  const Active = active.Component;
+  // Derived only from `visible` (never homeTab) so every member shares the
+  // same no-required-props shape -- home renders through its own explicit
+  // branch below instead, since it needs staffName/onNavigate.
+  const Active = active.key === "home" ? null : visible.find((t) => t.key === active.key)?.Component ?? null;
 
   return (
     <div className="app-shell">
@@ -146,6 +149,12 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           <span className="brand-name">لوحة العيادة</span>
         </div>
         <nav className="nav">
+          <div className="nav-group">
+            <button className={active.key === "home" ? "nav-item active" : "nav-item"} onClick={() => setTab("home")}>
+              <HomeIcon className="nav-icon" />
+              {homeTab.label}
+            </button>
+          </div>
           {visibleGroups.map((group, i) => (
             <div className="nav-group" key={group.label ?? `g${i}`}>
               {group.label && <div className="nav-group-label">{group.label}</div>}
@@ -186,6 +195,9 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
             <main>
               {/* Doctors see only their own queue/appointments/patients/services --
                   everyone else keeps managing everything exactly as before. */}
+              {active.key === "home" && (
+                <HomePage staffName={staff.full_name} onNavigate={(key) => setTab(key as TabKey)} />
+              )}
               {active.key === "queue" && <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
               {active.key === "appointments" && (
                 <AppointmentsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />
@@ -193,11 +205,13 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
               {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
               {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
               {active.key === "inbox" && <InboxPage currentStaffId={staff.id} />}
-              {active.key !== "queue" &&
+              {active.key !== "home" &&
+                active.key !== "queue" &&
                 active.key !== "appointments" &&
                 active.key !== "patients" &&
                 active.key !== "services" &&
-                active.key !== "inbox" && <Active />}
+                active.key !== "inbox" &&
+                Active && <Active />}
             </main>
           </>
         )}

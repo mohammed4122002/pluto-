@@ -17,6 +17,22 @@ from app.services.slots import block_future_available_slots, generate_slots_for_
 router = APIRouter(prefix="/staff", tags=["staff"])
 
 
+def _auto_enroll_escalation_pool(db: Client, staff_id: str, role: str) -> None:
+    """Receptionists are the natural first responders for escalated
+    conversations -- auto-enroll every one of them in the global escalation
+    pool (branch_id=null) instead of making an admin add each new hire by
+    hand from فريق التصعيد. Never removes anyone here: a deactivated or
+    role-changed staff member is already excluded at assignment time
+    (see escalation.pick_escalation_assignee's is_active filter), so a
+    stale pool row is harmless -- and an admin's manual pool choices for
+    other roles must never get silently undone by an unrelated staff edit."""
+    if role != "receptionist":
+        return
+    db.table("escalation_staff").upsert(
+        {"staff_id": staff_id, "branch_id": None, "is_active": True}, on_conflict="staff_id,branch_id"
+    ).execute()
+
+
 def _attach_branch_ids(db: Client, staff: list[dict]) -> list[dict]:
     if not staff:
         return staff
@@ -135,6 +151,7 @@ def create_staff(
         ).execute()
         generate_slots_for_doctor(db, created["id"], branch_id, date.today(), date.today() + timedelta(days=30))
     sync_legacy_role(db, created["id"], payload.role, [str(bid) for bid in payload.branch_ids])
+    _auto_enroll_escalation_pool(db, created["id"], payload.role)
     return _attach_all(db, [created])[0]
 
 
@@ -273,6 +290,8 @@ def update_staff(
     updated = db.table("staff").update(updates).eq("id", str(staff_id)).execute().data[0]
     if updates.get("is_active") is False:
         block_future_available_slots(db, str(staff_id))
+    if "role" in updates:
+        _auto_enroll_escalation_pool(db, str(staff_id), updates["role"])
     return _attach_all(db, [updated])[0]
 
 
