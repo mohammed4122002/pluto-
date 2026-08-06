@@ -33,6 +33,7 @@ import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
 import { StaffAlertsPage } from "./pages/StaffAlertsPage";
+import { MyAccountPage } from "./pages/MyAccountPage";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -186,6 +187,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const active = !isSelfScoped && tab === "home" ? homeTab : visible.find((t) => t.key === tab) ?? visible[0];
 
   const [showStaffAlerts, setShowStaffAlerts] = useState(false);
+  const [showMyAccount, setShowMyAccount] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const selectTab = (key: string) => {
     setTab(key);
@@ -252,6 +254,15 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           <button
             className="nav-item"
             onClick={() => {
+              setShowMyAccount(true);
+              setMobileMenuOpen(false);
+            }}
+          >
+            حسابي
+          </button>
+          <button
+            className="nav-item"
+            onClick={() => {
               setShowStaffAlerts(true);
               setMobileMenuOpen(false);
             }}
@@ -267,6 +278,10 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
         {showStaffAlerts ? (
           <main>
             <StaffAlertsPage onBack={() => setShowStaffAlerts(false)} />
+          </main>
+        ) : showMyAccount ? (
+          <main>
+            <MyAccountPage onBack={() => setShowMyAccount(false)} />
           </main>
         ) : (
           <>
