@@ -662,9 +662,9 @@ button.btn-secondary:hover:not(:disabled) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 22px;
+  padding: 24px 28px;
   box-shadow: var(--shadow-sm);
-  max-width: 640px;
+  max-width: 720px;
 }
 
 .settings-form label {
@@ -677,7 +677,8 @@ button.btn-secondary:hover:not(:disabled) {
 }
 
 .settings-form input,
-.settings-form textarea {
+.settings-form textarea,
+.settings-form select {
   padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -689,8 +690,13 @@ button.btn-secondary:hover:not(:disabled) {
   resize: vertical;
 }
 
+.settings-form select {
+  cursor: pointer;
+}
+
 .settings-form input:focus,
-.settings-form textarea:focus {
+.settings-form textarea:focus,
+.settings-form select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-bg);
