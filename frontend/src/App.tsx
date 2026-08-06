@@ -26,8 +26,7 @@ import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
-import { generateMyTelegramLinkCode } from "./api/staff";
-import type { TelegramLinkCode } from "./api/staff";
+import { StaffAlertsPage } from "./pages/StaffAlertsPage";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -116,15 +115,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const [tab, setTab] = useState<TabKey | undefined>(defaultTab);
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
-  const [telegramLinkCode, setTelegramLinkCode] = useState<TelegramLinkCode | null>(null);
-  const [generatingLinkCode, setGeneratingLinkCode] = useState(false);
-  const handleGenerateLinkCode = () => {
-    setGeneratingLinkCode(true);
-    generateMyTelegramLinkCode()
-      .then(setTelegramLinkCode)
-      .catch(() => {})
-      .finally(() => setGeneratingLinkCode(false));
-  };
+  const [showStaffAlerts, setShowStaffAlerts] = useState(false);
 
   const canSeeInbox = visible.some((t) => t.key === "inbox");
   const [attentionCount, setAttentionCount] = useState(0);
@@ -174,44 +165,42 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
         </nav>
         <div className="nav-group" style={{ marginTop: "auto" }}>
           <div className="nav-group-label">{staff.full_name}</div>
-          {telegramLinkCode ? (
-            <div className="settings-hint" style={{ padding: "8px 12px" }}>
-              افتحي بوت تنبيهات الموظفين بتيليجرام وابعتي:
-              <br />
-              <strong dir="ltr">/start {telegramLinkCode.code}</strong>
-              <br />
-              الكود صالح 10 دقايق.
-            </div>
-          ) : (
-            <button className="nav-item" onClick={handleGenerateLinkCode} disabled={generatingLinkCode}>
-              {generatingLinkCode ? "..." : "ربط بوت التنبيهات"}
-            </button>
-          )}
+          <button className="nav-item" onClick={() => setShowStaffAlerts(true)}>
+            ربط بوت التنبيهات
+          </button>
           <button className="nav-item" onClick={onLogout}>
             تسجيل الخروج
           </button>
         </div>
       </aside>
       <div className="content-area">
-        <header className="topbar">
-          <h1>{active.label}</h1>
-        </header>
-        <main>
-          {/* Doctors see only their own queue/appointments/patients/services --
-              everyone else keeps managing everything exactly as before. */}
-          {active.key === "queue" && <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-          {active.key === "appointments" && (
-            <AppointmentsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />
-          )}
-          {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-          {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-          {active.key === "inbox" && <InboxPage currentStaffId={staff.id} />}
-          {active.key !== "queue" &&
-            active.key !== "appointments" &&
-            active.key !== "patients" &&
-            active.key !== "services" &&
-            active.key !== "inbox" && <Active />}
-        </main>
+        {showStaffAlerts ? (
+          <main>
+            <StaffAlertsPage onBack={() => setShowStaffAlerts(false)} />
+          </main>
+        ) : (
+          <>
+            <header className="topbar">
+              <h1>{active.label}</h1>
+            </header>
+            <main>
+              {/* Doctors see only their own queue/appointments/patients/services --
+                  everyone else keeps managing everything exactly as before. */}
+              {active.key === "queue" && <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+              {active.key === "appointments" && (
+                <AppointmentsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />
+              )}
+              {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+              {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
+              {active.key === "inbox" && <InboxPage currentStaffId={staff.id} />}
+              {active.key !== "queue" &&
+                active.key !== "appointments" &&
+                active.key !== "patients" &&
+                active.key !== "services" &&
+                active.key !== "inbox" && <Active />}
+            </main>
+          </>
+        )}
       </div>
     </div>
   );

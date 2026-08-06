@@ -782,8 +782,6 @@ class ClinicSettings(BaseModel):
     min_booking_lead_minutes: int
     max_booking_advance_days: int
     same_day_cutoff_time: time | None = None
-    staff_bot_webhook_url: str | None = None
-    staff_bot_identifier: str | None = None
     updated_at: datetime
 
 
@@ -793,8 +791,6 @@ class ClinicSettingsUpdate(BaseModel):
     min_booking_lead_minutes: int | None = None
     max_booking_advance_days: int | None = None
     same_day_cutoff_time: time | None = None
-    staff_bot_webhook_url: str | None = None
-    staff_bot_identifier: str | None = None
 
 
 class AiProviderSettings(BaseModel):
@@ -1026,21 +1022,13 @@ class TelegramLinkCode(BaseModel):
     expires_at: datetime
 
 
-class TelegramLinkConfirm(BaseModel):
-    code: str
-    telegram_chat_id: str
+class StaffBotSettings(BaseModel):
+    configured: bool
+    username: str | None = None
 
 
-class StaffBotReply(BaseModel):
-    telegram_chat_id: str
-    reply_to_telegram_message_id: int
-    text: str
-
-
-class RecordAlertMessage(BaseModel):
-    conversation_id: UUID
-    staff_id: UUID
-    telegram_message_id: int
+class StaffBotTokenUpdate(BaseModel):
+    token: str
 
 
 class EscalationStaffMember(BaseModel):

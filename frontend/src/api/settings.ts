@@ -7,8 +7,6 @@ export type ClinicSettings = {
   min_booking_lead_minutes: number;
   max_booking_advance_days: number;
   same_day_cutoff_time: string | null;
-  staff_bot_webhook_url: string | null;
-  staff_bot_identifier: string | null;
   updated_at: string;
 };
 
@@ -18,8 +16,6 @@ export type ClinicSettingsUpdate = {
   min_booking_lead_minutes?: number;
   max_booking_advance_days?: number;
   same_day_cutoff_time?: string | null;
-  staff_bot_webhook_url?: string | null;
-  staff_bot_identifier?: string | null;
 };
 
 export const getClinicSettings = () =>

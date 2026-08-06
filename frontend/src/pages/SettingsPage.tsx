@@ -10,8 +10,6 @@ export function SettingsPage() {
   const [minLeadMinutes, setMinLeadMinutes] = useState(0);
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(90);
   const [sameDayCutoff, setSameDayCutoff] = useState("");
-  const [staffBotWebhookUrl, setStaffBotWebhookUrl] = useState("");
-  const [staffBotIdentifier, setStaffBotIdentifier] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -27,8 +25,6 @@ export function SettingsPage() {
         setMinLeadMinutes(s.min_booking_lead_minutes);
         setMaxAdvanceDays(s.max_booking_advance_days);
         setSameDayCutoff(s.same_day_cutoff_time ?? "");
-        setStaffBotWebhookUrl(s.staff_bot_webhook_url ?? "");
-        setStaffBotIdentifier(s.staff_bot_identifier ?? "");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -44,8 +40,6 @@ export function SettingsPage() {
       min_booking_lead_minutes: minLeadMinutes,
       max_booking_advance_days: maxAdvanceDays,
       same_day_cutoff_time: sameDayCutoff || null,
-      staff_bot_webhook_url: staffBotWebhookUrl || null,
-      staff_bot_identifier: staffBotIdentifier || null,
     })
       .then((s) => {
         setSettings(s);
@@ -104,26 +98,6 @@ export function SettingsPage() {
         <p className="settings-hint">
           هاي القيود بتنطبق بس على حجز المريض عبر الشات (AI) — موظفي الاستقبال يقدروا يحجزوا خارج هاي
           الحدود عند الحاجة.
-        </p>
-        <label>
-          رابط الويب هوك لبوت تنبيهات الموظفين (تيليجرام)
-          <input
-            value={staffBotWebhookUrl}
-            onChange={(e) => setStaffBotWebhookUrl(e.target.value)}
-            placeholder="من n8n — رابط الـ webhook الخاص ببوت تنبيه الموظفين"
-          />
-        </label>
-        <label>
-          معرّف بوت الموظفين (اختياري)
-          <input
-            value={staffBotIdentifier}
-            onChange={(e) => setStaffBotIdentifier(e.target.value)}
-            placeholder="مثلاً @clinic_staff_bot"
-          />
-        </label>
-        <p className="settings-hint">
-          هاي مسؤولة عن تنبيه الموظف المسؤول لما تتحوّل له محادثة تلقائياً — راجعي صفحة "فريق التصعيد"
-          لتحديد مين بيستلم التنبيهات.
         </p>
         <button type="submit" disabled={saving}>
           {saving ? "..." : "حفظ"}

@@ -32,6 +32,7 @@ from app.routers import (
     specialties,
     staff,
     staff_bot,
+    staff_bot_settings,
     waitlist,
 )
 
@@ -87,6 +88,7 @@ app.include_router(slots.router)
 app.include_router(specialties.router)
 app.include_router(staff.router)
 app.include_router(staff_bot.router)
+app.include_router(staff_bot_settings.router)
 app.include_router(appointments.router)
 app.include_router(waitlist.router)
 

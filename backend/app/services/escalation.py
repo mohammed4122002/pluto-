@@ -3,6 +3,8 @@ import logging
 import httpx
 from supabase import Client
 
+from app.core.security import decrypt_secret
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,21 +56,24 @@ def _resolve_branch_id(db: Client, conversation_id: str) -> str | None:
 
 
 def send_escalation_alert(db: Client, conversation_id: str, staff_id: str) -> None:
-    """Best-effort: pushes a Telegram alert to the assignee via the staff
-    bot's n8n webhook. Never raises -- an alert delivery hiccup must not
-    break the escalation/assignment itself, same reasoning as every other
-    notification path in this codebase."""
+    """Best-effort: pushes a Telegram alert to the assignee directly via the
+    staff bot's token (see routers/staff_bot_settings.py), and records the
+    resulting message_id so a later reply-to-that-message can be traced
+    back to this conversation (routers/staff_bot.py::_handle_reply). Never
+    raises -- an alert delivery hiccup must not break the escalation/
+    assignment itself, same reasoning as every other notification path in
+    this codebase."""
     try:
         staff_rows = db.table("staff").select("telegram_chat_id").eq("id", staff_id).limit(1).execute().data
         chat_id = staff_rows[0].get("telegram_chat_id") if staff_rows else None
         if not chat_id:
             return
 
-        settings_rows = db.table("clinic_settings").select("staff_bot_webhook_url, staff_bot_identifier").limit(1).execute().data
-        webhook_url = settings_rows[0].get("staff_bot_webhook_url") if settings_rows else None
-        if not webhook_url:
+        settings_rows = db.table("clinic_settings").select("staff_bot_token_encrypted").limit(1).execute().data
+        token_encrypted = settings_rows[0].get("staff_bot_token_encrypted") if settings_rows else None
+        if not token_encrypted:
             return
-        identifier = settings_rows[0].get("staff_bot_identifier") or ""
+        token = decrypt_secret(token_encrypted)
 
         conv_rows = (
             db.table("conversations")
@@ -87,17 +92,23 @@ def send_escalation_alert(db: Client, conversation_id: str, staff_id: str) -> No
             f"رُدّي (reply) على هذه الرسالة بالذات عشان يوصل ردك للمريض مباشرة."
         )
 
-        httpx.post(
-            webhook_url,
-            json={
-                "telegram_chat_id": chat_id,
-                "message": message,
-                "conversation_id": conversation_id,
-                "staff_id": staff_id,
-                "channel_identifier": identifier,
-            },
+        resp = httpx.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": message},
             timeout=10,
         )
+        data = resp.json()
+        if not data.get("ok"):
+            logger.warning("staff bot alert send failed: %s", data)
+            return
+
+        db.table("staff_escalation_alerts").insert(
+            {
+                "conversation_id": conversation_id,
+                "staff_id": staff_id,
+                "telegram_message_id": data["result"]["message_id"],
+            }
+        ).execute()
     except Exception:
         logger.exception("send_escalation_alert failed for conversation_id=%s staff_id=%s", conversation_id, staff_id)
 
