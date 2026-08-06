@@ -44,13 +44,7 @@ function isMinor(dob: string | undefined): boolean {
   return age < 18;
 }
 
-type PatientsPageProps = {
-  // Doctors have patient.view only -- no create or tag, so hide controls
-  // that would just 403 for them.
-  currentDoctor?: { id: string };
-};
-
-export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
+export function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -192,43 +186,41 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
         )}
       </form>
 
-      {!currentDoctor && (
-      <form className="data-form" onSubmit={handleCreate}>
-        <input
-          placeholder="الاسم الكامل"
-          value={form.full_name}
-          onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-          required
-        />
-        <input
-          placeholder="رقم الهاتف"
-          value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          required
-        />
-        <input
-          type="date"
-          placeholder="تاريخ الميلاد"
-          value={form.date_of_birth}
-          onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-        />
-        <input
-          placeholder="الإيميل"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
-        <input
-          placeholder="ملاحظات"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        />
-        <button type="submit" disabled={saving}>
-          {saving ? "..." : "إضافة مريض"}
-        </button>
-      </form>
-      )}
+    <form className="data-form" onSubmit={handleCreate}>
+      <input
+        placeholder="الاسم الكامل"
+        value={form.full_name}
+        onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+        required
+      />
+      <input
+        placeholder="رقم الهاتف"
+        value={form.phone}
+        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+        required
+      />
+      <input
+        type="date"
+        placeholder="تاريخ الميلاد"
+        value={form.date_of_birth}
+        onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+      />
+      <input
+        placeholder="الإيميل"
+        value={form.email}
+        onChange={(e) => setForm({ ...form, email: e.target.value })}
+      />
+      <input
+        placeholder="ملاحظات"
+        value={form.notes}
+        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+      />
+      <button type="submit" disabled={saving}>
+        {saving ? "..." : "إضافة مريض"}
+      </button>
+    </form>
 
-      {!currentDoctor && isMinor(form.date_of_birth) && (
+      {isMinor(form.date_of_birth) && (
         <div className="data-form settings-hint">
           <strong style={{ width: "100%" }}>المريض قاصر — بيانات ولي الأمر إلزامية (BR-011)</strong>
           <input placeholder="اسم ولي الأمر" value={guardianName} onChange={(e) => setGuardianName(e.target.value)} required />
@@ -291,16 +283,13 @@ export function PatientsPage({ currentDoctor }: PatientsPageProps = {}) {
                   {(tagsByPatient[patient.id] ?? []).map((tag) => (
                     <span key={tag} className="badge active" style={{ marginInlineEnd: 4 }}>
                       {tagLabels[tag]}
-                      {!currentDoctor && (
-                        <button onClick={() => handleRemoveTag(patient.id, tag)} style={{ marginInlineStart: 4 }}>
-                          ×
-                        </button>
-                      )}
+                      <button onClick={() => handleRemoveTag(patient.id, tag)} style={{ marginInlineStart: 4 }}>
+                        ×
+                      </button>
                     </span>
                   ))}
                   {/* patient.tag isn't in the doctor role's grant -- read-only for them. */}
-                  {!currentDoctor &&
-                    (addingTagFor === patient.id ? (
+                  {(addingTagFor === patient.id ? (
                       <select autoFocus onChange={(e) => e.target.value && handleAddTag(patient.id, e.target.value as PatientTagValue)}>
                         <option value="">اختر تصنيفاً</option>
                         {allTags

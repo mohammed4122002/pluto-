@@ -16,13 +16,7 @@ const emptyForm: ServiceCreate = {
   doctor_ids: [],
 };
 
-type ServicesPageProps = {
-  // Doctors have service.view only -- no create/update -- and only care
-  // about the services actually assigned to them, not the whole catalog.
-  currentDoctor?: { id: string };
-};
-
-export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
+export function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [doctors, setDoctors] = useState<Staff[]>([]);
@@ -48,11 +42,8 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
 
   useEffect(load, []);
 
-  const scopedServices = currentDoctor
-    ? services.filter((s) => s.doctor_ids.includes(currentDoctor.id))
-    : services;
   const q = search.trim().toLowerCase();
-  const visibleServices = q ? scopedServices.filter((s) => s.name.toLowerCase().includes(q)) : scopedServices;
+  const visibleServices = q ? services.filter((s) => s.name.toLowerCase().includes(q)) : services;
 
   const specialtyName = (id: string | null) => specialties.find((s) => s.id === id)?.name_ar ?? "—";
   const doctorNames = (ids: string[]) =>
@@ -99,7 +90,7 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
       .catch((err) => setError(err.message));
   };
 
-  const activeCount = scopedServices.filter((s) => s.is_active).length;
+  const activeCount = services.filter((s) => s.is_active).length;
 
   return (
     <div className="page">
@@ -115,7 +106,7 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
       {!loading && (
         <div className="stat-grid">
           <div className="stat-card">
-            <div className="stat-card-value">{scopedServices.length}</div>
+            <div className="stat-card-value">{services.length}</div>
             <div className="stat-card-label">إجمالي الخدمات</div>
           </div>
           <div className="stat-card">
@@ -125,49 +116,47 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
         </div>
       )}
 
-      {!currentDoctor && (
-      <form className="data-form" onSubmit={handleCreate}>
-        <input
-          placeholder="اسم الخدمة"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          required
-        />
-        <input
-          placeholder="الوصف"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-        <input
-          type="number"
-          placeholder="المدة (دقيقة)"
-          value={form.duration_minutes}
-          onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) })}
-        />
-        <input
-          type="number"
-          placeholder="السعر"
-          value={form.price ?? ""}
-          onChange={(e) => setForm({ ...form, price: e.target.value ? Number(e.target.value) : undefined })}
-        />
-        <select
-          value={form.specialty_id ?? ""}
-          onChange={(e) => setForm({ ...form, specialty_id: e.target.value || undefined })}
-        >
-          <option value="">بدون تخصص محدد</option>
-          {specialties.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name_ar}
-            </option>
-          ))}
-        </select>
-        <button type="submit" disabled={saving}>
-          {saving ? "..." : "إضافة خدمة"}
-        </button>
-      </form>
-      )}
+    <form className="data-form" onSubmit={handleCreate}>
+      <input
+        placeholder="اسم الخدمة"
+        value={form.name}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+        required
+      />
+      <input
+        placeholder="الوصف"
+        value={form.description}
+        onChange={(e) => setForm({ ...form, description: e.target.value })}
+      />
+      <input
+        type="number"
+        placeholder="المدة (دقيقة)"
+        value={form.duration_minutes}
+        onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) })}
+      />
+      <input
+        type="number"
+        placeholder="السعر"
+        value={form.price ?? ""}
+        onChange={(e) => setForm({ ...form, price: e.target.value ? Number(e.target.value) : undefined })}
+      />
+      <select
+        value={form.specialty_id ?? ""}
+        onChange={(e) => setForm({ ...form, specialty_id: e.target.value || undefined })}
+      >
+        <option value="">بدون تخصص محدد</option>
+        {specialties.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name_ar}
+          </option>
+        ))}
+      </select>
+      <button type="submit" disabled={saving}>
+        {saving ? "..." : "إضافة خدمة"}
+      </button>
+    </form>
 
-      {!currentDoctor && doctors.length > 0 && (
+      {doctors.length > 0 && (
         <div className="checkbox-group">
           {doctors.map((d) => (
             <label key={d.id}>
@@ -182,7 +171,7 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
         </div>
       )}
 
-      {!loading && scopedServices.length > 0 && (
+      {!loading && services.length > 0 && (
         <div className="table-toolbar">
           <div className="search-input">
             <input placeholder="بحث باسم الخدمة..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -235,19 +224,17 @@ export function ServicesPage({ currentDoctor }: ServicesPageProps = {}) {
                   </td>
                   <td>
                     {/* service.update isn't in the doctor role's grant -- read-only for them. */}
-                    {!currentDoctor && (
-                      <>
-                        <button onClick={() => setOpenFor(openFor === service.id ? null : service.id)}>
-                          {openFor === service.id ? "إخفاء" : "الأطباء"}
-                        </button>
-                        <button onClick={() => toggleActive(service)}>
-                          {service.is_active ? "إيقاف" : "تفعيل"}
-                        </button>
-                      </>
-                    )}
+                    <>
+                      <button onClick={() => setOpenFor(openFor === service.id ? null : service.id)}>
+                        {openFor === service.id ? "إخفاء" : "الأطباء"}
+                      </button>
+                      <button onClick={() => toggleActive(service)}>
+                        {service.is_active ? "إيقاف" : "تفعيل"}
+                      </button>
+                    </>
                   </td>
                 </tr>
-                {!currentDoctor && openFor === service.id && (
+                {openFor === service.id && (
                   <tr>
                     <td colSpan={8}>
                       <div className="checkbox-group">

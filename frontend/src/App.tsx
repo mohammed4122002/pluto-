@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
 import { AlertsPage } from "./pages/AlertsPage";
 import { InboxPage } from "./pages/InboxPage";
 import { BranchesPage } from "./pages/BranchesPage";
@@ -21,6 +22,10 @@ import { EscalationStaffPage } from "./pages/EscalationStaffPage";
 import { BotPerformancePage } from "./pages/BotPerformancePage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
 import { SetupWizard } from "./pages/SetupWizard";
+import { MyQueuePage } from "./pages/workspace/MyQueuePage";
+import { MyCalendarPage } from "./pages/workspace/MyCalendarPage";
+import { MyPatientsPage } from "./pages/workspace/MyPatientsPage";
+import { MyServicesPage } from "./pages/workspace/MyServicesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
@@ -50,10 +55,27 @@ import {
 } from "./icons";
 import "./App.css";
 
-const groups = [
+type Tab = {
+  key: string;
+  label: string;
+  Icon: ComponentType<{ className?: string }>;
+  Component: ComponentType;
+  requires: string;
+};
+type NavGroup = { label: string | null; items: readonly Tab[] };
+
+const inboxTab: Tab = {
+  key: "inbox",
+  label: "المحادثات",
+  Icon: InboxIcon,
+  Component: InboxPage,
+  requires: "conversation.view",
+};
+
+const adminGroups: readonly NavGroup[] = [
   {
     label: null,
-    items: [{ key: "inbox", label: "المحادثات", Icon: InboxIcon, Component: InboxPage, requires: "conversation.view" }],
+    items: [inboxTab],
   },
   {
     label: "إدارة العيادة",
@@ -97,12 +119,39 @@ const groups = [
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
     ],
   },
-] as const;
+];
 
-const allTabs = groups.map((g) => g.items).flat();
-type TabKey = (typeof allTabs)[number]["key"];
+// Self-scoped roles (the mirror of SELF_SCOPED_ROLES in backend
+// app/core/scoping.py) get a workspace of their own rather than a
+// permission-filtered slice of the admin dashboard. The filtered-admin
+// approach is what produced the 403 cascade in the first place: every admin
+// screen opens with clinic-wide lookups (/branches, /staff, /patients) these
+// roles can't call, so the first one to fail took the whole page with it.
+// These four screens read from /me/* instead, which is scoped server-side and
+// resolves its own names.
+const SELF_SCOPED_ROLES = new Set(["doctor"]);
+
+const workspaceGroups: readonly NavGroup[] = [
+  {
+    label: null,
+    items: [inboxTab],
+  },
+  {
+    label: "شغلي",
+    items: [
+      { key: "my-queue", label: "طابوري", Icon: QueueIcon, Component: MyQueuePage, requires: "queue.view" },
+      { key: "my-calendar", label: "تقويمي", Icon: CalendarIcon, Component: MyCalendarPage, requires: "slot.view" },
+      { key: "my-patients", label: "مرضاي", Icon: PatientIcon, Component: MyPatientsPage, requires: "patient.view" },
+      { key: "my-services", label: "خدماتي", Icon: ServiceIcon, Component: MyServicesPage, requires: "service.view" },
+    ],
+  },
+];
 
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
+  const isSelfScoped = SELF_SCOPED_ROLES.has(staff.role);
+  const groups = isSelfScoped ? workspaceGroups : adminGroups;
+  const allTabs = groups.flatMap((g) => g.items);
+
   const visible = allTabs.filter((t) => staff.permissions.includes(t.requires));
   const visibleGroups = groups
     .map((g) => ({ ...g, items: g.items.filter((t) => staff.permissions.includes(t.requires)) }))
@@ -110,9 +159,8 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
 
   // A doctor's queue is the one thing they actually need every day -- land
   // them there directly instead of on whatever tab happens to be first.
-  const isDoctor = staff.role === "doctor";
-  const defaultTab = isDoctor && visible.some((t) => t.key === "queue") ? "queue" : visible[0]?.key;
-  const [tab, setTab] = useState<TabKey | undefined>(defaultTab);
+  const defaultTab = visible.find((t) => t.key === "my-queue")?.key ?? visible[0]?.key;
+  const [tab, setTab] = useState<string | undefined>(defaultTab);
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
   const [showStaffAlerts, setShowStaffAlerts] = useState(false);
@@ -184,20 +232,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
               <h1>{active.label}</h1>
             </header>
             <main>
-              {/* Doctors see only their own queue/appointments/patients/services --
-                  everyone else keeps managing everything exactly as before. */}
-              {active.key === "queue" && <QueuePage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-              {active.key === "appointments" && (
-                <AppointmentsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />
-              )}
-              {active.key === "patients" && <PatientsPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-              {active.key === "services" && <ServicesPage currentDoctor={isDoctor ? { id: staff.id } : undefined} />}
-              {active.key === "inbox" && <InboxPage currentStaffId={staff.id} />}
-              {active.key !== "queue" &&
-                active.key !== "appointments" &&
-                active.key !== "patients" &&
-                active.key !== "services" &&
-                active.key !== "inbox" && <Active />}
+              {active.key === "inbox" ? <InboxPage currentStaffId={staff.id} /> : <Active />}
             </main>
           </>
         )}

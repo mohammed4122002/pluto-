@@ -1558,3 +1558,52 @@ button.btn-danger:hover:not(:disabled) {
   background: var(--danger-bg);
   color: var(--danger-hover);
 }
+
+/* Focus card — the one thing the staff member should act on right now.
+   A queue is read top-to-bottom only when nothing is urgent; the rest of the
+   time it's "who am I seeing, and what do I press when I'm done". */
+
+.focus-card {
+  border: 1px solid var(--accent);
+  background: var(--accent-bg);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  max-width: 720px;
+  box-shadow: var(--shadow-xs);
+}
+
+.focus-card-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.focus-card-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin-top: 4px;
+  line-height: 1.25;
+}
+
+.focus-card-meta {
+  font-size: 12.5px;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.focus-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* An empty slot on the calendar is context, not content — it shouldn't
+   compete with the rows that have a patient in them. */
+.data-table tbody tr.row-muted td {
+  color: var(--text);
+  opacity: 0.72;
+}

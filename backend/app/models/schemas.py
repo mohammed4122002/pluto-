@@ -1229,3 +1229,104 @@ class Recall(BaseModel):
     created_by: UUID | None = None
     created_at: datetime
     created_at: datetime
+
+
+# --- /me workspace views -----------------------------------------------------
+# Fully-resolved read models for a staff member's own workspace. Names are
+# joined server-side on purpose: the doctor screens used to assemble these
+# client-side from /branches, /staff and /patients — lookups a doctor has no
+# permission for — so one 403 took the whole page down. Anything these models
+# carry, the caller can already see by permission plus ownership.
+
+
+class MyQueueTicket(BaseModel):
+    id: UUID
+    ticket_number: int
+    status: QueueTicketStatus
+    priority_level: PriorityLevel
+    arrival_status: ArrivalStatus | None = None
+    patient_id: UUID
+    patient_name: str
+    patient_phone: str | None = None
+    appointment_id: UUID
+    checked_in_at: datetime
+    called_at: datetime | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    estimated_entry_time: datetime | None = None
+
+
+class MyQueue(BaseModel):
+    id: UUID
+    branch_id: UUID
+    branch_name: str
+    queue_date: date
+    tickets: list[MyQueueTicket] = []
+
+
+class MyQueueDay(BaseModel):
+    date: date
+    queues: list[MyQueue] = []
+    waiting_count: int = 0
+    in_progress_count: int = 0
+    done_count: int = 0
+
+
+class MyCalendarAppointment(BaseModel):
+    id: UUID
+    scheduled_at: datetime
+    duration_minutes: int
+    status: AppointmentStatus
+    patient_id: UUID
+    patient_name: str
+    patient_phone: str | None = None
+    service_name: str | None = None
+    branch_id: UUID
+    branch_name: str
+    reason_for_visit: str | None = None
+    queue_number: int | None = None
+    check_in_time: datetime | None = None
+    slot_id: UUID | None = None
+
+
+class MyCalendarSlot(BaseModel):
+    id: UUID
+    branch_id: UUID
+    branch_name: str
+    start_at: datetime
+    end_at: datetime
+    duration_minutes: int
+    status: SlotStatus
+    service_name: str | None = None
+
+
+class MyCalendarDay(BaseModel):
+    date: date
+    branch_ids: list[UUID] = []
+    appointments: list[MyCalendarAppointment] = []
+    slots: list[MyCalendarSlot] = []
+
+
+class MyService(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    duration_minutes: int
+    price: float | None = None
+    is_active: bool
+    specialty_name: str | None = None
+    upcoming_appointments: int = 0
+
+
+class MyPatient(BaseModel):
+    id: UUID
+    full_name: str
+    phone: str
+    email: str | None = None
+    date_of_birth: date | None = None
+    gender: str | None = None
+    notes: str | None = None
+    tags: list[PatientTagValue] = []
+    visits_count: int = 0
+    last_visit_at: datetime | None = None
+    next_appointment_at: datetime | None = None

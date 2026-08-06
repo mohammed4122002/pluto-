@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
+from app.core.scoping import StaffScope, get_staff_scope
 from app.core.database import get_supabase
 from app.core.service_auth import require_service_token
 from app.models.schemas import (
@@ -61,6 +62,7 @@ def list_appointments(
     patient_id: str | None = None,
     staff_id: str | None = None,
     current: CurrentStaff = Depends(require_permission("appointment.view")),
+    scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
     query = db.table("appointments").select("*").is_("deleted_at", "null").order("scheduled_at")
@@ -77,12 +79,12 @@ def list_appointments(
         query = query.eq("status", status)
     if patient_id:
         query = query.eq("patient_id", patient_id)
-    # A doctor's permission grant is "their own schedule and patients only"
-    # (per the doctor role's own description) -- enforce that regardless of
-    # what staff_id they pass, rather than letting them see another doctor's
+    # A self-scoped role's grant is "their own schedule and patients only"
+    # (per the doctor role's own description) -- enforced regardless of what
+    # staff_id they pass, rather than letting them see another doctor's
     # appointments just by asking for it.
-    if current.role == "doctor":
-        query = query.eq("staff_id", current.id)
+    if scope.is_self_scoped:
+        query = query.eq("staff_id", scope.staff_id)
     elif staff_id:
         query = query.eq("staff_id", staff_id)
     return query.execute().data
