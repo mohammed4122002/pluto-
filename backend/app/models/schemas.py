@@ -665,6 +665,7 @@ class ChannelSettings(BaseModel):
     max_ai_turns_before_human: int = 10
     language: str = "ar"
     dialect: str | None = None
+    tone: Literal["friendly", "formal"] | None = None
     handoff_message: str | None = None
     updated_at: datetime
 
@@ -680,6 +681,7 @@ class ChannelSettingsUpdate(BaseModel):
     max_ai_turns_before_human: int | None = None
     language: str | None = None
     dialect: str | None = None
+    tone: Literal["friendly", "formal"] | None = None
     handoff_message: str | None = None
 
 

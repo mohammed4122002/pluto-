@@ -663,6 +663,7 @@ function AiTab({
       greeting_message: form.greeting_message,
       language: form.language,
       dialect: form.dialect,
+      tone: form.tone,
       max_ai_turns_before_human: form.max_ai_turns_before_human,
       handoff_message: form.handoff_message,
     });
@@ -699,6 +700,16 @@ function AiTab({
       <label>
         اللهجة (اختياري)
         <input value={form.dialect ?? ""} onChange={(e) => setForm({ ...form, dialect: e.target.value })} placeholder="مثلاً: شامي، خليجي" />
+      </label>
+      <label>
+        أسلوب الرد
+        <select
+          value={form.tone ?? ""}
+          onChange={(e) => setForm({ ...form, tone: (e.target.value || null) as ChannelSettings["tone"] })}
+        >
+          <option value="">ودود عامي (الافتراضي)</option>
+          <option value="formal">رسمي مهني</option>
+        </select>
       </label>
       <label>
         أقصى عدد ردود قبل التحويل الإجباري لموظف

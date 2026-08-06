@@ -15,6 +15,7 @@ import { WaitlistPage } from "./pages/WaitlistPage";
 import { QueuePage } from "./pages/QueuePage";
 import { PackagesPage } from "./pages/PackagesPage";
 import { CouponsPage } from "./pages/CouponsPage";
+import { CancellationPoliciesPage } from "./pages/CancellationPoliciesPage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
 import { SetupWizard } from "./pages/SetupWizard";
 import { LoginPage } from "./pages/LoginPage";
@@ -70,6 +71,13 @@ const groups = [
     label: "النظام",
     items: [
       { key: "settings", label: "إعدادات العيادة", Icon: SettingsIcon, Component: SettingsPage, requires: "clinic_settings.view" },
+      {
+        key: "cancellation-policies",
+        label: "سياسات الإلغاء",
+        Icon: SettingsIcon,
+        Component: CancellationPoliciesPage,
+        requires: "clinic_settings.view",
+      },
       { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
     ],

@@ -687,6 +687,21 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
             "الحجز، الإلغاء، التصعيد) بدون أي تغيير."
         )
 
+    if ch_settings.get("tone") == "formal":
+        # BASE_INSTRUCTIONS' style section (above) hard-codes an informal,
+        # chatty register -- short bursts, casual openers like "تمام"/"يا
+        # هلا", banned robotic-formal phrases. A channel that asked for a
+        # formal tone needs an explicit override, not just "be formal"
+        # appended, since that would silently compete with those rules
+        # exactly like the dialect case above.
+        parts.append(
+            "استثناء صريح يلغي قواعد الأسلوب العامية/الدردشة أعلاه لهذه القناة تحديداً: ردّي بأسلوب رسمي "
+            "ومهني (متل موظفة استقبال رسمية بعيادة راقية) بدل العامية الدارجة — جمل كاملة صحيحة نحوياً، "
+            "بدون اختصارات دردشة، وبدون عبارات عامية زي 'تمام' أو 'يا هلا'. هذا لا يعني برود أو جفاف: "
+            "ضلّي ودودة ومتفهّمة، بس بصياغة رسمية مهذبة. كل القواعد التانية (اللهجة إذا محددة، الحجز، "
+            "الإلغاء، التصعيد، منع الاختراع) تبقى بدون أي تغيير."
+        )
+
     tz_name = (branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman"
     now_local = datetime.now(ZoneInfo(tz_name))
     weekday_ar = _ARABIC_WEEKDAYS[(now_local.weekday() + 1) % 7]

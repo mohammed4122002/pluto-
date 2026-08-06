@@ -56,6 +56,7 @@ export type ChannelSettings = {
   max_ai_turns_before_human: number;
   language: string;
   dialect: string | null;
+  tone: "friendly" | "formal" | null;
   handoff_message: string | null;
   updated_at: string;
 };
