@@ -28,10 +28,16 @@ export function BotPerformancePage() {
 
   return (
     <div className="page">
-      <p className="settings-hint">
-        أداء المساعد الذكي بالمحادثات والحجوزات خلال الفترة المحددة — بيانات حقيقية من سجل المحادثات
-        والحجوزات، مش تقديرية.
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">أداء المساعد الذكي</p>
+          <p className="page-header-subtitle">
+            أداء المساعد الذكي بالمحادثات والحجوزات خلال الفترة المحددة — بيانات حقيقية من سجل المحادثات
+            والحجوزات، مش تقديرية.
+          </p>
+        </div>
+      </div>
+
       <div className="data-form">
         <label>
           من
@@ -50,28 +56,26 @@ export function BotPerformancePage() {
 
       {report && (
         <>
-          <table className="data-table">
-            <tbody>
-              <tr>
-                <td>إجمالي المحادثات</td>
-                <td>{report.ai_chat.total_conversations}</td>
-              </tr>
-              <tr>
-                <td>حجوزات عبر الشات بوت</td>
-                <td>{aiChannelCount || report.ai_chat.bookings}</td>
-              </tr>
-              <tr>
-                <td>محادثات تم تحويلها لموظف</td>
-                <td>
-                  {report.ai_chat.escalated_to_human} ({report.ai_chat.escalation_rate}%)
-                </td>
-              </tr>
-              <tr>
-                <td>فشل مزوّد الذكاء الاصطناعي (OpenAI/Gemini)</td>
-                <td>{report.ai_chat.provider_failures}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="stat-card-value">{report.ai_chat.total_conversations}</div>
+              <div className="stat-card-label">إجمالي المحادثات</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-value">{aiChannelCount || report.ai_chat.bookings}</div>
+              <div className="stat-card-label">حجوزات عبر الشات بوت</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-value">
+                {report.ai_chat.escalated_to_human} ({report.ai_chat.escalation_rate}%)
+              </div>
+              <div className="stat-card-label">محادثات تم تحويلها لموظف</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-card-value">{report.ai_chat.provider_failures}</div>
+              <div className="stat-card-label">فشل مزوّد الذكاء الاصطناعي</div>
+            </div>
+          </div>
 
           <p className="settings-hint">
             ملاحظة: "محادثات تم تحويلها لموظف" بتشمل أي سبب تحويل (كلمة تصعيد، وصول الحد الأقصى للردود، أو

@@ -85,11 +85,16 @@ export function CancellationPoliciesPage() {
 
   return (
     <div className="page">
-      <p className="settings-hint">
-        رسوم الإلغاء المتأخر وعدم الحضور اختيارية بالكامل — اتركي نوع الرسوم "بدون رسوم" إذا ما بدك أي
-        رسوم إطلاقاً. أكثر سياسة تحديداً (طبيب أو خدمة أو فرع) هي اللي بتنطبق، وإذا ما في أي سياسة، ما
-        في رسوم افتراضياً.
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">سياسات الإلغاء</p>
+          <p className="page-header-subtitle">
+            رسوم الإلغاء المتأخر وعدم الحضور اختيارية بالكامل — اتركي نوع الرسوم "بدون رسوم" إذا ما بدك أي
+            رسوم إطلاقاً. أكثر سياسة تحديداً (طبيب أو خدمة أو فرع) هي اللي بتنطبق، وإذا ما في أي سياسة، ما
+            في رسوم افتراضياً.
+          </p>
+        </div>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <form className="data-form" onSubmit={handleCreate}>

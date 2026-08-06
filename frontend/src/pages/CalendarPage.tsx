@@ -154,10 +154,15 @@ export function CalendarPage() {
 
   return (
     <div className="page">
-      <p className="settings-hint">
-        عرض يومي لأوقات طبيب معيّن. اسحبي موعداً محجوزاً وأفلتيه على وقت متاح لإعادة جدولته
-        {rescheduling && " — جارٍ إعادة الجدولة..."}
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">التقويم</p>
+          <p className="page-header-subtitle">
+            عرض يومي لأوقات طبيب معيّن. اسحبي موعداً محجوزاً وأفلتيه على وقت متاح لإعادة جدولته
+            {rescheduling && " — جارٍ إعادة الجدولة..."}
+          </p>
+        </div>
+      </div>
 
       <div className="data-form">
         <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>

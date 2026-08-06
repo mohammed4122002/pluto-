@@ -52,11 +52,16 @@ export function EscalationStaffPage() {
 
   return (
     <div className="page">
-      <p className="settings-hint">
-        لما تتصعّد محادثة (البوت حوّلها لموظف)، بتنحوّل تلقائياً لأقل موظف من هالفريق عنده محادثات مفتوحة
-        حالياً. لازم الموظف يربط حساب تيليجرام تبعه (من زر "ربط بوت التنبيهات" بأسفل القائمة الجانبية) حتى
-        يوصله تنبيه فعلي.
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">فريق التصعيد</p>
+          <p className="page-header-subtitle">
+            لما تتصعّد محادثة (البوت حوّلها لموظف)، بتنحوّل تلقائياً لأقل موظف من هالفريق عنده محادثات مفتوحة
+            حالياً. لازم الموظف يربط حساب تيليجرام تبعه (من زر "ربط بوت التنبيهات" بأسفل القائمة الجانبية) حتى
+            يوصله تنبيه فعلي.
+          </p>
+        </div>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <form className="data-form" onSubmit={handleAdd}>

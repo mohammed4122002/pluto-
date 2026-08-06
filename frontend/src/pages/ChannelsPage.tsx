@@ -268,15 +268,34 @@ export function ChannelsPage() {
     );
   }
 
+  const activeCount = channels.filter((c) => c.is_active).length;
+
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
 
-      <div className="channels-toolbar">
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">القنوات</p>
+          <p className="page-header-subtitle">قنوات التواصل مع المرضى (واتساب، تيليجرام، إنستجرام...) وحالتها.</p>
+        </div>
         <button className="btn-primary" onClick={() => setView({ mode: "add" })}>
           + إضافة قناة
         </button>
       </div>
+
+      {!loading && channels.length > 0 && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{channels.length}</div>
+            <div className="stat-card-label">إجمالي القنوات</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{activeCount}</div>
+            <div className="stat-card-label">مفعّلة</div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p>جاري التحميل...</p>

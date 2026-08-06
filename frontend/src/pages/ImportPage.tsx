@@ -97,7 +97,11 @@ function ImportHistory({ onStartNew }: { onStartNew: () => void }) {
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
-      <div className="channels-toolbar">
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">استيراد بيانات</p>
+          <p className="page-header-subtitle">استيراد مرضى ومواعيد من ملف أو قاعدة بيانات خارجية، وسجل عمليات الاستيراد السابقة.</p>
+        </div>
         <button className="btn-primary" onClick={onStartNew}>
           + استيراد جديد
         </button>

@@ -86,11 +86,16 @@ export function QueuePage({ currentDoctor }: QueuePageProps) {
 
   return (
     <div className="page">
-      <p className="settings-hint">
-        {currentDoctor
-          ? "مرضاك المسجّلين اليوم بالطابور — يتحدّث تلقائياً كل يوم."
-          : "الطابور يُنشأ تلقائياً عند أول تسجيل حضور لطبيب باليوم — لا حاجة لإنشائه يدوياً. سجّل الحضور من صفحة المواعيد."}
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">الطابور والانتظار</p>
+          <p className="page-header-subtitle">
+            {currentDoctor
+              ? "مرضاك المسجّلين اليوم بالطابور — يتحدّث تلقائياً كل يوم."
+              : "الطابور يُنشأ تلقائياً عند أول تسجيل حضور لطبيب باليوم — لا حاجة لإنشائه يدوياً. سجّل الحضور من صفحة المواعيد."}
+          </p>
+        </div>
+      </div>
       {error && <p className="error">{error}</p>}
 
       {queues.length === 0 ? (
@@ -100,11 +105,11 @@ export function QueuePage({ currentDoctor }: QueuePageProps) {
       ) : (
         <>
           {!currentDoctor && (
-            <div className="inbox-filter">
+            <div className="tab-bar">
               {queues.map((q) => (
                 <button
                   key={q.id}
-                  className={selectedQueue === q.id ? "nav-item active" : "nav-item"}
+                  className={selectedQueue === q.id ? "tab-btn active" : "tab-btn"}
                   onClick={() => setSelectedQueue(q.id)}
                 >
                   {/* Each queue is scoped to one doctor at one branch on one day -- two

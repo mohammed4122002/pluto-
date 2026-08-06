@@ -54,11 +54,16 @@ export function SettingsPage() {
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
-      <p className="settings-hint">
-        هاي المعلومات بيستخدمها الذكاء الاصطناعي مباشرة لما يرد على المرضى — مواعيد
-        الدوام والخدمات بتنجاب تلقائياً من شاشتي "الفروع" و"الخدمات"، وهون بس معلومات
-        عامة إضافية (سياسات، تأمين، ملاحظات...).
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">إعدادات العيادة</p>
+          <p className="page-header-subtitle">
+            هاي المعلومات بيستخدمها الذكاء الاصطناعي مباشرة لما يرد على المرضى — مواعيد الدوام والخدمات
+            بتنجاب تلقائياً من شاشتي "الفروع" و"الخدمات"، وهون بس معلومات عامة إضافية (سياسات، تأمين،
+            ملاحظات...).
+          </p>
+        </div>
+      </div>
       <form className="settings-form" onSubmit={handleSave}>
         <label>
           اسم العيادة

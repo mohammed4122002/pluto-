@@ -42,10 +42,16 @@ export function PatientDuplicatesPage() {
 
   return (
     <div className="page">
-      <p className="settings-hint">
-        عند إضافة مريض جديد، يقارنه النظام تلقائياً بالمرضى الموجودين (بالهاتف والاسم وتاريخ الميلاد). الأزواج التي
-        تتجاوز نسبة تشابه معينة تظهر هون لمراجعتك — إما دمجها بسجل واحد، أو تجاهلها إن لم تكونا نفس الشخص.
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">السجلات المكررة</p>
+          <p className="page-header-subtitle">
+            عند إضافة مريض جديد، يقارنه النظام تلقائياً بالمرضى الموجودين (بالهاتف والاسم وتاريخ الميلاد).
+            الأزواج التي تتجاوز نسبة تشابه معينة تظهر هون لمراجعتك — إما دمجها بسجل واحد، أو تجاهلها إن لم
+            تكونا نفس الشخص.
+          </p>
+        </div>
+      </div>
       {error && <p className="error">{error}</p>}
       {notice && (
         <p className="settings-hint">

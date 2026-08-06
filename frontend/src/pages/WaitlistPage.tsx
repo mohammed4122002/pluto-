@@ -17,6 +17,14 @@ const statusLabel: Record<WaitlistEntry["status"], string> = {
   cancelled: "ملغى",
 };
 
+const statusBadgeClass: Record<WaitlistEntry["status"], string> = {
+  active: "warning",
+  offered: "active",
+  booked: "active",
+  expired: "inactive",
+  cancelled: "danger",
+};
+
 export function WaitlistPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -73,12 +81,32 @@ export function WaitlistPage() {
     );
   }
 
+  const activeCount = entries.filter((e) => e.status === "active" || e.status === "offered").length;
+
   return (
     <div className="page">
-      <p className="settings-hint">
-        عند فتح موعد مناسب، ينظام يرسل عرضاً تلقائياً لأول مريض مناسب بقائمة الانتظار عبر قناة التواصل الخاصة به، بمهلة
-        محدودة — إذا لم يرد، ينتقل العرض تلقائياً للتالي.
-      </p>
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">قائمة الانتظار</p>
+          <p className="page-header-subtitle">
+            عند فتح موعد مناسب، النظام يرسل عرضاً تلقائياً لأول مريض مناسب بقائمة الانتظار عبر قناة التواصل الخاصة
+            به، بمهلة محدودة — إذا لم يرد، ينتقل العرض تلقائياً للتالي.
+          </p>
+        </div>
+      </div>
+
+      {!loading && entries.length > 0 && (
+        <div className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-card-value">{entries.length}</div>
+            <div className="stat-card-label">إجمالي القائمة</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-value">{activeCount}</div>
+            <div className="stat-card-label">بانتظار/معروض عليهم</div>
+          </div>
+        </div>
+      )}
 
       {error && <p className="error">{error}</p>}
 
@@ -137,7 +165,7 @@ export function WaitlistPage() {
                 <td>{nameOf(branches, entry.branch_id)}</td>
                 <td>{entry.service_id ? nameOf(services, entry.service_id) : "أي خدمة"}</td>
                 <td>
-                  <span className="badge active">{statusLabel[entry.status]}</span>
+                  <span className={`badge ${statusBadgeClass[entry.status]}`}>{statusLabel[entry.status]}</span>
                 </td>
                 <td>
                   {(entry.status === "active" || entry.status === "offered") && (

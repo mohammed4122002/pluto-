@@ -10,6 +10,15 @@ import type { Patient } from "../api/patients";
 
 const EXPIRING_WITHIN_DAYS = 3;
 
+const channelLabel: Record<string, string> = {
+  whatsapp: "واتساب",
+  telegram: "تيليجرام",
+  instagram: "إنستجرام",
+  messenger: "ماسنجر",
+  twilio: "Twilio",
+  web: "دردشة الموقع",
+};
+
 export function AlertsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -47,7 +56,28 @@ export function AlertsPage() {
   return (
     <div className="page">
       {error && <p className="error">{error}</p>}
-      <p className="settings-hint">لمحة سريعة على كل شي محتاج انتباهك الآن — بدون ما تتنقلي بين الصفحات.</p>
+
+      <div className="page-header">
+        <div>
+          <p className="page-header-title">التنبيهات</p>
+          <p className="page-header-subtitle">لمحة سريعة على كل شي محتاج انتباهك الآن — بدون ما تتنقلي بين الصفحات.</p>
+        </div>
+      </div>
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-card-value">{payments.length}</div>
+          <div className="stat-card-label">دفعات بانتظار المراجعة</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-value">{conversations.length}</div>
+          <div className="stat-card-label">محادثات محتاجة موظف</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-value">{expiringPackages.length}</div>
+          <div className="stat-card-label">باقات قاربت على الانتهاء</div>
+        </div>
+      </div>
 
       <h2>دفعات بانتظار المراجعة ({payments.length})</h2>
       {payments.length === 0 ? (
@@ -91,7 +121,7 @@ export function AlertsPage() {
             {conversations.map((c) => (
               <tr key={c.id}>
                 <td>{c.patient_name}</td>
-                <td>{c.channel_type}</td>
+                <td>{channelLabel[c.channel_type] ?? c.channel_type}</td>
                 <td>{c.last_message_preview ?? "—"}</td>
               </tr>
             ))}
