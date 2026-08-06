@@ -115,3 +115,26 @@ type TicketAction = "call" | "start" | "complete" | "skip";
 
 export const actOnMyTicket = (ticketId: string, action: TicketAction) =>
   api.post(`/me/queue/tickets/${ticketId}/${action}`).then((res) => res.data);
+
+export type MyTodayConversation = {
+  id: string;
+  patient_name: string;
+  last_message_preview: string | null;
+  last_message_at: string | null;
+  needs_attention: boolean;
+  channel_type: string;
+};
+
+export type MyToday = {
+  date: string;
+  now_serving: MyQueueTicket | null;
+  up_next: MyQueueTicket | null;
+  waiting_count: number;
+  appointments: MyCalendarAppointment[];
+  remaining_appointments: number;
+  completed_appointments: number;
+  conversations: MyTodayConversation[];
+  needs_attention_count: number;
+};
+
+export const getMyToday = () => api.get<MyToday>("/me/today").then((res) => res.data);

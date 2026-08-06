@@ -26,12 +26,14 @@ import { MyQueuePage } from "./pages/workspace/MyQueuePage";
 import { MyCalendarPage } from "./pages/workspace/MyCalendarPage";
 import { MyPatientsPage } from "./pages/workspace/MyPatientsPage";
 import { MyServicesPage } from "./pages/workspace/MyServicesPage";
+import { TodayPage } from "./pages/workspace/TodayPage";
+import { AccountPage } from "./pages/workspace/AccountPage";
+import { HomeIcon, UserIcon } from "./icons";
 import { LoginPage } from "./pages/LoginPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
-import { StaffAlertsPage } from "./pages/StaffAlertsPage";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -59,7 +61,10 @@ type Tab = {
   key: string;
   label: string;
   Icon: ComponentType<{ className?: string }>;
-  Component: ComponentType;
+  // Omitted for the few screens that need context the nav table can't carry
+  // (the signed-in staff member, or the ability to switch tabs). Those are
+  // rendered by name below, next to the one place that has both.
+  Component?: ComponentType;
   requires: string;
 };
 type NavGroup = { label: string | null; items: readonly Tab[] };
@@ -72,10 +77,16 @@ const inboxTab: Tab = {
   requires: "conversation.view",
 };
 
+// Available to every signed-in staff member -- "" means no permission gate.
+// These two are the same screens for a doctor and for an admin, so both navs
+// share the definitions rather than each declaring its own.
+const todayTab: Tab = { key: "today", label: "يومي", Icon: HomeIcon, requires: "" };
+const accountTab: Tab = { key: "account", label: "حسابي", Icon: UserIcon, requires: "" };
+
 const adminGroups: readonly NavGroup[] = [
   {
     label: null,
-    items: [inboxTab],
+    items: [todayTab, inboxTab],
   },
   {
     label: "إدارة العيادة",
@@ -115,8 +126,8 @@ const adminGroups: readonly NavGroup[] = [
         requires: "clinic_settings.view",
       },
       { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
-      { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "appointment.view" },
-      { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
+      { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "bot_performance.view" },
+      { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "import.execute" },
     ],
   },
 ];
@@ -134,7 +145,7 @@ const SELF_SCOPED_ROLES = new Set(["doctor"]);
 const workspaceGroups: readonly NavGroup[] = [
   {
     label: null,
-    items: [inboxTab],
+    items: [todayTab, inboxTab],
   },
   {
     label: "شغلي",
@@ -147,23 +158,36 @@ const workspaceGroups: readonly NavGroup[] = [
   },
 ];
 
+const roleLabel: Record<string, string> = { admin: "مدير", doctor: "طبيب", receptionist: "موظف استقبال" };
+
+/** Arabic doesn't shape into a two-letter monogram the way Latin initials do,
+ * and "د." is a title, not a name -- one letter of the actual name reads best. */
+function initial(fullName: string) {
+  return fullName.replace(/^د\.\s*/, "").trim()[0] ?? "؟";
+}
+
+function firstName(fullName: string) {
+  const stripped = fullName.replace(/^د\.\s*/, "").trim();
+  return stripped.split(/\s+/)[0] || fullName;
+}
+
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
   const isSelfScoped = SELF_SCOPED_ROLES.has(staff.role);
   const groups = isSelfScoped ? workspaceGroups : adminGroups;
   const allTabs = groups.flatMap((g) => g.items);
 
-  const visible = allTabs.filter((t) => staff.permissions.includes(t.requires));
+  const allows = (t: Tab) => t.requires === "" || staff.permissions.includes(t.requires);
+  // accountTab isn't in any nav group -- it's reached from the account menu,
+  // but it still has to be selectable as the active tab.
+  const visible = [...allTabs.filter(allows), accountTab];
   const visibleGroups = groups
-    .map((g) => ({ ...g, items: g.items.filter((t) => staff.permissions.includes(t.requires)) }))
+    .map((g) => ({ ...g, items: g.items.filter(allows) }))
     .filter((g) => g.items.length > 0);
 
-  // A doctor's queue is the one thing they actually need every day -- land
-  // them there directly instead of on whatever tab happens to be first.
-  const defaultTab = visible.find((t) => t.key === "my-queue")?.key ?? visible[0]?.key;
-  const [tab, setTab] = useState<string | undefined>(defaultTab);
+  const [tab, setTab] = useState<string>("today");
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
-  const [showStaffAlerts, setShowStaffAlerts] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const canSeeInbox = visible.some((t) => t.key === "inbox");
   const [attentionCount, setAttentionCount] = useState(0);
@@ -211,31 +235,52 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
             </div>
           ))}
         </nav>
-        <div className="nav-group" style={{ marginTop: "auto" }}>
-          <div className="nav-group-label">{staff.full_name}</div>
-          <button className="nav-item" onClick={() => setShowStaffAlerts(true)}>
-            ربط بوت التنبيهات
-          </button>
-          <button className="nav-item" onClick={onLogout}>
-            تسجيل الخروج
+        <div className="account-menu">
+          {menuOpen && (
+            <div className="account-menu-items">
+              <button
+                className="nav-item"
+                onClick={() => {
+                  setTab("account");
+                  setMenuOpen(false);
+                }}
+              >
+                <UserIcon className="nav-icon" />
+                حسابي
+              </button>
+              <button className="nav-item" onClick={onLogout}>
+                تسجيل الخروج
+              </button>
+            </div>
+          )}
+          <button
+            className={menuOpen ? "account-trigger open" : "account-trigger"}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+          >
+            <span className="account-avatar">{initial(staff.full_name)}</span>
+            <span className="account-trigger-text">
+              <span className="account-trigger-name">{staff.full_name}</span>
+              <span className="account-trigger-role">{roleLabel[staff.role] ?? staff.role}</span>
+            </span>
+            <span className="account-trigger-caret" aria-hidden>
+              ⌃
+            </span>
           </button>
         </div>
       </aside>
       <div className="content-area">
-        {showStaffAlerts ? (
-          <main>
-            <StaffAlertsPage onBack={() => setShowStaffAlerts(false)} />
-          </main>
-        ) : (
-          <>
-            <header className="topbar">
-              <h1>{active.label}</h1>
-            </header>
-            <main>
-              {active.key === "inbox" ? <InboxPage currentStaffId={staff.id} /> : <Active />}
-            </main>
-          </>
-        )}
+        <main>
+          {active.key === "today" ? (
+            <TodayPage staffName={firstName(staff.full_name)} onGoTo={setTab} />
+          ) : active.key === "account" ? (
+            <AccountPage staff={staff} />
+          ) : active.key === "inbox" ? (
+            <InboxPage currentStaffId={staff.id} />
+          ) : (
+            Active && <Active />
+          )}
+        </main>
       </div>
     </div>
   );

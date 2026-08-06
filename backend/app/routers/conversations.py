@@ -8,6 +8,7 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
 from app.core.database import get_supabase
+from app.core.scoping import StaffScope, get_staff_scope
 from app.core.service_auth import require_service_token
 from app.models.schemas import (
     ConversationDetail,
@@ -166,6 +167,7 @@ def list_conversations(
     mode: str | None = None,
     assigned_staff_id: str | None = None,
     current: CurrentStaff = Depends(require_permission("conversation.view")),
+    scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
     query = db.table("conversations").select(
@@ -177,7 +179,15 @@ def list_conversations(
         query = query.eq("needs_attention", needs_attention)
     if mode:
         query = query.eq("mode", mode)
-    if assigned_staff_id:
+    # A self-scoped role's inbox is the conversations escalated *to them*.
+    # assigned_staff_id stays a filter, never a way to widen: asking for a
+    # colleague's inbox returns nothing rather than silently returning your
+    # own, so the caller can tell the difference.
+    if scope.is_self_scoped:
+        if assigned_staff_id and assigned_staff_id != scope.staff_id:
+            return []
+        query = query.eq("assigned_staff_id", scope.staff_id)
+    elif assigned_staff_id:
         query = query.eq("assigned_staff_id", assigned_staff_id)
     rows = query.execute().data
 

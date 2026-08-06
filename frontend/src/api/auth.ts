@@ -24,7 +24,9 @@ export const verifyMfa = (mfaToken: string, code: string) =>
 
 export const getMe = () => api.get<StaffMe>("/auth/me").then((res) => res.data);
 
-export const setupMfa = () => api.post<{ secret: string; otpauth_url: string }>("/auth/mfa/setup").then((res) => res.data);
+export type MfaSetup = { secret: string; otpauth_url: string; qr_data_uri: string };
+
+export const setupMfa = () => api.post<MfaSetup>("/auth/mfa/setup").then((res) => res.data);
 
 export const confirmMfa = (code: string) => api.post<{ mfa_enabled: boolean }>("/auth/mfa/confirm", { code }).then((res) => res.data);
 

@@ -85,6 +85,14 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
 
   return (
     <div className="page inbox-page">
+      <div className="page-header">
+        <div>
+          <div className="page-header-title">المحادثات</div>
+          <div className="page-header-subtitle">
+            محادثات المرضى عبر القنوات — المحوّلة إلك بتظهر أول، والباقي بيتابعها المساعد الذكي.
+          </div>
+        </div>
+      </div>
       {error && <p className="error">{error}</p>}
       <label className="inbox-filter">
         <input
