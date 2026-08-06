@@ -26,7 +26,7 @@ def create_payment_for_appointment(db: Client, appointment_id: str) -> None:
     try:
         appt = (
             db.table("appointments")
-            .select("id, branch_id, patient_id, appointment_number, service_id, services(price, deposit_amount)")
+            .select("id, branch_id, patient_id, appointment_number, service_id, patient_package_id, services(price, deposit_amount)")
             .eq("id", appointment_id)
             .limit(1)
             .execute()
@@ -35,6 +35,10 @@ def create_payment_for_appointment(db: Client, appointment_id: str) -> None:
         if not appt:
             return
         appt = appt[0]
+        if appt.get("patient_package_id"):
+            # Already billed against a package at booking time -- no fresh
+            # payment to request, the visit is covered by a session there.
+            return
         service = appt.get("services") or {}
         amount = service.get("deposit_amount") or service.get("price")
         if not amount:
@@ -164,7 +168,14 @@ def reject_payment(db: Client, payment_id: str, staff_id: str, reason: str) -> d
 
 
 def apply_coupon(db: Client, payment_id: str, code: str) -> dict:
-    payment = db.table("payments").select("*").eq("id", payment_id).limit(1).execute().data
+    payment = (
+        db.table("payments")
+        .select("*, appointments(branch_id, service_id)")
+        .eq("id", payment_id)
+        .limit(1)
+        .execute()
+        .data
+    )
     if not payment:
         raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
     payment = payment[0]
@@ -184,11 +195,51 @@ def apply_coupon(db: Client, payment_id: str, code: str) -> dict:
     if coupon.get("max_uses") is not None and coupon["used_count"] >= coupon["max_uses"]:
         raise HTTPException(status_code=400, detail="استُنفد عدد مرات استخدام الكوبون")
 
+    appt = payment.get("appointments") or {}
+    if coupon.get("branch_id") and appt.get("branch_id") and coupon["branch_id"] != appt["branch_id"]:
+        raise HTTPException(status_code=400, detail="هذا الكوبون غير صالح لهذا الفرع")
+    if coupon.get("service_id") and appt.get("service_id") and coupon["service_id"] != appt["service_id"]:
+        raise HTTPException(status_code=400, detail="هذا الكوبون غير صالح لهذه الخدمة")
+
+    if coupon["customer_scope"] != "all":
+        prior_visit = (
+            db.table("appointments")
+            .select("id")
+            .eq("patient_id", payment["patient_id"])
+            .in_("status", ["completed", "checked_in", "checked_out", "confirmed"])
+            .limit(1)
+            .execute()
+            .data
+        )
+        is_existing = bool(prior_visit)
+        if coupon["customer_scope"] == "new" and is_existing:
+            raise HTTPException(status_code=400, detail="هذا الكوبون لعملاء جدد فقط")
+        if coupon["customer_scope"] == "existing" and not is_existing:
+            raise HTTPException(status_code=400, detail="هذا الكوبون للعملاء الحاليين فقط")
+
+    if coupon.get("per_customer_limit") is not None:
+        redemptions = (
+            db.table("coupon_redemptions")
+            .select("id")
+            .eq("coupon_id", coupon["id"])
+            .eq("patient_id", payment["patient_id"])
+            .execute()
+            .data
+        )
+        if len(redemptions) >= coupon["per_customer_limit"]:
+            raise HTTPException(status_code=400, detail="استخدمت هذا الكوبون الحد الأقصى المسموح لك")
+
     if coupon["discount_type"] == "fixed":
-        discount = coupon["discount_value"]
+        new_amount = max(payment["amount"] - coupon["discount_value"], 0)
+    elif coupon["discount_type"] == "percentage":
+        new_amount = max(payment["amount"] - payment["amount"] * coupon["discount_value"] / 100, 0)
+    elif coupon["discount_type"] in ("free_session", "free_consultation"):
+        new_amount = 0
     else:
-        discount = payment["amount"] * coupon["discount_value"] / 100
-    new_amount = max(payment["amount"] - discount, 0)
+        # service_upgrade has no automatic price change -- what "upgrade" means
+        # is service-specific, so staff/the AI apply it themselves; the coupon
+        # is still recorded as redeemed against this payment.
+        new_amount = payment["amount"]
 
     updated = (
         db.table("payments")
@@ -198,6 +249,9 @@ def apply_coupon(db: Client, payment_id: str, code: str) -> dict:
         .data[0]
     )
     db.table("coupons").update({"used_count": coupon["used_count"] + 1}).eq("id", coupon["id"]).execute()
+    db.table("coupon_redemptions").insert(
+        {"coupon_id": coupon["id"], "patient_id": payment["patient_id"], "payment_id": payment_id}
+    ).execute()
     return updated
 
 

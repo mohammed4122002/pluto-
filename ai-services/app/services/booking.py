@@ -329,6 +329,159 @@ def _resolve_service_id(db: Client, doctor_id: str, service_name: str | None) ->
     return None
 
 
+def resolve_service_id_by_name(db: Client, service_name: str | None) -> str | None:
+    """Same fuzzy match as _resolve_service_id but without a doctor to scope
+    to -- used by check_patient_benefits, which can run before a doctor is
+    even chosen."""
+    if not service_name or not service_name.strip():
+        return None
+    query = service_name.strip()
+    candidates = db.table("services").select("id, name").eq("is_active", True).is_("deleted_at", "null").execute().data
+    matches = [c for c in candidates if fuzzy_contains(c["name"], query)]
+    return matches[0]["id"] if matches else None
+
+
+def active_packages_for_patient(db: Client, patient_id: str, service_id: str | None = None) -> list[dict]:
+    """Active, non-expired, unspent patient packages -- what the AI should
+    offer as "book against this instead of paying". A package with no rows
+    in package_services applies to any service. Mirrors backend's
+    active_packages_for_patient (backend/app/services/packages.py) -- the two
+    services don't share code."""
+    now = datetime.now(timezone.utc).isoformat()
+    rows = (
+        db.table("patient_packages")
+        .select("id, package_id, sessions_remaining, expires_at, packages(name, package_services(service_id))")
+        .eq("patient_id", patient_id)
+        .eq("status", "active")
+        .gt("sessions_remaining", 0)
+        .gte("expires_at", now)
+        .order("expires_at")
+        .execute()
+        .data
+    )
+    if not service_id:
+        return rows
+    matching = []
+    for row in rows:
+        service_ids = [ps["service_id"] for ps in (row.get("packages") or {}).get("package_services", [])]
+        if not service_ids or service_id in service_ids:
+            matching.append(row)
+    return matching
+
+
+def active_coupons_for_branch(db: Client, branch_id: str, service_id: str | None = None) -> list[dict]:
+    """Coupons the AI can proactively mention while booking -- active, within
+    date range, not globally exhausted, and not scoped to a different branch
+    or service than this booking."""
+    now = datetime.now(timezone.utc).isoformat()
+    rows = (
+        db.table("coupons")
+        .select("id, code, discount_type, discount_value, branch_id, service_id, valid_to")
+        .eq("is_active", True)
+        .execute()
+        .data
+    )
+    out = []
+    for c in rows:
+        if c.get("branch_id") and c["branch_id"] != branch_id:
+            continue
+        if service_id and c.get("service_id") and c["service_id"] != service_id:
+            continue
+        valid_to = c.get("valid_to")
+        if valid_to and valid_to < now:
+            continue
+        out.append(c)
+    return out
+
+
+def apply_coupon_code(db: Client, payment_id: str, code: str, patient_id: str) -> dict:
+    """Self-contained copy of backend's apply_coupon (backend/app/services/
+    payments.py) -- ai-services has its own direct DB access and no shared
+    Python import path to the backend service."""
+    payment = (
+        db.table("payments")
+        .select("*, appointments(branch_id, service_id)")
+        .eq("id", payment_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not payment:
+        raise BookingError("ما لقيت دفعة مرتبطة لتطبيق الكوبون عليها.")
+    payment = payment[0]
+    if payment["status"] != "pending":
+        raise BookingError("ما بقدر أطبّق كوبون على دفعة تم التعامل معها خلاص.")
+
+    coupon = db.table("coupons").select("*").eq("code", code).eq("is_active", True).limit(1).execute().data
+    if not coupon:
+        raise BookingError("هذا الكود مش كوبون صالح.")
+    coupon = coupon[0]
+
+    now_dt = datetime.now(timezone.utc)
+    if coupon.get("valid_from") and now_dt < datetime.fromisoformat(coupon["valid_from"]):
+        raise BookingError("هذا الكوبون لسا ما بدأ.")
+    if coupon.get("valid_to") and now_dt > datetime.fromisoformat(coupon["valid_to"]):
+        raise BookingError("انتهت صلاحية هذا الكوبون.")
+    if coupon.get("max_uses") is not None and coupon["used_count"] >= coupon["max_uses"]:
+        raise BookingError("استُنفد عدد مرات استخدام هذا الكوبون.")
+
+    appt = payment.get("appointments") or {}
+    if coupon.get("branch_id") and appt.get("branch_id") and coupon["branch_id"] != appt["branch_id"]:
+        raise BookingError("هذا الكوبون غير صالح لهذا الفرع.")
+    if coupon.get("service_id") and appt.get("service_id") and coupon["service_id"] != appt["service_id"]:
+        raise BookingError("هذا الكوبون غير صالح لهذه الخدمة.")
+
+    if coupon["customer_scope"] != "all":
+        prior_visit = (
+            db.table("appointments")
+            .select("id")
+            .eq("patient_id", patient_id)
+            .in_("status", ["completed", "checked_in", "checked_out", "confirmed"])
+            .limit(1)
+            .execute()
+            .data
+        )
+        is_existing = bool(prior_visit)
+        if coupon["customer_scope"] == "new" and is_existing:
+            raise BookingError("هذا الكوبون لعملاء جدد بس.")
+        if coupon["customer_scope"] == "existing" and not is_existing:
+            raise BookingError("هذا الكوبون للعملاء الحاليين بس.")
+
+    if coupon.get("per_customer_limit") is not None:
+        redemptions = (
+            db.table("coupon_redemptions")
+            .select("id")
+            .eq("coupon_id", coupon["id"])
+            .eq("patient_id", patient_id)
+            .execute()
+            .data
+        )
+        if len(redemptions) >= coupon["per_customer_limit"]:
+            raise BookingError("استخدمتي هذا الكوبون أقصى عدد مرات مسموح فيها إلك.")
+
+    if coupon["discount_type"] == "fixed":
+        new_amount = max(payment["amount"] - coupon["discount_value"], 0)
+    elif coupon["discount_type"] == "percentage":
+        new_amount = max(payment["amount"] - payment["amount"] * coupon["discount_value"] / 100, 0)
+    elif coupon["discount_type"] in ("free_session", "free_consultation"):
+        new_amount = 0
+    else:
+        new_amount = payment["amount"]
+
+    updated = (
+        db.table("payments")
+        .update({"amount": new_amount, "coupon_id": coupon["id"]})
+        .eq("id", payment_id)
+        .execute()
+        .data[0]
+    )
+    db.table("coupons").update({"used_count": coupon["used_count"] + 1}).eq("id", coupon["id"]).execute()
+    db.table("coupon_redemptions").insert(
+        {"coupon_id": coupon["id"], "patient_id": patient_id, "payment_id": payment_id}
+    ).execute()
+    return updated
+
+
 def _generate_appointment_number() -> str:
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     return f"APT-{today}-{secrets.token_hex(3).upper()}"
@@ -346,6 +499,7 @@ def book_slot_for_patient(
     visit_for_name: str | None,
     notes: str | None,
     service_id: str | None = None,
+    patient_package_id: str | None = None,
 ) -> dict:
     """Books via the same atomic book_slot() DB function the staff dashboard
     uses (db/migrations/0011_slots_engine.sql) — a caller only ever gets an
@@ -397,6 +551,8 @@ def book_slot_for_patient(
         # -- this is the only place it gets attached, so invoicing/deposit
         # logic downstream can actually find a price for this visit.
         updates["service_id"] = service_id
+    if patient_package_id:
+        updates["patient_package_id"] = patient_package_id
     appointment = db.table("appointments").update(updates).eq("id", appointment_id).execute().data[0]
     _resolve_recalls_on_booking(db, patient_id, appointment_id)
     return appointment
@@ -435,6 +591,7 @@ def book_by_doctor_and_time(
     visit_for_name: str | None,
     notes: str | None,
     service_name: str | None = None,
+    patient_package_id: str | None = None,
 ) -> dict:
     """Books directly from (doctor_name, requested time) instead of an opaque
     slot_id — the model only ever has to carry text it already generated
@@ -507,7 +664,23 @@ def book_by_doctor_and_time(
 
     slot_id = slot_rows[0]["id"]
     service_id = _resolve_service_id(db, doctor_id, service_name)
+
+    verified_package_id = None
+    if patient_package_id:
+        # Trust nothing the model passes without checking it against this
+        # patient's own active packages -- a hallucinated or stale id here
+        # would otherwise silently skip billing for a real visit.
+        candidates = active_packages_for_patient(db, patient_id, service_id)
+        if any(p["id"] == patient_package_id for p in candidates):
+            verified_package_id = patient_package_id
+
     appointment = book_slot_for_patient(
-        db, slot_id=slot_id, patient_id=patient_id, visit_for_name=visit_for_name, notes=notes, service_id=service_id
+        db,
+        slot_id=slot_id,
+        patient_id=patient_id,
+        visit_for_name=visit_for_name,
+        notes=notes,
+        service_id=service_id,
+        patient_package_id=verified_package_id,
     )
     return {"booked": True, **appointment}

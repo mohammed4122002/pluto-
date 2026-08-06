@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from supabase import Client
 
 from app.services.notifications import fire_status_change_notifications
+from app.services.packages import deduct_package_session_for_appointment
 from app.services.payments import create_payment_for_appointment
 from app.services.recalls import auto_create_recall_on_completion
 
@@ -80,5 +81,6 @@ def apply_status_transition(
         create_payment_for_appointment(db, appointment_id)
     if new_status == "completed":
         auto_create_recall_on_completion(db, appointment_id)
+        deduct_package_session_for_appointment(db, appointment_id)
 
     return updated

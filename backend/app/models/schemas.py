@@ -305,6 +305,7 @@ class SlotBookRequest(BaseModel):
     notes: str | None = None
     source: str = "dashboard"
     service_id: UUID | None = None
+    patient_package_id: UUID | None = None
 
 
 class SlotBookResult(BaseModel):
@@ -341,6 +342,7 @@ class Appointment(AppointmentCreate):
     completion_time: datetime | None = None
     no_show_flag: bool = False
     slot_id: UUID | None = None
+    patient_package_id: UUID | None = None
 
 
 class AppointmentStatusUpdate(BaseModel):
@@ -882,7 +884,7 @@ class ApplyCouponRequest(BaseModel):
 class Package(BaseModel):
     id: UUID
     name: str
-    service_id: UUID | None = None
+    service_ids: list[UUID] = []
     sessions_count: int
     price: float
     validity_days: int = 365
@@ -891,7 +893,7 @@ class Package(BaseModel):
 
 class PackageCreate(BaseModel):
     name: str
-    service_id: UUID | None = None
+    service_ids: list[UUID] = []
     sessions_count: int
     price: float
     validity_days: int = 365
@@ -923,28 +925,37 @@ class PatientPackageSell(BaseModel):
     branch_id: UUID
 
 
-CouponDiscountType = Literal["fixed", "percentage"]
+CouponDiscountType = Literal["fixed", "percentage", "free_session", "free_consultation", "service_upgrade"]
+CouponCustomerScope = Literal["all", "new", "existing"]
 
 
 class Coupon(BaseModel):
     id: UUID
     code: str
     discount_type: CouponDiscountType
-    discount_value: float
+    discount_value: float | None = None
     valid_from: datetime | None = None
     valid_to: datetime | None = None
     max_uses: int | None = None
     used_count: int = 0
     is_active: bool = True
+    branch_id: UUID | None = None
+    service_id: UUID | None = None
+    customer_scope: CouponCustomerScope = "all"
+    per_customer_limit: int | None = None
 
 
 class CouponCreate(BaseModel):
     code: str
     discount_type: CouponDiscountType
-    discount_value: float
+    discount_value: float | None = None
     valid_from: datetime | None = None
     valid_to: datetime | None = None
     max_uses: int | None = None
+    branch_id: UUID | None = None
+    service_id: UUID | None = None
+    customer_scope: CouponCustomerScope = "all"
+    per_customer_limit: int | None = None
 
 
 class CouponUpdate(BaseModel):

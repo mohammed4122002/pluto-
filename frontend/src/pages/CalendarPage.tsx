@@ -11,6 +11,8 @@ import { searchSlots, generateSlots, holdSlot, bookSlot } from "../api/slots";
 import type { Slot } from "../api/slots";
 import { listServices } from "../api/services";
 import type { Service } from "../api/services";
+import { listActivePatientPackages } from "../api/packages";
+import type { PatientPackage } from "../api/packages";
 
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
@@ -46,6 +48,8 @@ export function CalendarPage() {
   const [bookingSlotId, setBookingSlotId] = useState<string | null>(null);
   const [bookingPatientId, setBookingPatientId] = useState("");
   const [bookingServiceId, setBookingServiceId] = useState("");
+  const [bookingActivePackages, setBookingActivePackages] = useState<PatientPackage[]>([]);
+  const [bookingPatientPackageId, setBookingPatientPackageId] = useState("");
   const [booking, setBooking] = useState(false);
   const [dragOverSlotId, setDragOverSlotId] = useState<string | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
@@ -81,6 +85,17 @@ export function CalendarPage() {
 
   useEffect(load, [branchId, doctorId, date]);
 
+  useEffect(() => {
+    setBookingPatientPackageId("");
+    if (!bookingPatientId || !bookingServiceId) {
+      setBookingActivePackages([]);
+      return;
+    }
+    listActivePatientPackages(bookingPatientId, bookingServiceId)
+      .then(setBookingActivePackages)
+      .catch(() => setBookingActivePackages([]));
+  }, [bookingPatientId, bookingServiceId]);
+
   const handleGenerate = () => {
     if (!branchId || !doctorId) {
       setError("اختر فرع وطبيب قبل توليد الأوقات.");
@@ -101,11 +116,19 @@ export function CalendarPage() {
     setError(null);
     const sessionId = `dashboard-${Date.now()}`;
     holdSlot(slotId, sessionId)
-      .then(() => bookSlot(slotId, { patient_id: bookingPatientId, session_id: sessionId, service_id: bookingServiceId }))
+      .then(() =>
+        bookSlot(slotId, {
+          patient_id: bookingPatientId,
+          session_id: sessionId,
+          service_id: bookingServiceId,
+          patient_package_id: bookingPatientPackageId || undefined,
+        }),
+      )
       .then(() => {
         setBookingSlotId(null);
         setBookingPatientId("");
         setBookingServiceId("");
+        setBookingPatientPackageId("");
         load();
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
@@ -267,6 +290,16 @@ export function CalendarPage() {
                                 </option>
                               ))}
                           </select>
+                          {bookingActivePackages.length > 0 && (
+                            <select value={bookingPatientPackageId} onChange={(e) => setBookingPatientPackageId(e.target.value)}>
+                              <option value="">دفع عادي (بدون باقة)</option>
+                              {bookingActivePackages.map((pp) => (
+                                <option key={pp.id} value={pp.id}>
+                                  باقة — {pp.sessions_remaining} جلسات متبقية
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           <button type="button" disabled={booking || !bookingPatientId || !bookingServiceId} onClick={() => handleBook(s.id)}>
                             {booking ? "..." : "تأكيد الحجز"}
                           </button>
@@ -275,6 +308,7 @@ export function CalendarPage() {
                             onClick={() => {
                               setBookingSlotId(null);
                               setBookingServiceId("");
+                              setBookingPatientPackageId("");
                             }}
                           >
                             إلغاء

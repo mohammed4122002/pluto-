@@ -20,8 +20,12 @@ from app.services.appointments import (
 )
 from app.services.booking import (
     BookingError,
+    active_coupons_for_branch,
+    active_packages_for_patient,
+    apply_coupon_code,
     book_by_doctor_and_time,
     missing_contact_fields,
+    resolve_service_id_by_name,
     save_contact_info,
     search_available_slots,
 )
@@ -111,10 +115,27 @@ BASE_INSTRUCTIONS = (
     "بمبلغ العربون (deposit_amount) وطرق الدفع المتاحة (payment_methods) بالضبط متل ما رجعوا، واطلبي "
     "منه يبعت صورة إيصال الدفع بنفس المحادثة بعد ما يدفع — لا تخترعي مبلغ أو طريقة دفع من عندك ولا "
     "تحذفي هذا الجزء من ردك.\n"
-    "- إذا رجعت نتيجة book_appointment وفيها deposit_required=false، الحجز تم بدون أي مبلغ مطلوب "
-    "— لا تطلبي من المريض يدفع شي.\n"
+    "- إذا رجعت نتيجة book_appointment وفيها deposit_required=false وbilled_to_package=false، الحجز "
+    "تم بدون أي مبلغ مطلوب — لا تطلبي من المريض يدفع شي.\n"
+    "- إذا رجعت نتيجة book_appointment وفيها billed_to_package=true، الحجز تم واتحسب على الباقة "
+    "مباشرة، بدون أي دفع مطلوب — أخبري المريض إن الجلسة اتحسبت من باقته ومبروك عليه.\n"
     "- إذا رجعت أي أداة نتيجة فاضية أو خطأ، اعتذر بصدق واقترح بديل حقيقي (تخصص/وقت تاني) أو اعرض "
     "تحويله لموظف — لا تخترع بديل من عندك.\n\n"
+    "قواعد الباقات والكوبونات:\n"
+    "- بعد ما يتحدد اسم الخدمة يلي بدو يحجزها المريض، وقبل ما تستدعي book_appointment أو تذكري أي "
+    "سعر/عربون، استدعي check_patient_benefits بنفس اسم الخدمة — هذا شرط، مش اختياري.\n"
+    "- إذا رجعت packages فيها باقة تغطي هذه الخدمة (sessions_remaining أكبر من صفر)، اذكريها للمريض "
+    "بشكل طبيعي واسأليه إذا حابب يحجز عليها بدل ما يدفع (مثلاً 'عندك باقة [package_name] فيها "
+    "[sessions_remaining] جلسات متبقية، حابب تحجز عليها؟'). لو وافق صراحة، مرري patient_package_id "
+    "الراجع بالضبط لـ use_patient_package_id عند استدعاء book_appointment. لو رفض أو ما جاوب، اتركي "
+    "use_patient_package_id فاضي واكملي الحجز عادي (بيترتب عليه عربون/سعر إذا كان في).\n"
+    "- إذا رجعت coupons فيها كوبون فعّال لهذه الخدمة أو عام، اذكريه للمريض بشكل طبيعي واسأليه إذا حابب "
+    "يستخدمه (مثلاً 'عندك كوبون [code] خصم [discount_value]%، حابب تستخدمه؟') — لا تطبقيه تلقائياً "
+    "بدون ما يوافق أو يذكر الكود بنفسه.\n"
+    "- لو المريض وافق على كوبون أو ذكر كود كوبون بنفسه بعد ما تم الحجز ورجع deposit_required=true، "
+    "استدعي apply_coupon_code بالكود، وبعدها أخبري المريض بالمبلغ الجديد (new_amount) بدل القديم.\n"
+    "- ممنوع نهائياً اختراع اسم باقة أو كود كوبون أو نسبة خصم من عندك — كل هذا لازم يجي حرفياً من نتيجة "
+    "check_patient_benefits أو apply_coupon_code.\n\n"
     "قواعد الإلغاء:\n"
     "- لو المريض طلب يلغي موعد، استدعِ find_my_appointments أولاً لتعرفي مواعيده الفعلية وappointment_id "
     "الصحيح — ممنوع نهائياً تخمين أو اختراع appointment_id.\n"
@@ -330,8 +351,69 @@ TOOLS = [
                             "صحيح على الحجز، لا تتركيها فاضية إذا كان المريض حدد نوع الخدمة."
                         ),
                     },
+                    "use_patient_package_id": {
+                        "type": "string",
+                        "description": (
+                            "معرّف (id) باقة فعّالة رجعت من check_patient_benefits، فقط إذا المريض وافق "
+                            "صراحة يحجز عالباقة بدل ما يدفع. اتركيه نص فاضي في كل الحالات الثانية — لا "
+                            "تخترعي id ولا تستخدمي هذا إلا بعد ما تستدعي check_patient_benefits فعلاً "
+                            "وتعرضي على المريض إنه عنده باقة وياخذ موافقته."
+                        ),
+                    },
                 },
-                "required": ["doctor_name", "start_at", "visit_for_name", "reason_for_visit", "service_name"],
+                "required": [
+                    "doctor_name",
+                    "start_at",
+                    "visit_for_name",
+                    "reason_for_visit",
+                    "service_name",
+                    "use_patient_package_id",
+                ],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_patient_benefits",
+            "description": (
+                "اطّلعي على باقات المريض الفعّالة (بجلسات متبقية) والكوبونات الفعّالة بهذا الفرع، لتعرضيها "
+                "عليه بشكل استباقي قبل ما يدفع. استدعيها بعد ما يتحدد اسم الخدمة، قبل أي ذكر للسعر أو "
+                "العربون أو قبل استدعاء book_appointment — إذا رجعت باقة تغطي هذه الخدمة أو كوبون فعّال، "
+                "اذكريه للمريض بشكل طبيعي واسأليه إذا حابب يستخدمه، قبل ما تكمّلي بطلب الدفع العادي."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "service_name": {
+                        "type": "string",
+                        "description": "اسم الخدمة اللي بدك تتأكدي هل في باقة أو كوبون يغطيها، أو نص فاضي للتأكد من كل شي فعّال بشكل عام.",
+                    },
+                },
+                "required": ["service_name"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "apply_coupon_code",
+            "description": (
+                "طبّقي كود كوبون ذكره المريض على دفعة عربون/سعر تم إنشاؤها للتو بعد نجاح الحجز. استدعيها "
+                "فقط بعد ما تكون book_appointment رجعت deposit_required=true وذكرتِ للمريض إنه في مبلغ "
+                "مطلوب، والمريض بعدها ذكر كود كوبون. لو رجعت النتيجة فيها error، اشرحيه للمريض بلطف ولا "
+                "تفترضي إن الكوبون انطبق."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "كود الكوبون كما ذكره المريض بالضبط."},
+                },
+                "required": ["code"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -653,7 +735,8 @@ def _select_tools(ch_settings: dict) -> list[dict]:
         return [
             t
             for t in TOOLS
-            if t["function"]["name"] not in ("book_appointment", "cancel_appointment", "save_contact_info")
+            if t["function"]["name"]
+            not in ("book_appointment", "cancel_appointment", "save_contact_info", "apply_coupon_code")
         ]
     return TOOLS
 
@@ -684,6 +767,51 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # against that same real identity, not the abandoned placeholder.
             ctx["patient_id"] = saved["patient_id"]
             return {"saved": True, "full_name": saved["full_name"], "phone": saved["phone"]}
+        if name == "check_patient_benefits":
+            if not ctx.get("patient_id"):
+                return {"packages": [], "coupons": []}
+            service_id = resolve_service_id_by_name(db, args.get("service_name") or None)
+            packages = active_packages_for_patient(db, ctx["patient_id"], service_id)
+            coupons = active_coupons_for_branch(db, ctx["branch_id"], service_id)
+            return {
+                "packages": [
+                    {
+                        "patient_package_id": p["id"],
+                        "package_name": (p.get("packages") or {}).get("name"),
+                        "sessions_remaining": p["sessions_remaining"],
+                        "expires_at": p["expires_at"],
+                    }
+                    for p in packages
+                ],
+                "coupons": [
+                    {
+                        "code": c["code"],
+                        "discount_type": c["discount_type"],
+                        "discount_value": c.get("discount_value"),
+                    }
+                    for c in coupons
+                ],
+            }
+        if name == "apply_coupon_code":
+            if not ctx.get("_booked_appointment_id") or not ctx.get("patient_id"):
+                return {"error": "لا يوجد دفعة نشطة الآن لتطبيق الكوبون عليها — لازم يكون في حجز تم للتو وطلب دفع."}
+            payment_rows = (
+                db.table("payments")
+                .select("id")
+                .eq("appointment_id", ctx["_booked_appointment_id"])
+                .eq("status", "pending")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+                .data
+            )
+            if not payment_rows:
+                return {"error": "ما لقيت دفعة قيد الانتظار على هذا الحجز."}
+            try:
+                updated = apply_coupon_code(db, payment_rows[0]["id"], args["code"].strip(), ctx["patient_id"])
+            except BookingError as exc:
+                return {"error": str(exc)}
+            return {"applied": True, "new_amount": updated["amount"]}
         if name == "book_appointment":
             if not ctx.get("booking_enabled"):
                 return {"error": "الحجز غير متاح حالياً عبر هذه المحادثة."}
@@ -713,6 +841,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 visit_for_name=args.get("visit_for_name") or None,
                 notes=args.get("reason_for_visit") or None,
                 service_name=args.get("service_name") or None,
+                patient_package_id=args.get("use_patient_package_id") or None,
             )
             if not booking_result["booked"]:
                 return {
@@ -722,12 +851,14 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 }
             appointment = booking_result
             ctx["_booked_appointment_id"] = appointment["id"]
-            payment_info = confirm_booking_and_request_payment(db, appointment["id"])
+            billed_to_package = bool(appointment.get("patient_package_id"))
+            payment_info = None if billed_to_package else confirm_booking_and_request_payment(db, appointment["id"])
             result = {
                 "booked": True,
                 "appointment_number": appointment["appointment_number"],
                 "confirmation_code": appointment["confirmation_code"],
                 "scheduled_at": appointment["scheduled_at"],
+                "billed_to_package": billed_to_package,
                 "deposit_required": bool(payment_info),
             }
             # Kept so that if the tool loop runs out of rounds before the model

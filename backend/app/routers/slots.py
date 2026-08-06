@@ -266,6 +266,8 @@ def book_slot(
         # no deposit_amount to request. Confirmed live via a real invoice
         # coming back subtotal=0 for a completed visit booked this way.
         updates["service_id"] = str(payload.service_id)
+    if payload.patient_package_id:
+        updates["patient_package_id"] = str(payload.patient_package_id)
     db.table("appointments").update(updates).eq("id", appointment_id).execute()
     resolve_recalls_on_booking(db, str(payload.patient_id), appointment_id)
 

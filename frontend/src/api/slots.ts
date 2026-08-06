@@ -45,5 +45,11 @@ export const holdSlot = (slotId: string, sessionId: string) =>
 
 export const bookSlot = (
   slotId: string,
-  payload: { patient_id: string; session_id: string; notes?: string; service_id?: string },
+  payload: {
+    patient_id: string;
+    session_id: string;
+    notes?: string;
+    service_id?: string;
+    patient_package_id?: string;
+  },
 ) => api.post<{ appointment_id: string }>(`/slots/${slotId}/book`, payload).then((res) => res.data);

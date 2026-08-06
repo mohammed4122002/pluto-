@@ -3,7 +3,7 @@ import { api } from "./client";
 export type Package = {
   id: string;
   name: string;
-  service_id: string | null;
+  service_ids: string[];
   sessions_count: number;
   price: number;
   validity_days: number;
@@ -26,7 +26,7 @@ export const listPackages = (serviceId?: string) =>
 
 export const createPackage = (payload: {
   name: string;
-  service_id?: string;
+  service_ids?: string[];
   sessions_count: number;
   price: number;
   validity_days?: number;
@@ -34,6 +34,11 @@ export const createPackage = (payload: {
 
 export const listPatientPackages = (params: { patient_id?: string; branch_id?: string } = {}) =>
   api.get<PatientPackage[]>("/patient-packages", { params }).then((res) => res.data);
+
+export const listActivePatientPackages = (patientId: string, serviceId?: string) =>
+  api
+    .get<PatientPackage[]>("/patient-packages/active", { params: { patient_id: patientId, service_id: serviceId } })
+    .then((res) => res.data);
 
 export const sellPackage = (payload: { patient_id: string; package_id: string; branch_id: string }) =>
   api.post<PatientPackage>("/patient-packages", payload).then((res) => res.data);

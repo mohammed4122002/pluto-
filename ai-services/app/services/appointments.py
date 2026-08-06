@@ -63,12 +63,16 @@ def confirm_booking_and_request_payment(db: Client, appointment_id: str) -> dict
 
     appt = (
         db.table("appointments")
-        .select("branch_id, patient_id, appointment_number, services(price, deposit_amount)")
+        .select("branch_id, patient_id, appointment_number, patient_package_id, services(price, deposit_amount)")
         .eq("id", appointment_id)
         .limit(1)
         .execute()
         .data[0]
     )
+    if appt.get("patient_package_id"):
+        # Already billed against a package at booking time -- no fresh
+        # payment to request, the visit is covered by a session there.
+        return None
     service = appt.get("services") or {}
     amount = service.get("deposit_amount") or service.get("price")
     if not amount:

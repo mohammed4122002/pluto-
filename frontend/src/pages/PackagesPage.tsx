@@ -26,7 +26,13 @@ export function PackagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const [newPkg, setNewPkg] = useState({ name: "", service_id: "", sessions_count: 5, price: 0, validity_days: 365 });
+  const [newPkg, setNewPkg] = useState({
+    name: "",
+    service_ids: [] as string[],
+    sessions_count: 5,
+    price: 0,
+    validity_days: 365,
+  });
   const [sellForm, setSellForm] = useState<{ patient_id: string; package_id: string; branch_id: string } | null>(null);
 
   const load = () => {
@@ -55,12 +61,21 @@ export function PackagesPage() {
   const handleCreatePackage = (e: FormEvent) => {
     e.preventDefault();
     if (!newPkg.name.trim() || newPkg.price <= 0 || newPkg.sessions_count <= 0) return;
-    createPackage({ ...newPkg, service_id: newPkg.service_id || undefined })
+    createPackage(newPkg)
       .then((pkg) => {
         setPackages((prev) => [...prev, pkg]);
-        setNewPkg({ name: "", service_id: "", sessions_count: 5, price: 0, validity_days: 365 });
+        setNewPkg({ name: "", service_ids: [], sessions_count: 5, price: 0, validity_days: 365 });
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
+  };
+
+  const toggleNewPkgService = (serviceId: string) => {
+    setNewPkg((p) => ({
+      ...p,
+      service_ids: p.service_ids.includes(serviceId)
+        ? p.service_ids.filter((id) => id !== serviceId)
+        : [...p.service_ids, serviceId],
+    }));
   };
 
   const handleSell = (e: FormEvent) => {
@@ -95,14 +110,6 @@ export function PackagesPage() {
       <h2>تعريف باقة جديدة</h2>
       <form className="data-form" onSubmit={handleCreatePackage}>
         <input placeholder="اسم الباقة" value={newPkg.name} onChange={(e) => setNewPkg({ ...newPkg, name: e.target.value })} required />
-        <select value={newPkg.service_id} onChange={(e) => setNewPkg({ ...newPkg, service_id: e.target.value })}>
-          <option value="">أي خدمة</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
         <input
           type="number"
           placeholder="عدد الجلسات"
@@ -123,6 +130,22 @@ export function PackagesPage() {
         />
         <button type="submit">إنشاء باقة</button>
       </form>
+
+      {services.length > 0 && (
+        <div className="checkbox-group">
+          <span className="settings-hint">الخدمات المشمولة (اتركيها فاضية لتشمل أي خدمة):</span>
+          {services.map((s) => (
+            <label key={s.id}>
+              <input
+                type="checkbox"
+                checked={newPkg.service_ids.includes(s.id)}
+                onChange={() => toggleNewPkgService(s.id)}
+              />
+              {s.name}
+            </label>
+          ))}
+        </div>
+      )}
 
       {sellForm && (
         <>
