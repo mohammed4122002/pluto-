@@ -26,7 +26,7 @@ from app.services.channel_identity import (
     resolve_external_user_id,
     resolve_identity,
 )
-from app.services.escalation import auto_assign_conversation
+from app.services.escalation import auto_assign_conversation, send_escalation_alert
 from app.services.payments import attach_receipt_from_inbound_media
 
 logger = logging.getLogger(__name__)
@@ -267,7 +267,12 @@ def update_conversation(
         updates["ai_episode_started_at"] = datetime.now(timezone.utc).isoformat()
     db.table("conversations").update(updates).eq("id", str(conversation_id)).execute()
 
-    if updates.get("mode") == "human" and "assigned_staff_id" not in updates:
+    if "assigned_staff_id" in updates and updates["assigned_staff_id"]:
+        # A manual pick from the dashboard dropdown needs the same Telegram
+        # alert an auto-assigned pick gets -- otherwise "manually assign"
+        # silently means "nobody finds out".
+        send_escalation_alert(db, str(conversation_id), updates["assigned_staff_id"])
+    elif updates.get("mode") == "human" and "assigned_staff_id" not in updates:
         # Staff hit "حوّل لموظف" without picking anyone specific -- auto-assign
         # from the escalation pool instead of leaving it unassigned, same as
         # the AI-triggered escalation path. Skipped if already assigned so
