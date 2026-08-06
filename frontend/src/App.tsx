@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AlertsPage } from "./pages/AlertsPage";
 import { InboxPage } from "./pages/InboxPage";
 import { BranchesPage } from "./pages/BranchesPage";
 import { ChannelsPage } from "./pages/ChannelsPage";
@@ -16,6 +17,7 @@ import { QueuePage } from "./pages/QueuePage";
 import { PackagesPage } from "./pages/PackagesPage";
 import { CouponsPage } from "./pages/CouponsPage";
 import { CancellationPoliciesPage } from "./pages/CancellationPoliciesPage";
+import { BotPerformancePage } from "./pages/BotPerformancePage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
 import { SetupWizard } from "./pages/SetupWizard";
 import { LoginPage } from "./pages/LoginPage";
@@ -41,6 +43,7 @@ import {
   PackageIcon,
   CouponIcon,
   DuplicatesIcon,
+  AlertIcon,
 } from "./icons";
 import "./App.css";
 
@@ -52,6 +55,7 @@ const groups = [
   {
     label: "إدارة العيادة",
     items: [
+      { key: "alerts", label: "التنبيهات", Icon: AlertIcon, Component: AlertsPage, requires: "payment.view" },
       { key: "appointments", label: "المواعيد", Icon: AppointmentIcon, Component: AppointmentsPage, requires: "appointment.view" },
       { key: "calendar", label: "التقويم", Icon: CalendarIcon, Component: CalendarPage, requires: "slot.view" },
       { key: "queue", label: "الطابور والانتظار", Icon: QueueIcon, Component: QueuePage, requires: "queue.view" },
@@ -79,6 +83,7 @@ const groups = [
         requires: "clinic_settings.view",
       },
       { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
+      { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "appointment.view" },
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "patient.create" },
     ],
   },

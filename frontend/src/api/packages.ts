@@ -32,8 +32,9 @@ export const createPackage = (payload: {
   validity_days?: number;
 }) => api.post<Package>("/packages", payload).then((res) => res.data);
 
-export const listPatientPackages = (params: { patient_id?: string; branch_id?: string } = {}) =>
-  api.get<PatientPackage[]>("/patient-packages", { params }).then((res) => res.data);
+export const listPatientPackages = (
+  params: { patient_id?: string; branch_id?: string; expiring_within_days?: number } = {},
+) => api.get<PatientPackage[]>("/patient-packages", { params }).then((res) => res.data);
 
 export const listActivePatientPackages = (patientId: string, serviceId?: string) =>
   api

@@ -185,6 +185,32 @@ def build_dashboard_report(db: Client, branch_ids: list[str] | None, date_from: 
 
     pending_authorization = sum(1 for a in appts if a["status"] == "pending_prior_authorization")
 
+    conv_query = (
+        db.table("conversations")
+        .select("id, mode, escalated_at, channels(branch_id)")
+        .gte("created_at", date_from)
+        .lt("created_at", date_to)
+    )
+    conversations = conv_query.execute().data
+    if branch_ids is not None:
+        conversations = [c for c in conversations if (c.get("channels") or {}).get("branch_id") in branch_ids]
+    total_conversations = len(conversations)
+    escalated = sum(
+        1 for c in conversations if c.get("escalated_at") and date_from <= c["escalated_at"] < date_to
+    )
+
+    provider_failures = len(
+        db.table("audit_log")
+        .select("id")
+        .eq("entity_type", "ai_chat_turn")
+        .eq("action", "chat_turn_failed")
+        .gte("created_at", date_from)
+        .lt("created_at", date_to)
+        .execute()
+        .data
+    )
+    ai_bookings = by_channel.get("ai_chat", 0)
+
     doctor_changes = [
         {"doctor_id": k, "doctor_name": doctor_names.get(k), **v}
         for k, v in doctor_change_buckets.items()
@@ -232,6 +258,13 @@ def build_dashboard_report(db: Client, branch_ids: list[str] | None, date_from: 
             "cancellation_fees": round(cancellation_fees, 2),
         },
         "insurance": {"pending_authorization_count": pending_authorization},
+        "ai_chat": {
+            "total_conversations": total_conversations,
+            "escalated_to_human": escalated,
+            "escalation_rate": round(escalated / total_conversations * 100, 1) if total_conversations else 0.0,
+            "provider_failures": provider_failures,
+            "bookings": ai_bookings,
+        },
         "doctor_changes": doctor_changes,
         "demand_heatmap": demand_heatmap,
         "not_implemented": _NOT_IMPLEMENTED,

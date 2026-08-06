@@ -69,6 +69,10 @@ export function AiSettingsPage() {
         يضل المفتاح الحالي كما هو. Gemini بيُستخدم فقط كبديل احتياطي تلقائي لما OpenAI يفشل (رصيد منتهي،
         انقطاع مؤقت...) — ما إله علاقة بالرد نفسه إذا OpenAI شغال طبيعي.
       </p>
+      <p className="settings-hint">
+        هاي الصفحة بس لمفاتيح المزوّدين. أسلوب رد البوت (اللهجة، رسمي/ودود، رسالة الترحيب، عدد الردود قبل
+        التحويل لموظف) بتتحكمي فيها من صفحة "القنوات" لكل قناة على حدة.
+      </p>
       <form className="settings-form" onSubmit={handleSave}>
         <label>
           مفتاح OpenAI{settings?.openai_api_key_masked && ` (الحالي: ${settings.openai_api_key_masked})`}

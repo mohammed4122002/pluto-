@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -65,6 +66,7 @@ def update_package(
 def list_patient_packages(
     patient_id: str | None = None,
     branch_id: str | None = None,
+    expiring_within_days: int | None = None,
     current: CurrentStaff = Depends(require_permission("package.view")),
     db: Client = Depends(get_supabase),
 ):
@@ -80,6 +82,14 @@ def list_patient_packages(
             if not allowed:
                 return []
             query = query.in_("branch_id", allowed)
+    if expiring_within_days is not None:
+        now = datetime.now(timezone.utc)
+        query = (
+            query.eq("status", "active")
+            .gt("sessions_remaining", 0)
+            .gte("expires_at", now.isoformat())
+            .lte("expires_at", (now + timedelta(days=expiring_within_days)).isoformat())
+        )
     return query.execute().data
 
 
