@@ -174,3 +174,40 @@ def _overlaps_any_leave(start, end, leaves: list[dict]) -> bool:
         if start < leave_end and end > leave_start:
             return True
     return False
+
+
+def block_slots_for_leave(db: Client, staff_id: str, leave_id: str, start_at: str, end_at: str) -> int:
+    """Close the booking window for a leave the doctor just registered.
+
+    Tagged with the leave's own id rather than a generic reason, so cancelling
+    the leave can reopen exactly the slots it closed and nothing else — a slot
+    blocked earlier for maintenance or by an admin stays blocked.
+
+    Only touches slots still 'available': one already booked or held belongs to
+    a real patient, and cancelling those is reception's call (and needs
+    appointment.cancel), not a side effect of filing leave.
+    """
+    rows = (
+        db.table("slots")
+        .update({"status": "blocked", "block_reason": f"leave:{leave_id}"})
+        .eq("doctor_id", staff_id)
+        .eq("status", "available")
+        .gte("start_at", start_at)
+        .lt("start_at", end_at)
+        .execute()
+        .data
+    )
+    return len(rows)
+
+
+def unblock_slots_for_leave(db: Client, leave_id: str) -> int:
+    """Reopen precisely the slots `block_slots_for_leave` closed."""
+    rows = (
+        db.table("slots")
+        .update({"status": "available", "block_reason": None})
+        .eq("block_reason", f"leave:{leave_id}")
+        .eq("status", "blocked")
+        .execute()
+        .data
+    )
+    return len(rows)

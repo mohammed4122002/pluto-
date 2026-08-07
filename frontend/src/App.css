@@ -2194,3 +2194,206 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
+
+/* --- Leave (on the doctor's calendar) --- */
+
+.leave-panel {
+  margin-top: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-xs);
+}
+
+.leave-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.leave-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.leave-form input:not([type="checkbox"]),
+.leave-form select {
+  padding: 8px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--text-h);
+}
+
+.leave-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+  padding-bottom: 9px;
+}
+
+.leave-reason {
+  flex: 1;
+  min-width: 180px;
+}
+
+.leave-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leave-list li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.leave-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.leave-list-when {
+  flex: none;
+  min-width: 200px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.leave-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Booked appointments inside a leave window are the one thing filing leave
+   can't resolve on its own, so they're the one thing that shouts. */
+.leave-conflict-note {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.leave-result {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+.leave-result.warn {
+  border-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.leave-result p {
+  margin: 8px 0;
+}
+
+.leave-conflicts {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.leave-conflicts li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+/* --- Reception desk --- */
+
+.desk-code-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 480px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.desk-code-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.desk-code-form input {
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  color: var(--text-h);
+}
+
+.desk-code-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.desk-late {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .leave-form,
+  .desk-code-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .leave-list li {
+    flex-wrap: wrap;
+  }
+
+  .leave-list-when {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* A badge in a column flex parent stretches to the full width unless told
+   otherwise, which reads as a bar rather than a label. */
+.leave-list-main > .badge {
+  align-self: flex-start;
+}

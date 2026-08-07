@@ -32,10 +32,13 @@ from app.core.database import get_supabase
 from app.core.scoping import StaffScope, get_staff_scope
 from app.models.schemas import (
     Branch,
+    ConflictingAppointment,
     MyCalendarAppointment,
     MyCalendarDay,
     MyCalendarSlot,
     MyPatient,
+    MyLeave,
+    MyLeaveCreate,
     MyQueue,
     MyQueueDay,
     MyQueueTicket,
@@ -45,6 +48,7 @@ from app.models.schemas import (
     QueueTicket,
 )
 from app.services.queue import call_ticket, complete_ticket, skip_ticket, start_ticket
+from app.services.slots import block_slots_for_leave, unblock_slots_for_leave
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -526,3 +530,137 @@ def my_today(
         result.needs_attention_count = sum(c.needs_attention for c in result.conversations)
 
     return result
+
+
+# Statuses that still need a human if a leave lands on top of them. A visit
+# already finished or already called off isn't a conflict.
+_LIVE_APPOINTMENT_STATUSES = {
+    "draft", "requested", "pending_review", "pending_approval", "pending_payment",
+    "pending_insurance_verification", "pending_prior_authorization", "confirmed",
+    "patient_confirmed", "waitlisted", "rescheduled", "on_hold",
+}
+
+
+def _leave_conflicts(db: Client, staff_id: str, start_at: str, end_at: str) -> list[ConflictingAppointment]:
+    rows = (
+        db.table("appointments")
+        .select("id, scheduled_at, status, patient_id")
+        .eq("staff_id", staff_id)
+        .is_("deleted_at", "null")
+        .gte("scheduled_at", start_at)
+        .lt("scheduled_at", end_at)
+        .order("scheduled_at")
+        .execute()
+        .data
+    )
+    rows = [r for r in rows if r["status"] in _LIVE_APPOINTMENT_STATUSES]
+    if not rows:
+        return []
+    patients = {
+        p["id"]: p
+        for p in db.table("patients")
+        .select("id, full_name, phone")
+        .in_("id", list({r["patient_id"] for r in rows}))
+        .execute()
+        .data
+    }
+    return [
+        ConflictingAppointment(
+            id=r["id"],
+            scheduled_at=r["scheduled_at"],
+            status=r["status"],
+            patient_name=patients.get(r["patient_id"], {}).get("full_name", "—"),
+            patient_phone=patients.get(r["patient_id"], {}).get("phone"),
+        )
+        for r in rows
+    ]
+
+
+@router.get("/leaves", response_model=list[MyLeave])
+def my_leaves(
+    scope: StaffScope = Depends(get_staff_scope),
+    _current: CurrentStaff = Depends(get_current_staff),
+    db: Client = Depends(get_supabase),
+):
+    """My own time off, upcoming first.
+
+    Needs no permission for the same reason /me/branches doesn't: when you are
+    away is your own record. Past leave is dropped — the list is for planning,
+    not history.
+    """
+    rows = (
+        db.table("doctor_leaves")
+        .select("*")
+        .eq("staff_id", scope.staff_id)
+        .gte("end_at", datetime.now(timezone.utc).isoformat())
+        .order("start_at")
+        .execute()
+        .data
+    )
+    return [
+        MyLeave(**r, conflicts=_leave_conflicts(db, scope.staff_id, r["start_at"], r["end_at"]))
+        for r in rows
+    ]
+
+
+@router.post("/leaves", response_model=MyLeave)
+def create_my_leave(
+    payload: MyLeaveCreate,
+    scope: StaffScope = Depends(get_staff_scope),
+    _current: CurrentStaff = Depends(get_current_staff),
+    db: Client = Depends(get_supabase),
+):
+    """Register my own time off and close the booking window it covers.
+
+    `doctor_leaves` already fed the slot generator and the alerts service, but
+    had no way in — leave could only be typed straight into the database, so in
+    practice patients kept getting booked onto doctors who weren't there.
+
+    Blocking slots normally needs slot.manage, which a doctor doesn't hold.
+    Ownership stands in for it here, exactly as it does for advancing a ticket
+    in your own queue: these are the caller's own slots and nobody else's.
+    """
+    if payload.end_at <= payload.start_at:
+        raise HTTPException(status_code=400, detail="وقت النهاية لازم يكون بعد وقت البداية")
+    if payload.end_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="ما بتقدر تسجّل إجازة بتاريخ مضى")
+
+    start_at, end_at = payload.start_at.isoformat(), payload.end_at.isoformat()
+    leave = (
+        db.table("doctor_leaves")
+        .insert(
+            {
+                "staff_id": scope.staff_id,
+                "start_at": start_at,
+                "end_at": end_at,
+                "reason": payload.reason,
+                "leave_type": payload.leave_type,
+            }
+        )
+        .execute()
+        .data[0]
+    )
+    blocked = block_slots_for_leave(db, scope.staff_id, leave["id"], start_at, end_at)
+    return MyLeave(
+        **leave,
+        slots_blocked=blocked,
+        conflicts=_leave_conflicts(db, scope.staff_id, start_at, end_at),
+    )
+
+
+@router.delete("/leaves/{leave_id}")
+def cancel_my_leave(
+    leave_id: UUID,
+    scope: StaffScope = Depends(get_staff_scope),
+    _current: CurrentStaff = Depends(get_current_staff),
+    db: Client = Depends(get_supabase),
+):
+    rows = db.table("doctor_leaves").select("staff_id").eq("id", str(leave_id)).limit(1).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="الإجازة غير موجودة")
+    if rows[0]["staff_id"] != scope.staff_id:
+        raise HTTPException(status_code=403, detail="هاي الإجازة مو إلك")
+
+    reopened = unblock_slots_for_leave(db, str(leave_id))
+    db.table("doctor_leaves").delete().eq("id", str(leave_id)).execute()
+    return {"deleted": True, "slots_reopened": reopened}

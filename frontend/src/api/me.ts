@@ -138,3 +138,34 @@ export type MyToday = {
 };
 
 export const getMyToday = () => api.get<MyToday>("/me/today").then((res) => res.data);
+
+export type ConflictingAppointment = {
+  id: string;
+  scheduled_at: string;
+  patient_name: string;
+  patient_phone: string | null;
+  status: string;
+};
+
+export type MyLeave = {
+  id: string;
+  start_at: string;
+  end_at: string;
+  reason: string | null;
+  leave_type: "planned" | "emergency";
+  created_at: string;
+  slots_blocked: number;
+  conflicts: ConflictingAppointment[];
+};
+
+export const getMyLeaves = () => api.get<MyLeave[]>("/me/leaves").then((res) => res.data);
+
+export const createMyLeave = (body: {
+  start_at: string;
+  end_at: string;
+  reason?: string;
+  leave_type: "planned" | "emergency";
+}) => api.post<MyLeave>("/me/leaves", body).then((res) => res.data);
+
+export const cancelMyLeave = (id: string) =>
+  api.delete<{ deleted: boolean; slots_reopened: number }>(`/me/leaves/${id}`).then((res) => res.data);

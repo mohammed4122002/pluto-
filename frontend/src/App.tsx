@@ -29,6 +29,7 @@ import { MyPatientsPage } from "./pages/workspace/MyPatientsPage";
 import { MyServicesPage } from "./pages/workspace/MyServicesPage";
 import { TodayPage } from "./pages/workspace/TodayPage";
 import { AccountPage } from "./pages/workspace/AccountPage";
+import { ReceptionDeskPage } from "./pages/workspace/ReceptionDeskPage";
 import { LoginPage } from "./pages/LoginPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
@@ -164,6 +165,43 @@ const adminGroups: readonly NavGroup[] = [
 // resolves its own names.
 const SELF_SCOPED_ROLES = new Set(["doctor"]);
 
+const deskTab: Tab = {
+  key: "desk",
+  label: "الاستقبال",
+  Icon: QueueIcon,
+  Component: ReceptionDeskPage,
+  requires: "appointment.view",
+};
+
+// Reception was the last role still living in a permission-filtered slice of
+// the admin dashboard: a 22-item nav where most entries are configuration it
+// never touches, and its actual day -- see who's due, check them in -- split
+// across the appointments table and the queue screen. This is the same move
+// the doctor workspace made, for the role that uses the system most.
+const receptionGroups: readonly NavGroup[] = [
+  {
+    label: null,
+    items: [deskTab, inboxTab],
+  },
+  {
+    label: "الحجز والجدولة",
+    items: [
+      { key: "appointments", label: "المواعيد", Icon: AppointmentIcon, Component: AppointmentsPage, requires: "appointment.view" },
+      { key: "calendar", label: "التقويم", Icon: CalendarIcon, Component: CalendarPage, requires: "slot.view" },
+      { key: "queue", label: "الطابور", Icon: QueueIcon, Component: QueuePage, requires: "queue.view" },
+      { key: "waitlist", label: "قائمة الانتظار", Icon: WaitlistIcon, Component: WaitlistPage, requires: "waitlist.view" },
+    ],
+  },
+  {
+    label: "المرضى والدفع",
+    items: [
+      { key: "patients", label: "المرضى", Icon: PatientIcon, Component: PatientsPage, requires: "patient.view" },
+      { key: "payments", label: "المدفوعات", Icon: PaymentIcon, Component: PaymentsPage, requires: "payment.view" },
+      { key: "packages", label: "الباقات", Icon: PackageIcon, Component: PackagesPage, requires: "package.view" },
+    ],
+  },
+];
+
 const workspaceGroups: readonly NavGroup[] = [
   {
     label: null,
@@ -195,7 +233,8 @@ function firstName(fullName: string) {
 
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
   const isSelfScoped = SELF_SCOPED_ROLES.has(staff.role);
-  const groups = isSelfScoped ? workspaceGroups : adminGroups;
+  const isReception = staff.role === "receptionist";
+  const groups = isSelfScoped ? workspaceGroups : isReception ? receptionGroups : adminGroups;
   const allTabs = groups.flatMap((g) => g.items);
 
   const allows = (t: Tab) => t.requires === "" || staff.permissions.includes(t.requires);
@@ -209,7 +248,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   // Each role lands on the summary built for it: "يومي" is the personal one
   // (my queue, my day, my escalations) and "الرئيسية" is the clinic-wide one,
   // which calls endpoints a self-scoped role can't reach.
-  const [tab, setTab] = useState<string>(isSelfScoped ? "today" : "home");
+  const [tab, setTab] = useState<string>(isSelfScoped ? "today" : isReception ? "desk" : "home");
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
   const [menuOpen, setMenuOpen] = useState(false);

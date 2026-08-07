@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getMyCalendar } from "../../api/me";
 import type { MyCalendarAppointment, MyCalendarDay, MyCalendarSlot } from "../../api/me";
 import { errorMessage } from "../../api/errors";
+import { MyLeavePanel } from "./MyLeavePanel";
 
 const slotStatusLabel: Record<string, string> = {
   available: "متاح",
@@ -181,6 +182,8 @@ export function MyCalendarPage() {
           </tbody>
         </table>
       )}
+
+      <MyLeavePanel onChanged={load} />
     </div>
   );
 }

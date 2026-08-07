@@ -11,7 +11,12 @@ from types import SimpleNamespace
 
 class _Query:
     def __init__(self, rows: list[dict]):
+        # A shallow copy of the list, but the dicts themselves are shared with
+        # the table -- an update through one query is visible to the next,
+        # which is what makes a write-then-read assertion mean anything.
         self._rows = list(rows)
+        self._pending_update: dict | None = None
+        self._pending_delete = False
 
     def select(self, *_columns):
         return self
@@ -49,13 +54,34 @@ class _Query:
         self.inserted = rows if isinstance(rows, list) else [rows]
         return self
 
+    def update(self, values: dict):
+        # supabase-py puts the verb before the filters
+        # (.update({...}).eq("id", x)), so the change is recorded here and
+        # applied to whatever survives filtering at execute() time.
+        self._pending_update = values
+        return self
+
+    def delete(self):
+        self._pending_delete = True
+        return self
+
     def execute(self):
+        if self._pending_update is not None:
+            for row in self._rows:
+                row.update(self._pending_update)
+        elif self._pending_delete:
+            for row in self._rows:
+                row["__deleted__"] = True
         return SimpleNamespace(data=self._rows)
 
 
 class FakeSupabase:
     """`tables` maps table name -> list of row dicts. Inserts are recorded on
-    `.inserts` so a test can assert on what a call *wrote*, not just read."""
+    `.inserts` so a test can assert on what a call *wrote*, not just read.
+
+    Rows are shared, not copied, so an update through one query is visible to
+    the next — which is what makes a create-then-read assertion mean anything.
+    """
 
     def __init__(self, tables: dict[str, list[dict]]):
         self._tables = tables

@@ -25,6 +25,7 @@ from app.routers import (
     payments,
     queue,
     recalls,
+    reception,
     reports,
     search,
     services,
@@ -82,6 +83,7 @@ app.include_router(patients.router)
 app.include_router(payments.router)
 app.include_router(queue.router)
 app.include_router(recalls.router)
+app.include_router(reception.router)
 app.include_router(reports.router)
 app.include_router(search.router)
 app.include_router(services.router)

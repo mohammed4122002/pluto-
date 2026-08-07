@@ -1385,3 +1385,73 @@ class MyToday(BaseModel):
     completed_appointments: int = 0
     conversations: list[MyTodayConversation] = []
     needs_attention_count: int = 0
+
+
+LeaveType = Literal["planned", "emergency"]
+
+
+class MyLeaveCreate(BaseModel):
+    start_at: datetime
+    end_at: datetime
+    reason: str | None = None
+    leave_type: LeaveType = "planned"
+
+
+class ConflictingAppointment(BaseModel):
+    id: UUID
+    scheduled_at: datetime
+    patient_name: str
+    patient_phone: str | None = None
+    status: AppointmentStatus
+
+
+class MyLeave(BaseModel):
+    id: UUID
+    start_at: datetime
+    end_at: datetime
+    reason: str | None = None
+    leave_type: LeaveType
+    created_at: datetime
+    slots_blocked: int = 0
+    # Appointments already booked inside the window. Filing leave doesn't
+    # cancel them — that needs appointment.cancel and a human deciding whether
+    # to reschedule or hand them to a substitute — so they're surfaced here
+    # instead of silently left for someone to discover on the day.
+    conflicts: list[ConflictingAppointment] = []
+
+
+# --- reception front desk ----------------------------------------------------
+
+
+class DeskArrival(BaseModel):
+    appointment_id: UUID
+    scheduled_at: datetime
+    duration_minutes: int
+    status: AppointmentStatus
+    patient_id: UUID
+    patient_name: str
+    patient_phone: str | None = None
+    doctor_name: str | None = None
+    service_name: str | None = None
+    confirmation_code: str | None = None
+    checked_in: bool = False
+    ticket_number: int | None = None
+    queue_status: QueueTicketStatus | None = None
+
+
+class ReceptionDesk(BaseModel):
+    """Everything the front desk needs for one branch on one day, in one call.
+
+    The desk's whole job is the check-in loop, and doing it from the
+    appointments table meant hunting a row, then a second screen for the queue
+    it fed. Both sides live here together."""
+
+    date: date
+    branch_id: UUID | None = None
+    arrivals: list[DeskArrival] = []
+    expected_count: int = 0
+    checked_in_count: int = 0
+    waiting_count: int = 0
+    in_progress_count: int = 0
+    done_count: int = 0
+    needs_attention_count: int = 0
