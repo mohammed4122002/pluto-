@@ -21,6 +21,7 @@ import { CouponsPage } from "./pages/CouponsPage";
 import { CancellationPoliciesPage } from "./pages/CancellationPoliciesPage";
 import { EscalationStaffPage } from "./pages/EscalationStaffPage";
 import { BotPerformancePage } from "./pages/BotPerformancePage";
+import { WeeklyReportPage } from "./pages/WeeklyReportPage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
 import { SetupWizard } from "./pages/SetupWizard";
 import { MyQueuePage } from "./pages/workspace/MyQueuePage";
@@ -58,6 +59,7 @@ import {
   HomeIcon,
   MenuIcon,
   UserIcon,
+  ReportIcon,
 } from "./icons";
 import "./App.css";
 
@@ -149,6 +151,7 @@ const adminGroups: readonly NavGroup[] = [
       },
       { key: "ai-settings", label: "إعدادات الذكاء الاصطناعي", Icon: AiIcon, Component: AiSettingsPage, requires: "ai_settings.view" },
       { key: "bot-performance", label: "أداء المساعد الذكي", Icon: AiIcon, Component: BotPerformancePage, requires: "bot_performance.view" },
+      { key: "weekly-report", label: "التقرير الأسبوعي", Icon: ReportIcon, Component: WeeklyReportPage, requires: "bot_performance.view" },
       { key: "import", label: "استيراد بيانات", Icon: ImportIcon, Component: ImportPage, requires: "import.execute" },
     ],
   },
