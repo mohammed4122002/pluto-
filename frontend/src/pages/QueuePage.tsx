@@ -3,8 +3,8 @@ import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
-import { listStaff } from "../api/staff";
-import type { Staff } from "../api/staff";
+import { listStaffDirectory } from "../api/staff";
+import type { StaffDirectoryEntry } from "../api/staff";
 import { callTicket, completeTicket, listQueues, listQueueTickets, skipTicket, startTicket } from "../api/queue";
 import type { Queue, QueueTicket } from "../api/queue";
 
@@ -23,7 +23,7 @@ function todayIso() {
 export function QueuePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [doctors, setDoctors] = useState<Staff[]>([]);
+  const [doctors, setDoctors] = useState<StaffDirectoryEntry[]>([]);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [selectedQueue, setSelectedQueue] = useState<string>("");
   const [tickets, setTickets] = useState<QueueTicket[]>([]);
@@ -38,7 +38,7 @@ export function QueuePage() {
     // today's. Computed fresh on every load, so it's always "today" without
     // anyone having to pick a date.
     const today = todayIso();
-    Promise.all([listBranches(), listPatients(), listStaff(), listQueues(undefined, today)])
+    Promise.all([listBranches(), listPatients(), listStaffDirectory(), listQueues(undefined, today)])
       .then(([branchList, patientList, staffList, queueList]) => {
         setBranches(branchList);
         setPatients(patientList);

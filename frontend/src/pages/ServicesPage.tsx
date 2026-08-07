@@ -4,8 +4,8 @@ import { addServiceDoctor, createService, listServices, removeServiceDoctor, upd
 import type { Service, ServiceCreate } from "../api/services";
 import { listSpecialties } from "../api/specialties";
 import type { Specialty } from "../api/specialties";
-import { listStaff } from "../api/staff";
-import type { Staff } from "../api/staff";
+import { listStaffDirectory } from "../api/staff";
+import type { StaffDirectoryEntry } from "../api/staff";
 
 const emptyForm: ServiceCreate = {
   name: "",
@@ -19,7 +19,7 @@ const emptyForm: ServiceCreate = {
 export function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [doctors, setDoctors] = useState<Staff[]>([]);
+  const [doctors, setDoctors] = useState<StaffDirectoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ServiceCreate>(emptyForm);
@@ -30,7 +30,7 @@ export function ServicesPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listServices(), listSpecialties(), listStaff()])
+    Promise.all([listServices(), listSpecialties(), listStaffDirectory()])
       .then(([serviceList, specialtyList, staffList]) => {
         setServices(serviceList);
         setSpecialties(specialtyList);

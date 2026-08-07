@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
-import { listStaff } from "../api/staff";
-import type { Staff } from "../api/staff";
+import { listStaffDirectory } from "../api/staff";
+import type { StaffDirectoryEntry } from "../api/staff";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
 import { listAppointments, rescheduleAppointment } from "../api/appointments";
@@ -33,7 +33,7 @@ function todayIso() {
 
 export function CalendarPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [doctors, setDoctors] = useState<Staff[]>([]);
+  const [doctors, setDoctors] = useState<StaffDirectoryEntry[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [branchId, setBranchId] = useState("");
@@ -56,7 +56,7 @@ export function CalendarPage() {
   const draggedAppointmentId = useRef<string | null>(null);
 
   useEffect(() => {
-    Promise.all([listBranches(), listStaff(), listPatients(), listServices()]).then(([b, s, p, sv]) => {
+    Promise.all([listBranches(), listStaffDirectory(), listPatients(), listServices()]).then(([b, s, p, sv]) => {
       setBranches(b);
       setDoctors(s.filter((x) => x.role === "doctor"));
       setPatients(p);

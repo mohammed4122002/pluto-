@@ -41,6 +41,22 @@ export type StaffUpdate = Partial<Omit<StaffCreate, "branch_ids" | "specialty_id
 
 export const listStaff = () => api.get<Staff[]>("/staff").then((res) => res.data);
 
+/** A colleague's name and role, nothing else. Booking screens and the queue
+ * need the doctor list but not the personnel file, and only the personnel
+ * file needs staff.view — reception holds none of it, so calling listStaff()
+ * from a booking screen 403'd the whole page. */
+export type StaffDirectoryEntry = {
+  id: string;
+  full_name: string;
+  role: StaffRole;
+  is_active: boolean;
+};
+
+export const listStaffDirectory = (role?: StaffRole) =>
+  api
+    .get<StaffDirectoryEntry[]>("/staff/directory", { params: role ? { role } : {} })
+    .then((res) => res.data);
+
 export const createStaff = (payload: StaffCreate) =>
   api.post<Staff>("/staff", payload).then((res) => res.data);
 

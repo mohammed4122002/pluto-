@@ -1487,3 +1487,18 @@ class NotificationSchedule(BaseModel):
 class NotificationScheduleUpdate(BaseModel):
     offset_minutes: int | None = None
     is_active: bool | None = None
+
+
+class StaffDirectoryEntry(BaseModel):
+    """A colleague's name, for screens that have to show or pick one.
+
+    Deliberately not `Staff`: no email, phone, branch assignments, specialty
+    links or Telegram state. Those are staff *records* and stay behind
+    staff.view. Who works here and what they do is the org chart, which every
+    signed-in colleague can already see by walking down the corridor.
+    """
+
+    id: UUID
+    full_name: str
+    role: StaffRole
+    is_active: bool = True

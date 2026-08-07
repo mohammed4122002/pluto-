@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.core.auth import CurrentStaff, get_current_staff  # noqa: E402
 from app.core.database import get_supabase  # noqa: E402
 from app.routers import me, reception  # noqa: E402
+from app.routers import staff as staff_router  # noqa: E402
 from tests.fake_supabase import FakeSupabase  # noqa: E402
 
 DOCTOR = "44444444-4444-4444-8444-444444444444"
@@ -32,7 +33,12 @@ APPT_LIVE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 APPT_CANCELLED = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 OTHER_LEAVE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
-TOMORROW = datetime.now(timezone.utc) + timedelta(days=1)
+# Anchored to a fixed hour, not "now + a day": the desk filters by UTC day, so
+# a fixture built from the current clock silently pushed the later appointments
+# into the next day whenever the suite ran in the evening.
+TOMORROW = (datetime.now(timezone.utc) + timedelta(days=1)).replace(
+    hour=6, minute=0, second=0, microsecond=0
+)
 DAY_AFTER = TOMORROW + timedelta(days=1)
 
 
@@ -65,7 +71,8 @@ def _db() -> FakeSupabase:
                  "status": "cancelled", "service_id": None, "confirmation_code": None, "deleted_at": None},
             ],
             "patients": [{"id": PATIENT, "full_name": "محمد سعادة", "phone": "+962795550001"}],
-            "staff": [{"id": DOCTOR, "full_name": "د. سارة الخطيب"}],
+            "staff": [{"id": DOCTOR, "full_name": "د. سارة الخطيب", "role": "doctor",
+                       "is_active": True, "deleted_at": None}],
             "services": [],
             "queues": [],
             "queue_tickets": [],
@@ -181,3 +188,31 @@ def test_desk_refuses_a_branch_the_caller_has_no_access_to():
 def test_desk_requires_appointment_view():
     client, _ = _client(reception.router, {}, role="receptionist")
     assert client.get("/reception/desk").status_code == 403
+
+
+# --- staff directory ---------------------------------------------------------
+#
+# Booking screens need the doctor list; only the personnel file needs
+# staff.view. Reception holds none of it, so calling GET /staff from a booking
+# screen 403'd the whole page -- the queue, the calendar and the appointments
+# table all went blank for the role that uses them most.
+
+
+def test_directory_works_without_staff_view():
+    client, _ = _client(staff_router.router, {"appointment.view": {BRANCH}}, role="receptionist")
+    res = client.get("/staff/directory")
+    assert res.status_code == 200
+    assert [s["full_name"] for s in res.json()] == ["د. سارة الخطيب"]
+
+
+def test_directory_exposes_names_and_nothing_else():
+    """The response model is the enforcement: anything that makes a staff row
+    sensitive stays behind staff.view on GET /staff."""
+    client, _ = _client(staff_router.router, {}, role="receptionist")
+    entry = client.get("/staff/directory").json()[0]
+    assert set(entry) == {"id", "full_name", "role", "is_active"}
+
+
+def test_full_staff_list_still_needs_staff_view():
+    client, _ = _client(staff_router.router, {"appointment.view": {BRANCH}}, role="receptionist")
+    assert client.get("/staff").status_code == 403

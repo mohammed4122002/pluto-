@@ -11,7 +11,15 @@ from app.core.config import get_settings
 from app.core.database import get_supabase
 from app.core.rbac import sync_legacy_role
 from app.core.security import decrypt_secret, encrypt_secret, hash_password
-from app.models.schemas import MyTelegramBotStatus, SetPasswordRequest, Staff, StaffBotTokenUpdate, StaffCreate, StaffUpdate
+from app.models.schemas import (
+    MyTelegramBotStatus,
+    SetPasswordRequest,
+    Staff,
+    StaffBotTokenUpdate,
+    StaffCreate,
+    StaffDirectoryEntry,
+    StaffUpdate,
+)
 from app.services.slots import block_future_available_slots, generate_slots_for_doctor
 
 router = APIRouter(prefix="/staff", tags=["staff"])
@@ -108,6 +116,32 @@ def list_staff(
     if role:
         staff = [s for s in staff if s["role"] == role]
     return _attach_all(db, staff)
+
+
+@router.get("/directory", response_model=list[StaffDirectoryEntry])
+def staff_directory(
+    role: str | None = None,
+    _current: CurrentStaff = Depends(get_current_staff),
+    db: Client = Depends(get_supabase),
+):
+    """Names of colleagues, for the screens that have to render or pick one.
+
+    Booking an appointment, reading a queue, or showing which doctors provide a
+    service all need the doctor list — but every one of those screens was
+    calling GET /staff, which requires staff.view. Reception holds none of it,
+    so three of its own screens 403'd on first paint and rendered nothing:
+    exactly the failure the doctor workspace was built to end, still live for
+    the role that uses this system most.
+
+    Needs no permission beyond being signed in, for the same reason
+    /me/branches doesn't: this is the org chart, not the personnel file. The
+    response model is the enforcement — id, name, role, active. Everything
+    that makes a staff row sensitive stays on GET /staff behind staff.view.
+    """
+    query = db.table("staff").select("id, full_name, role, is_active").is_("deleted_at", "null")
+    if role:
+        query = query.eq("role", role)
+    return query.order("full_name").execute().data
 
 
 @router.post("", response_model=Staff)

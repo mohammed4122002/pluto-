@@ -4,8 +4,8 @@ import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
-import { listStaff } from "../api/staff";
-import type { Staff } from "../api/staff";
+import { listStaffDirectory } from "../api/staff";
+import type { StaffDirectoryEntry } from "../api/staff";
 import { listServices } from "../api/services";
 import type { Service } from "../api/services";
 import {
@@ -121,7 +121,7 @@ type ActionPanel = { appointmentId: string; kind: "reschedule" | "cancel" | "no_
 export function AppointmentsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
+  const [staff, setStaff] = useState<StaffDirectoryEntry[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +142,7 @@ export function AppointmentsPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listBranches(), listPatients(), listStaff(), listServices(), listAppointments()])
+    Promise.all([listBranches(), listPatients(), listStaffDirectory(), listServices(), listAppointments()])
       .then(([branchList, patientList, staffList, serviceList, appointmentList]) => {
         setBranches(branchList);
         setPatients(patientList);
