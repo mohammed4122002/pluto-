@@ -30,6 +30,17 @@ export function SearchIcon({ className }: IconProps) {
   );
 }
 
+export function ReportIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 20h16" />
+      <path d="M7 20v-6" />
+      <path d="M12 20V8" />
+      <path d="M17 20v-10" />
+    </svg>
+  );
+}
+
 export function HomeIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
