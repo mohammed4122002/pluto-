@@ -1385,3 +1385,36 @@ class MyToday(BaseModel):
     completed_appointments: int = 0
     conversations: list[MyTodayConversation] = []
     needs_attention_count: int = 0
+
+
+class NotificationTemplate(BaseModel):
+    id: UUID
+    code: str
+    channel_type: str
+    language: str
+    subject: str | None = None
+    body_template: str
+    is_active: bool
+
+
+class NotificationTemplateUpdate(BaseModel):
+    body_template: str | None = None
+    is_active: bool | None = None
+
+
+class NotificationSchedule(BaseModel):
+    id: UUID
+    template_id: UUID
+    trigger_type: str
+    # Sign carries meaning, not just magnitude: before_appointment schedules
+    # are always negative (minutes before scheduled_at), after_appointment
+    # always positive -- see services/notifications.get_due_reminders.
+    offset_minutes: int | None = None
+    status_trigger: str | None = None
+    is_active: bool
+    template: NotificationTemplate
+
+
+class NotificationScheduleUpdate(BaseModel):
+    offset_minutes: int | None = None
+    is_active: bool | None = None
