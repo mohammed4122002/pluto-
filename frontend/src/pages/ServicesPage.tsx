@@ -14,6 +14,19 @@ const emptyForm: ServiceCreate = {
   price: undefined,
   specialty_id: undefined,
   doctor_ids: [],
+  deposit_amount: undefined,
+  prep_instructions: "",
+  required_documents: "",
+  min_age: undefined,
+  patient_gender_restriction: undefined,
+  approval_requirement: "none",
+};
+
+const approvalLabels: Record<string, string> = {
+  none: "بدون موافقة مسبقة",
+  doctor: "موافقة الطبيب",
+  admin: "موافقة الإدارة",
+  previous_visit: "نتيجة تحليل/زيارة سابقة",
 };
 
 export function ServicesPage() {
@@ -151,6 +164,48 @@ export function ServicesPage() {
           </option>
         ))}
       </select>
+      <input
+        type="number"
+        placeholder="مبلغ مقدم (Deposit)"
+        value={form.deposit_amount ?? ""}
+        onChange={(e) => setForm({ ...form, deposit_amount: e.target.value ? Number(e.target.value) : undefined })}
+      />
+      <input
+        type="number"
+        placeholder="الحد الأدنى للعمر"
+        value={form.min_age ?? ""}
+        onChange={(e) => setForm({ ...form, min_age: e.target.value ? Number(e.target.value) : undefined })}
+      />
+      <select
+        value={form.patient_gender_restriction ?? ""}
+        onChange={(e) => setForm({ ...form, patient_gender_restriction: (e.target.value || undefined) as "male" | "female" | undefined })}
+      >
+        <option value="">بدون تقييد جنس</option>
+        <option value="male">ذكور فقط</option>
+        <option value="female">إناث فقط</option>
+      </select>
+      <select
+        value={form.approval_requirement ?? "none"}
+        onChange={(e) => setForm({ ...form, approval_requirement: e.target.value as ServiceCreate["approval_requirement"] })}
+      >
+        {Object.entries(approvalLabels).map(([code, label]) => (
+          <option key={code} value={code}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <input
+        placeholder="تعليمات التحضير قبل الموعد"
+        value={form.prep_instructions ?? ""}
+        onChange={(e) => setForm({ ...form, prep_instructions: e.target.value })}
+        style={{ minWidth: 260 }}
+      />
+      <input
+        placeholder="المستندات المطلوبة"
+        value={form.required_documents ?? ""}
+        onChange={(e) => setForm({ ...form, required_documents: e.target.value })}
+        style={{ minWidth: 220 }}
+      />
       <button type="submit" disabled={saving}>
         {saving ? "..." : "إضافة خدمة"}
       </button>

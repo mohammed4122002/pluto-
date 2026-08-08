@@ -164,6 +164,10 @@ class SpecialtyCreate(BaseModel):
     name_en: str
 
 
+ApprovalRequirement = Literal["none", "doctor", "admin", "previous_visit"]
+PatientGenderRestriction = Literal["male", "female"]
+
+
 class Service(BaseModel):
     id: UUID
     name: str
@@ -173,6 +177,12 @@ class Service(BaseModel):
     specialty_id: UUID | None = None
     is_active: bool = True
     doctor_ids: list[UUID] = []
+    deposit_amount: float | None = None
+    prep_instructions: str | None = None
+    required_documents: str | None = None
+    min_age: int | None = None
+    patient_gender_restriction: PatientGenderRestriction | None = None
+    approval_requirement: ApprovalRequirement = "none"
 
 
 class ServiceCreate(BaseModel):
@@ -182,6 +192,12 @@ class ServiceCreate(BaseModel):
     price: float | None = None
     specialty_id: UUID | None = None
     doctor_ids: list[UUID] = []
+    deposit_amount: float | None = None
+    prep_instructions: str | None = None
+    required_documents: str | None = None
+    min_age: int | None = None
+    patient_gender_restriction: PatientGenderRestriction | None = None
+    approval_requirement: ApprovalRequirement = "none"
 
 
 class ServiceUpdate(BaseModel):
@@ -191,6 +207,12 @@ class ServiceUpdate(BaseModel):
     price: float | None = None
     specialty_id: UUID | None = None
     is_active: bool | None = None
+    deposit_amount: float | None = None
+    prep_instructions: str | None = None
+    required_documents: str | None = None
+    min_age: int | None = None
+    patient_gender_restriction: PatientGenderRestriction | None = None
+    approval_requirement: ApprovalRequirement | None = None
 
 
 class Staff(BaseModel):
@@ -313,6 +335,14 @@ class SlotBookResult(BaseModel):
     appointment_id: UUID
 
 
+class VisitType(BaseModel):
+    id: UUID
+    code: str
+    name_ar: str
+    name_en: str
+    is_active: bool = True
+
+
 class AppointmentCreate(BaseModel):
     branch_id: UUID
     patient_id: UUID
@@ -324,6 +354,12 @@ class AppointmentCreate(BaseModel):
     notes: str | None = None
     reason_for_visit: str | None = None
     priority: Literal["normal", "urgent", "emergency"] = "normal"
+    # FR-BKG-009 (visit mode: in-person/telemedicine/home visit) and
+    # FR-BKT-016 (booking from a referral) -- both already had columns on
+    # `appointments` with nothing in the API ever setting them.
+    visit_type_id: UUID | None = None
+    referral_source: str | None = None
+    room_id: UUID | None = None
 
 
 class Appointment(AppointmentCreate):
@@ -344,6 +380,55 @@ class Appointment(AppointmentCreate):
     no_show_flag: bool = False
     slot_id: UUID | None = None
     patient_package_id: UUID | None = None
+    # Server-generated (see create_appointment / create_linked_appointments) --
+    # never client-set on a single booking.
+    meeting_link: str | None = None
+    recurrence_id: UUID | None = None
+    parent_appointment_id: UUID | None = None
+
+
+# FR-BKT-009/010/011/012/013/014: group sessions, family-sequential bookings,
+# multi-service visits, plain sequential appointments, recurring appointments,
+# and screening campaigns are all the same underlying shape -- several
+# appointments created together, sharing a recurrence_id, that differ only in
+# how their times are laid out. One endpoint with a `link_mode` covers all six
+# instead of a bespoke table and screen per booking "type" the spec names.
+class BulkBookingItem(BaseModel):
+    patient_id: UUID
+    service_id: UUID | None = None
+    staff_id: UUID | None = None
+    duration_minutes: int | None = None
+    reason_for_visit: str | None = None
+    notes: str | None = None
+
+
+BulkBookingLinkMode = Literal["sequential", "same_time", "recurring_weekly", "recurring_biweekly", "recurring_monthly"]
+
+
+class BulkBookingRequest(BaseModel):
+    branch_id: UUID
+    link_mode: BulkBookingLinkMode
+    start_at: datetime
+    items: list[BulkBookingItem]
+    # recurring_* modes repeat `items[0]` this many times instead of reading
+    # further entries from `items` (a recurring series is one patient/service,
+    # not a list of different people).
+    occurrences: int | None = None
+    visit_type_id: UUID | None = None
+    # Tag for FR-BKT-014 (screening campaign) -- prefixed onto each booking's
+    # notes so it's visible on the appointment without a new campaigns table.
+    campaign_name: str | None = None
+
+
+class BulkBookingResultItem(BaseModel):
+    ok: bool
+    appointment: Appointment | None = None
+    error: str | None = None
+
+
+class BulkBookingResult(BaseModel):
+    recurrence_id: UUID
+    results: list[BulkBookingResultItem]
 
 
 class AppointmentStatusUpdate(BaseModel):

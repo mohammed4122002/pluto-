@@ -1,5 +1,7 @@
 import { api } from "./client";
 
+export type ApprovalRequirement = "none" | "doctor" | "admin" | "previous_visit";
+
 export type Service = {
   id: string;
   name: string;
@@ -9,6 +11,12 @@ export type Service = {
   specialty_id: string | null;
   is_active: boolean;
   doctor_ids: string[];
+  deposit_amount: number | null;
+  prep_instructions: string | null;
+  required_documents: string | null;
+  min_age: number | null;
+  patient_gender_restriction: "male" | "female" | null;
+  approval_requirement: ApprovalRequirement;
 };
 
 export type ServiceCreate = {
@@ -18,6 +26,12 @@ export type ServiceCreate = {
   price?: number;
   specialty_id?: string;
   doctor_ids?: string[];
+  deposit_amount?: number;
+  prep_instructions?: string;
+  required_documents?: string;
+  min_age?: number;
+  patient_gender_restriction?: "male" | "female";
+  approval_requirement?: ApprovalRequirement;
 };
 
 export type ServiceUpdate = Partial<Omit<ServiceCreate, "doctor_ids">> & { is_active?: boolean };

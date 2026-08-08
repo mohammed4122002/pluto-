@@ -26,6 +26,19 @@ def generate_confirmation_code() -> str:
     return secrets.token_hex(3).upper()
 
 
+def meeting_link_for(db: Client, appointment_id: str, visit_type_id: str | None) -> str | None:
+    """FR-BKT-006 (telemedicine booking): a keyless Jitsi room, one per
+    appointment, generated the moment the visit is known to be video --
+    no video-platform account or integration needed for a link that only
+    has to get two people into the same room."""
+    if not visit_type_id:
+        return None
+    rows = db.table("visit_types").select("code").eq("id", visit_type_id).limit(1).execute().data
+    if not rows or rows[0]["code"] != "telemedicine":
+        return None
+    return f"https://meet.jit.si/pluto-{appointment_id}"
+
+
 def apply_status_transition(
     db: Client, appointment_id: str, new_status: str, reason: str | None, changed_by: str | None
 ) -> dict:

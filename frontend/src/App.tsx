@@ -9,6 +9,7 @@ import { ServicesPage } from "./pages/ServicesPage";
 import { StaffPage } from "./pages/StaffPage";
 import { PatientsPage } from "./pages/PatientsPage";
 import { AppointmentsPage } from "./pages/AppointmentsPage";
+import { LinkedBookingPage } from "./pages/LinkedBookingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AiSettingsPage } from "./pages/AiSettingsPage";
 import { ImportPage } from "./pages/ImportPage";
@@ -120,6 +121,7 @@ const adminGroups: readonly NavGroup[] = [
     items: [
       { key: "alerts", label: "التنبيهات", Icon: AlertIcon, Component: AlertsPage, requires: "payment.view" },
       { key: "appointments", label: "المواعيد", Icon: AppointmentIcon, Component: AppointmentsPage, requires: "appointment.view" },
+      { key: "linked-booking", label: "حجز مرتبط", Icon: AppointmentIcon, Component: LinkedBookingPage, requires: "appointment.create" },
       { key: "calendar", label: "التقويم", Icon: CalendarIcon, Component: CalendarPage, requires: "slot.view" },
       { key: "queue", label: "الطابور والانتظار", Icon: QueueIcon, Component: QueuePage, requires: "queue.view" },
       { key: "waitlist", label: "قائمة الانتظار", Icon: WaitlistIcon, Component: WaitlistPage, requires: "waitlist.view" },
@@ -199,6 +201,7 @@ const receptionGroups: readonly NavGroup[] = [
     label: "الحجز والجدولة",
     items: [
       { key: "appointments", label: "المواعيد", Icon: AppointmentIcon, Component: AppointmentsPage, requires: "appointment.view" },
+      { key: "linked-booking", label: "حجز مرتبط", Icon: AppointmentIcon, Component: LinkedBookingPage, requires: "appointment.create" },
       { key: "calendar", label: "التقويم", Icon: CalendarIcon, Component: CalendarPage, requires: "slot.view" },
       { key: "queue", label: "الطابور", Icon: QueueIcon, Component: QueuePage, requires: "queue.view" },
       { key: "waitlist", label: "قائمة الانتظار", Icon: WaitlistIcon, Component: WaitlistPage, requires: "waitlist.view" },

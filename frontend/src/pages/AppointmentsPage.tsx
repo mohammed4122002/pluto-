@@ -14,11 +14,12 @@ import {
   checkInByCode,
   createAppointment,
   listAppointments,
+  listVisitTypes,
   markNoShow,
   rescheduleAppointment,
   updateAppointmentStatus,
 } from "../api/appointments";
-import type { Appointment, AppointmentCreate, AppointmentStatus } from "../api/appointments";
+import type { Appointment, AppointmentCreate, AppointmentStatus, VisitType } from "../api/appointments";
 import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
 import { PatientPicker } from "../components/PatientPicker";
@@ -124,6 +125,7 @@ export function AppointmentsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [staff, setStaff] = useState<StaffDirectoryEntry[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,13 +145,14 @@ export function AppointmentsPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([listBranches(), listPatients(), listStaffDirectory(), listServices(), listAppointments()])
-      .then(([branchList, patientList, staffList, serviceList, appointmentList]) => {
+    Promise.all([listBranches(), listPatients(), listStaffDirectory(), listServices(), listAppointments(), listVisitTypes()])
+      .then(([branchList, patientList, staffList, serviceList, appointmentList, visitTypeList]) => {
         setBranches(branchList);
         setPatients(patientList);
         setStaff(staffList);
         setServices(serviceList);
         setAppointments(appointmentList);
+        setVisitTypes(visitTypeList);
         if (branchList.length > 0 && patientList.length > 0) {
           setForm((f) =>
             f ?? {
@@ -177,6 +180,7 @@ export function AppointmentsPage() {
     createAppointment(form)
       .then((appt) => {
         setAppointments((prev) => [...prev, appt]);
+        if (appt.meeting_link) setNotice(`تم الحجز — رابط الزيارة عن بعد: ${appt.meeting_link}`);
       })
       .catch((err) => setError(err.message))
       .finally(() => setSaving(false));
@@ -372,6 +376,24 @@ export function AppointmentsPage() {
             value={form.scheduled_at}
             onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
             required
+          />
+          <select
+            value={form.visit_type_id ?? ""}
+            onChange={(e) => setForm({ ...form, visit_type_id: e.target.value || undefined })}
+          >
+            <option value="">حضوري (افتراضي)</option>
+            {visitTypes
+              .filter((v) => v.code !== "in_person")
+              .map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name_ar}
+                </option>
+              ))}
+          </select>
+          <input
+            placeholder="مصدر الإحالة (اختياري)"
+            value={form.referral_source ?? ""}
+            onChange={(e) => setForm({ ...form, referral_source: e.target.value || undefined })}
           />
           <button type="submit" disabled={saving}>
             {saving ? "..." : "حجز موعد"}
