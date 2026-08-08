@@ -27,7 +27,11 @@ from app.services.channel_identity import (
     resolve_external_user_id,
     resolve_identity,
 )
-from app.services.escalation import auto_assign_conversation, send_escalation_alert
+from app.services.escalation import (
+    auto_assign_conversation,
+    relay_patient_message_to_assignee,
+    send_escalation_alert,
+)
 from app.services.payments import attach_receipt_from_inbound_media
 
 logger = logging.getLogger(__name__)
@@ -130,6 +134,15 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
         }
     ).execute()
     _touch_conversation(db, conversation_id, payload.message, "patient")
+
+    if mode == "human":
+        # The AI is standing down on this conversation, so nothing else would
+        # ever surface this message: /chat/reply returns immediately for
+        # mode=human, and answering once clears needs_attention. Without
+        # these two lines a handed-off patient can keep talking to a system
+        # that files every word and tells nobody.
+        db.table("conversations").update({"needs_attention": True}).eq("id", conversation_id).execute()
+        relay_patient_message_to_assignee(db, conversation_id, payload.message)
 
     if payload.media_type == "image" and payload.media_url and patient_id:
         # A photo sent right after being asked for a receipt — best-effort:

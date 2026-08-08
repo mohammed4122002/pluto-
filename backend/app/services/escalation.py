@@ -219,6 +219,58 @@ def broadcast_escalation_alert(db: Client, conversation_id: str, branch_id: str 
         return 0
 
 
+def relay_patient_message_to_assignee(db: Client, conversation_id: str, message_text: str) -> bool:
+    """Pushes a patient's follow-up message to whoever is already handling
+    this conversation.
+
+    The handoff used to be one-shot: the escalation alert fired once, and
+    every message the patient sent afterwards was filed in the database and
+    told nobody. Confirmed live -- a staff member answered a complaint from
+    Telegram, the patient replied "سوء معاملة" seconds later, and that reply
+    reached no one, so the conversation simply stopped. A handoff is a
+    conversation, not a single notification.
+
+    Goes to the assignee alone rather than the whole pool: somebody already
+    owns this one, and relaying every follow-up to everyone would bury the
+    alerts that do need a fresh pair of eyes. Falls back to the pool only
+    when nothing is assigned. Never raises -- a relay failure must not break
+    recording the patient's message, which is the part that must not be lost."""
+    try:
+        conv_rows = (
+            db.table("conversations")
+            .select("assigned_staff_id, channels(branch_id), patients(full_name)")
+            .eq("id", conversation_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if not conv_rows:
+            return False
+        conv = conv_rows[0]
+        staff_id = conv.get("assigned_staff_id")
+        if not staff_id:
+            branch_id = (conv.get("channels") or {}).get("branch_id")
+            return broadcast_escalation_alert(db, conversation_id, branch_id) > 0
+
+        staff_rows = db.table("staff").select("telegram_chat_id").eq("id", staff_id).limit(1).execute().data
+        chat_id = staff_rows[0].get("telegram_chat_id") if staff_rows else None
+        if not chat_id:
+            return False
+        token = _bot_token(db)
+        if not token:
+            return False
+
+        patient_name = ((conv.get("patients") or {}).get("full_name")) or "المريض"
+        # Deliberately lighter than the opening alert: they already have the
+        # context from that one, so repeating four turns of history on every
+        # follow-up would bury the new message itself.
+        message = f"رسالة جديدة من {patient_name}:\n{message_text}\n\nرُدّي (reply) على هذه الرسالة عشان يوصل ردك."
+        return _deliver_alert(db, conversation_id, staff_id, chat_id, token, message)
+    except Exception:
+        logger.exception("relay_patient_message_to_assignee failed for conversation_id=%s", conversation_id)
+        return False
+
+
 def auto_assign_conversation(db: Client, conversation_id: str) -> str | None:
     """Called whenever a conversation escalates to human (whatever the
     trigger -- keyword, turn limit, an AI provider failure). Best-effort:
