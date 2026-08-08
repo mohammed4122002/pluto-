@@ -86,10 +86,30 @@ def send_escalation_alert(db: Client, conversation_id: str, staff_id: str) -> No
         )
         patient = (conv_rows[0].get("patients") if conv_rows else None) or {}
         preview = (conv_rows[0].get("last_message_preview") if conv_rows else None) or ""
+
+        # A single "last message" is often the bot's own reply (e.g. an
+        # apology), not what the patient actually said -- next to useless
+        # for a staff member deciding how to respond to a complaint. The
+        # last few turns of actual back-and-forth give real context instead.
+        history_rows = (
+            db.table("messages")
+            .select("sender_type, content")
+            .eq("conversation_id", conversation_id)
+            .order("created_at", desc=True)
+            .limit(4)
+            .execute()
+            .data
+        )
+        history_rows.reverse()
+        sender_label = {"patient": "المريض", "ai": "المساعد الذكي", "staff": "الموظف"}
+        history_text = "\n".join(
+            f"- {sender_label.get(r['sender_type'], r['sender_type'])}: {r['content']}" for r in history_rows
+        ) or preview
+
         message = (
             f"محادثة جديدة محتاجة ردك\n"
-            f"المريض: {patient.get('full_name') or '—'} ({patient.get('phone') or '—'})\n"
-            f"آخر رسالة: {preview}\n\n"
+            f"المريض: {patient.get('full_name') or '—'} ({patient.get('phone') or '—'})\n\n"
+            f"آخر الرسائل:\n{history_text}\n\n"
             f"رُدّي (reply) على هذه الرسالة بالذات عشان يوصل ردك للمريض مباشرة."
         )
 
