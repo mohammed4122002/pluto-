@@ -1107,14 +1107,28 @@ class SetPasswordRequest(BaseModel):
     new_password: str
 
 
-class MyTelegramBotStatus(BaseModel):
+class StaffBotSettings(BaseModel):
+    """The one clinic-wide bot, admin-configured (settings/staff_bot_settings.py)."""
+
     configured: bool
     username: str | None = None
-    linked: bool = False
 
 
 class StaffBotTokenUpdate(BaseModel):
     token: str
+
+
+class TelegramLinkStatus(BaseModel):
+    """A single staff member's own link state against the shared bot."""
+
+    linked: bool
+    bot_username: str | None = None
+
+
+class TelegramLinkCode(BaseModel):
+    code: str
+    bot_username: str | None = None
+    expires_at: datetime
 
 
 class EscalationStaffMember(BaseModel):

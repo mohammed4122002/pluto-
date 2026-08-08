@@ -56,26 +56,23 @@ def _resolve_branch_id(db: Client, conversation_id: str) -> str | None:
 
 
 def send_escalation_alert(db: Client, conversation_id: str, staff_id: str) -> None:
-    """Best-effort: pushes a Telegram alert to the assignee directly via
-    their own bot (each staff member links their own, see
-    routers/staff.py::set_my_telegram_bot_token), and records the resulting
-    message_id so a later reply-to-that-message can be traced back to this
-    conversation (routers/staff_bot.py::_handle_reply). Never raises -- an
-    alert delivery hiccup must not break the escalation/assignment itself,
-    same reasoning as every other notification path in this codebase."""
+    """Best-effort: pushes a Telegram alert to the assignee directly via the
+    one shared clinic bot (see routers/staff_bot_settings.py -- every staff
+    member links their own chat_id to it individually, see
+    routers/staff.py::generate_my_telegram_link_code), and records the
+    resulting message_id so a later reply-to-that-message can be traced back
+    to this conversation (routers/staff_bot.py::_handle_reply). Never raises
+    -- an alert delivery hiccup must not break the escalation/assignment
+    itself, same reasoning as every other notification path in this codebase."""
     try:
-        staff_rows = (
-            db.table("staff")
-            .select("telegram_chat_id, telegram_bot_token_encrypted")
-            .eq("id", staff_id)
-            .limit(1)
-            .execute()
-            .data
-        )
-        staff_row = staff_rows[0] if staff_rows else {}
-        chat_id = staff_row.get("telegram_chat_id")
-        token_encrypted = staff_row.get("telegram_bot_token_encrypted")
-        if not chat_id or not token_encrypted:
+        staff_rows = db.table("staff").select("telegram_chat_id").eq("id", staff_id).limit(1).execute().data
+        chat_id = staff_rows[0].get("telegram_chat_id") if staff_rows else None
+        if not chat_id:
+            return
+
+        settings_rows = db.table("clinic_settings").select("staff_bot_token_encrypted").limit(1).execute().data
+        token_encrypted = settings_rows[0].get("staff_bot_token_encrypted") if settings_rows else None
+        if not token_encrypted:
             return
         token = decrypt_secret(token_encrypted)
 

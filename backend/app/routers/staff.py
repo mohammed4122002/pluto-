@@ -2,23 +2,21 @@ import secrets
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, get_current_staff, require_permission
-from app.core.config import get_settings
 from app.core.database import get_supabase
 from app.core.rbac import sync_legacy_role
-from app.core.security import decrypt_secret, encrypt_secret, hash_password
+from app.core.security import hash_password
 from app.models.schemas import (
-    MyTelegramBotStatus,
     SetPasswordRequest,
     Staff,
-    StaffBotTokenUpdate,
     StaffCreate,
     StaffDirectoryEntry,
     StaffUpdate,
+    TelegramLinkCode,
+    TelegramLinkStatus,
 )
 from app.services.slots import block_future_available_slots, generate_slots_for_doctor
 
@@ -346,92 +344,31 @@ def set_password(
     return {"password_set": True}
 
 
-@router.get("/me/telegram-bot", response_model=MyTelegramBotStatus)
-def get_my_telegram_bot(current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
-    rows = (
-        db.table("staff")
-        .select("telegram_bot_token_encrypted, telegram_bot_username, telegram_chat_id")
-        .eq("id", current.id)
-        .limit(1)
-        .execute()
-        .data
+@router.get("/me/telegram-link", response_model=TelegramLinkStatus)
+def get_my_telegram_link(current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
+    rows = db.table("staff").select("telegram_chat_id").eq("id", current.id).limit(1).execute().data
+    linked = bool(rows[0].get("telegram_chat_id")) if rows else False
+    settings_rows = db.table("clinic_settings").select("staff_bot_username").limit(1).execute().data
+    bot_username = settings_rows[0].get("staff_bot_username") if settings_rows else None
+    return TelegramLinkStatus(linked=linked, bot_username=bot_username)
+
+
+@router.post("/me/telegram-link-code", response_model=TelegramLinkCode)
+def generate_my_telegram_link_code(current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
+    """Self-service, no admin bottleneck for THIS step: the one shared bot is
+    configured once by an admin (routers/staff_bot_settings.py), but linking
+    a staff member's own chat to it needs no admin involvement at all -- they
+    generate their own one-time code here and send it to the bot themselves."""
+    settings_rows = (
+        db.table("clinic_settings").select("staff_bot_username, staff_bot_token_encrypted").limit(1).execute().data
     )
-    row = rows[0] if rows else {}
-    return MyTelegramBotStatus(
-        configured=bool(row.get("telegram_bot_token_encrypted")),
-        username=row.get("telegram_bot_username"),
-        linked=bool(row.get("telegram_chat_id")),
-    )
+    settings_row = settings_rows[0] if settings_rows else {}
+    if not settings_row.get("staff_bot_token_encrypted"):
+        raise HTTPException(status_code=409, detail="بوت التنبيهات لسا ما انربط من مدير النظام.")
 
-
-@router.post("/me/telegram-bot/token", response_model=MyTelegramBotStatus)
-def set_my_telegram_bot_token(
-    payload: StaffBotTokenUpdate,
-    current: CurrentStaff = Depends(get_current_staff),
-    db: Client = Depends(get_supabase),
-):
-    """Self-service, no admin bottleneck: any staff member creates their own
-    bot via BotFather and links it here. Validates the token against
-    Telegram, points Telegram's webhook at this staff member's own URL
-    (routers/staff_bot.py), and stores everything needed to talk back."""
-    token = payload.token.strip()
-    settings = get_settings()
-    if not settings.backend_public_url:
-        raise HTTPException(status_code=500, detail="BACKEND_PUBLIC_URL غير معرّف على السيرفر -- لازم يتضبط قبل ربط البوت")
-
-    try:
-        me_resp = httpx.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10)
-        me_data = me_resp.json()
-    except httpx.HTTPError:
-        raise HTTPException(status_code=400, detail="ما قدرت أتواصل مع تيليجرام -- جربي مرة تانية")
-    if not me_data.get("ok"):
-        raise HTTPException(status_code=400, detail="التوكن غير صحيح")
-    username = me_data["result"].get("username")
-
-    webhook_secret = secrets.token_hex(24)
-    try:
-        wh_resp = httpx.post(
-            f"https://api.telegram.org/bot{token}/setWebhook",
-            json={
-                "url": f"{settings.backend_public_url}/staff-bot/telegram-webhook/{current.id}",
-                "secret_token": webhook_secret,
-            },
-            timeout=10,
-        )
-        wh_data = wh_resp.json()
-    except httpx.HTTPError:
-        raise HTTPException(status_code=400, detail="التوكن صحيح بس ما قدرت أسجّل الـ webhook -- جربي مرة تانية")
-    if not wh_data.get("ok"):
-        raise HTTPException(status_code=400, detail=f"فشل تسجيل الـ webhook: {wh_data.get('description', '')}")
-
+    code = secrets.token_hex(4)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     db.table("staff").update(
-        {
-            "telegram_bot_token_encrypted": encrypt_secret(token),
-            "telegram_bot_username": username,
-            "telegram_bot_webhook_secret": webhook_secret,
-            # a new bot means the old chat_id (if any) belonged to a
-            # different bot and no longer receives anything
-            "telegram_chat_id": None,
-        }
+        {"telegram_link_code": code, "telegram_link_code_expires_at": expires_at.isoformat()}
     ).eq("id", current.id).execute()
-    return MyTelegramBotStatus(configured=True, username=username, linked=False)
-
-
-@router.delete("/me/telegram-bot/token", response_model=MyTelegramBotStatus)
-def remove_my_telegram_bot_token(current: CurrentStaff = Depends(get_current_staff), db: Client = Depends(get_supabase)):
-    rows = db.table("staff").select("telegram_bot_token_encrypted").eq("id", current.id).limit(1).execute().data
-    token_encrypted = rows[0].get("telegram_bot_token_encrypted") if rows else None
-    if token_encrypted:
-        try:
-            httpx.post(f"https://api.telegram.org/bot{decrypt_secret(token_encrypted)}/deleteWebhook", timeout=10)
-        except httpx.HTTPError:
-            pass
-    db.table("staff").update(
-        {
-            "telegram_bot_token_encrypted": None,
-            "telegram_bot_username": None,
-            "telegram_bot_webhook_secret": None,
-            "telegram_chat_id": None,
-        }
-    ).eq("id", current.id).execute()
-    return MyTelegramBotStatus(configured=False, username=None, linked=False)
+    return TelegramLinkCode(code=code, bot_username=settings_row.get("staff_bot_username"), expires_at=expires_at)
