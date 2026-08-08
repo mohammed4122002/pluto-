@@ -105,7 +105,7 @@ export const createAppointment = (payload: AppointmentCreate) =>
 export const updateAppointmentStatus = (id: string, status: AppointmentStatus) =>
   api.patch<Appointment>(`/appointments/${id}/status`, { status }).then((res) => res.data);
 
-export type CancelResult = { appointment: Appointment; fee_charged: number };
+export type CancelResult = { appointment: Appointment; fee_charged: number; refunded: number };
 export type CheckInResult = { appointment: Appointment; ticket: { id: string; queue_id: string; ticket_number: number } };
 
 export const rescheduleAppointment = (id: string, newSlotId: string, sessionId: string, reason?: string) =>

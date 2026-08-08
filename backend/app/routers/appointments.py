@@ -215,7 +215,7 @@ def cancel(
 ):
     assert_branch_access(current, "appointment.cancel", _appointment_branch_id(db, str(appointment_id)))
     result = cancel_appointment(db, str(appointment_id), payload.reason, payload.cancelled_by, current.id)
-    return CancelResult(appointment=result["appointment"], fee_charged=result["fee_charged"])
+    return CancelResult(appointment=result["appointment"], fee_charged=result["fee_charged"], refunded=result["refunded"])
 
 
 @router.post("/bulk-cancel", response_model=BulkCancelResult)
@@ -353,7 +353,7 @@ def mark_appointment_no_show(
     assert_branch_access(current, "appointment.update", _appointment_branch_id(db, str(appointment_id)))
     override = payload.override_grace_period and current.has_permission("appointment.override")
     result = mark_no_show(db, str(appointment_id), payload.reason, current.id, override)
-    return CancelResult(appointment=result["appointment"], fee_charged=result["fee_charged"])
+    return CancelResult(appointment=result["appointment"], fee_charged=result["fee_charged"], refunded=result["refunded"])
 
 
 @router.get("/no-show-rate", response_model=list[NoShowRateItem])

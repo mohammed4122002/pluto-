@@ -218,11 +218,18 @@ export function AppointmentsPage() {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
+  const settlementNotice = (label: string, result: { fee_charged: number; refunded: number }) => {
+    const parts: string[] = [];
+    if (result.fee_charged > 0) parts.push(`رسوم مطبّقة: ${result.fee_charged}`);
+    if (result.refunded > 0) parts.push(`تم استرجاع: ${result.refunded}`);
+    return parts.length ? `${label} — ${parts.join(" | ")}` : `${label} بدون رسوم.`;
+  };
+
   const submitCancel = (cancelledBy: "patient" | "clinic" | "doctor") => {
     if (!panel || !reasonText.trim()) return;
     cancelAppointment(panel.appointmentId, reasonText, cancelledBy)
       .then((result) => {
-        setNotice(result.fee_charged > 0 ? `تم الإلغاء — رسوم إلغاء مطبّقة: ${result.fee_charged}` : "تم إلغاء الموعد بدون رسوم.");
+        setNotice(settlementNotice("تم الإلغاء", result));
         closePanel();
         load();
       })
@@ -233,7 +240,7 @@ export function AppointmentsPage() {
     if (!panel || !reasonText.trim()) return;
     markNoShow(panel.appointmentId, reasonText)
       .then((result) => {
-        setNotice(result.fee_charged > 0 ? `تم تسجيل عدم الحضور — رسوم مطبّقة: ${result.fee_charged}` : "تم تسجيل عدم الحضور.");
+        setNotice(settlementNotice("تم تسجيل عدم الحضور", result));
         closePanel();
         load();
       })
