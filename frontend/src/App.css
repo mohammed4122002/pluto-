@@ -1823,6 +1823,16 @@ button.btn-danger:hover:not(:disabled) {
   opacity: 0.72;
 }
 
+/* An appointment from a past day that nobody closed out. Marked, not dimmed:
+   these need someone to act on them, so they should draw the eye rather than
+   recede like a settled row does.
+
+   The merged patient-name cell is excluded: it spans several rows, so tinting
+   it would colour the whole group when only one row in it is overdue. */
+.data-table tbody tr.row-overdue td:not(.merged-cell) {
+  background: var(--danger-bg);
+}
+
 /* ===========================================================================
    Staff workspace
    The screens a staff member lives in all day. They share one rhythm: a

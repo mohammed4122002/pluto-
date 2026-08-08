@@ -44,6 +44,7 @@ from app.services.scheduling import (
     cancel_appointment,
     check_in_appointment,
     create_linked_appointments,
+    expire_past_unconfirmed_appointments,
     handle_doctor_absence,
     mark_no_show,
     no_show_rate_report,
@@ -144,6 +145,16 @@ def list_visit_types(
     """FR-BKG-009: in-person / telemedicine / home visit -- picked once at
     booking time, drives whether a meeting_link gets generated."""
     return db.table("visit_types").select("*").eq("is_active", True).order("code").execute().data
+
+
+@router.post("/process-expired", dependencies=[Depends(require_service_token)])
+def process_expired(db: Client = Depends(get_supabase)):
+    """Called by an external scheduler (n8n Cron) to close out appointments
+    whose time passed while still unconfirmed -- same pattern as
+    /waitlist/process-expired and /notifications/process-due. Confirmed
+    appointments are never touched here; see
+    scheduling.py::expire_past_unconfirmed_appointments."""
+    return {"expired": expire_past_unconfirmed_appointments(db)}
 
 
 @router.post("/bulk", response_model=BulkBookingResult)
