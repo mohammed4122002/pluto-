@@ -79,7 +79,13 @@ def _handle_reply(db: Client, token: str, chat_id: str, reply_to_message_id: int
         )
         return
 
-    deliver_staff_reply(db, alert_rows[0]["conversation_id"], text)
+    conversation_id = alert_rows[0]["conversation_id"]
+    deliver_staff_reply(db, conversation_id, text)
+    # Escalation alerts go to the whole linked pool, so the colleague who
+    # actually answers is often not the one it was assigned to. Move
+    # ownership to them, otherwise the dashboard keeps showing a name that
+    # isn't handling this conversation.
+    db.table("conversations").update({"assigned_staff_id": staff_id}).eq("id", conversation_id).execute()
     _send_telegram_message(token, chat_id, "✅ انبعت للمريض.")
 
 
