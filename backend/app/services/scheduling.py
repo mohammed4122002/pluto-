@@ -5,7 +5,14 @@ from fastapi import HTTPException
 from postgrest.exceptions import APIError
 from supabase import Client
 
-from app.services.appointments import apply_status_transition, generate_appointment_number, generate_confirmation_code
+from uuid import uuid4
+
+from app.services.appointments import (
+    apply_status_transition,
+    generate_appointment_number,
+    generate_confirmation_code,
+    meeting_link_for,
+)
 from app.services.waitlist import offer_slot_to_top_candidate
 
 _ARRIVAL_EARLY_MINUTES = 15
@@ -604,3 +611,91 @@ def record_triage(db: Client, ticket_id: str, triage_level: str, triage_notes: s
         .execute()
         .data[0]
     )
+
+
+# Days added per occurrence for each recurring mode. "Monthly" is an
+# approximation (30 days, not calendar-month-aware) rather than pulling in a
+# date-arithmetic dependency for the one mode that needs it -- acceptable
+# here since a recurring clinical follow-up just needs to land roughly a
+# month out, not on the exact same day-of-month indefinitely.
+_RECURRING_STEP_DAYS = {"recurring_weekly": 7, "recurring_biweekly": 14, "recurring_monthly": 30}
+
+
+def create_linked_appointments(
+    db: Client,
+    branch_id: str,
+    link_mode: str,
+    start_at: datetime,
+    items: list[dict],
+    occurrences: int | None,
+    visit_type_id: str | None,
+    campaign_name: str | None,
+) -> tuple[str, list[dict]]:
+    """FR-BKT-009/010/011/012/013/014 in one shape: several appointments
+    created together, sharing a recurrence_id, differing only in how their
+    times are laid out --
+      sequential:  each item back-to-back, starting where the previous ended
+                   (family members, or several services in one visit).
+      same_time:   every item at start_at (a group/class session).
+      recurring_*: items[0] repeated `occurrences` times, spaced by mode.
+    One bad row (a conflict, a missing FK) fails only that row -- a family of
+    four shouldn't lose all four bookings because the third one collided."""
+    recurrence_id = str(uuid4())
+    results: list[dict] = []
+    previous_id: str | None = None
+
+    def _insert(item: dict, scheduled_at: datetime, parent_id: str | None) -> dict:
+        appt_id = str(uuid4())
+        data = {
+            "id": appt_id,
+            "branch_id": branch_id,
+            "patient_id": str(item["patient_id"]),
+            "service_id": str(item["service_id"]) if item.get("service_id") else None,
+            "staff_id": str(item["staff_id"]) if item.get("staff_id") else None,
+            "scheduled_at": scheduled_at.isoformat(),
+            "duration_minutes": item.get("duration_minutes") or 30,
+            "source": "dashboard",
+            "notes": f"[{campaign_name}] {item.get('notes') or ''}".strip() if campaign_name else item.get("notes"),
+            "reason_for_visit": item.get("reason_for_visit"),
+            "visit_type_id": visit_type_id,
+            "recurrence_id": recurrence_id,
+            "parent_appointment_id": parent_id,
+            "appointment_number": generate_appointment_number(),
+            "confirmation_code": generate_confirmation_code(),
+        }
+        row = db.table("appointments").insert(data).execute().data[0]
+        link = meeting_link_for(db, appt_id, visit_type_id)
+        if link:
+            row = db.table("appointments").update({"meeting_link": link}).eq("id", appt_id).execute().data[0]
+        return row
+
+    if link_mode in ("sequential", "same_time"):
+        cursor = start_at
+        for item in items:
+            try:
+                appt = _insert(item, start_at if link_mode == "same_time" else cursor, previous_id if link_mode == "sequential" else None)
+                results.append({"ok": True, "appointment": appt, "error": None})
+                previous_id = appt["id"]
+            except (APIError, HTTPException) as exc:
+                detail = exc.message if isinstance(exc, APIError) else str(exc.detail)
+                results.append({"ok": False, "appointment": None, "error": detail})
+            if link_mode == "sequential":
+                cursor = cursor + timedelta(minutes=item.get("duration_minutes") or 30)
+
+    elif link_mode in _RECURRING_STEP_DAYS:
+        item = items[0]
+        step = timedelta(days=_RECURRING_STEP_DAYS[link_mode])
+        cursor = start_at
+        for i in range(occurrences or 1):
+            try:
+                appt = _insert(item, cursor, previous_id)
+                results.append({"ok": True, "appointment": appt, "error": None})
+                previous_id = appt["id"]
+            except (APIError, HTTPException) as exc:
+                detail = exc.message if isinstance(exc, APIError) else str(exc.detail)
+                results.append({"ok": False, "appointment": None, "error": detail})
+            cursor = cursor + step
+    else:
+        raise HTTPException(status_code=400, detail=f"link_mode غير معروف: {link_mode}")
+
+    return recurrence_id, results

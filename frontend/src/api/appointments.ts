@@ -45,6 +45,10 @@ export type Appointment = {
   confirmation_code: string | null;
   payment_status: "unpaid" | "pending" | "paid" | "refunded" | "partial";
   no_show_flag: boolean;
+  visit_type_id: string | null;
+  referral_source: string | null;
+  meeting_link: string | null;
+  recurrence_id: string | null;
 };
 
 export type AppointmentCreate = {
@@ -55,7 +59,40 @@ export type AppointmentCreate = {
   scheduled_at: string;
   duration_minutes?: number;
   notes?: string;
+  visit_type_id?: string;
+  referral_source?: string;
 };
+
+export type VisitType = { id: string; code: string; name_ar: string; name_en: string };
+
+export const listVisitTypes = () => api.get<VisitType[]>("/appointments/visit-types").then((res) => res.data);
+
+export type BulkBookingItem = {
+  patient_id: string;
+  service_id?: string;
+  staff_id?: string;
+  duration_minutes?: number;
+  reason_for_visit?: string;
+  notes?: string;
+};
+
+export type BulkBookingLinkMode = "sequential" | "same_time" | "recurring_weekly" | "recurring_biweekly" | "recurring_monthly";
+
+export type BulkBookingRequest = {
+  branch_id: string;
+  link_mode: BulkBookingLinkMode;
+  start_at: string;
+  items: BulkBookingItem[];
+  occurrences?: number;
+  visit_type_id?: string;
+  campaign_name?: string;
+};
+
+export type BulkBookingResultItem = { ok: boolean; appointment: Appointment | null; error: string | null };
+export type BulkBookingResult = { recurrence_id: string; results: BulkBookingResultItem[] };
+
+export const bulkBookAppointments = (payload: BulkBookingRequest) =>
+  api.post<BulkBookingResult>("/appointments/bulk", payload).then((res) => res.data);
 
 export const listAppointments = (branchId?: string) =>
   api

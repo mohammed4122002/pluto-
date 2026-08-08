@@ -15,6 +15,8 @@ from app.models.schemas import (
     Appointment,
     AppointmentCreate,
     AppointmentStatusUpdate,
+    BulkBookingRequest,
+    BulkBookingResult,
     BulkCancelRequest,
     BulkCancelResult,
     CancelRequest,
@@ -27,6 +29,7 @@ from app.models.schemas import (
     MarkNoShowRequest,
     NoShowRateItem,
     RescheduleRequest,
+    VisitType,
     WalkInRequest,
     WalkInResult,
 )
@@ -34,11 +37,13 @@ from app.services.appointments import (
     apply_status_transition,
     generate_appointment_number,
     generate_confirmation_code,
+    meeting_link_for,
 )
 from app.services.scheduling import (
     bulk_cancel_appointments,
     cancel_appointment,
     check_in_appointment,
+    create_linked_appointments,
     handle_doctor_absence,
     mark_no_show,
     no_show_rate_report,
@@ -125,7 +130,46 @@ def create_appointment(
     data = payload.model_dump(mode="json")
     data["appointment_number"] = generate_appointment_number()
     data["confirmation_code"] = generate_confirmation_code()
-    return db.table("appointments").insert(data).execute().data[0]
+    created = db.table("appointments").insert(data).execute().data[0]
+    link = meeting_link_for(db, created["id"], str(payload.visit_type_id) if payload.visit_type_id else None)
+    if link:
+        created = db.table("appointments").update({"meeting_link": link}).eq("id", created["id"]).execute().data[0]
+    return created
+
+
+@router.get("/visit-types", response_model=list[VisitType])
+def list_visit_types(
+    _current: CurrentStaff = Depends(require_permission("appointment.view")), db: Client = Depends(get_supabase)
+):
+    """FR-BKG-009: in-person / telemedicine / home visit -- picked once at
+    booking time, drives whether a meeting_link gets generated."""
+    return db.table("visit_types").select("*").eq("is_active", True).order("code").execute().data
+
+
+@router.post("/bulk", response_model=BulkBookingResult)
+def bulk_book(
+    payload: BulkBookingRequest,
+    current: CurrentStaff = Depends(require_permission("appointment.create")),
+    db: Client = Depends(get_supabase),
+):
+    """FR-BKT-009/010/011/012/013/014: group sessions, family/sequential
+    bookings, multi-service visits, and recurring or campaign appointments --
+    see create_linked_appointments for how one `link_mode` covers all of
+    them. Partial success is expected and reported per item, not all-or-nothing."""
+    assert_branch_access(current, "appointment.create", str(payload.branch_id))
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="لازم يكون فيه عنصر واحد على الأقل")
+    recurrence_id, results = create_linked_appointments(
+        db,
+        str(payload.branch_id),
+        payload.link_mode,
+        payload.start_at,
+        [item.model_dump() for item in payload.items],
+        payload.occurrences,
+        str(payload.visit_type_id) if payload.visit_type_id else None,
+        payload.campaign_name,
+    )
+    return BulkBookingResult(recurrence_id=recurrence_id, results=results)
 
 
 @router.patch("/{appointment_id}/status", response_model=Appointment)
