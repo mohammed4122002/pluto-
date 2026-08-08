@@ -118,6 +118,32 @@ const statusBadgeClass: Record<AppointmentStatus, string> = {
   on_hold: "warning",
 };
 
+// Statuses that mean the visit is settled one way or another -- mirrors
+// _FINISHED_STATUSES in backend app/routers/me.py.
+const finishedStatuses = new Set<AppointmentStatus>([
+  "completed",
+  "checked_out",
+  "cancelled",
+  "cancelled_by_patient",
+  "cancelled_by_clinic",
+  "cancelled_by_doctor",
+  "no_show",
+  "rejected",
+  "expired",
+]);
+
+/** An appointment from a day that has already passed which nobody ever closed
+ * out. Deliberately measured in whole days rather than minutes: a patient
+ * turning up two hours late is an ordinary same-day arrival that staff still
+ * need to check in, whereas one from a previous day needs resolving, not
+ * checking in. */
+const isOverdue = (appt: Appointment) => {
+  if (finishedStatuses.has(appt.status)) return false;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return new Date(appt.scheduled_at) < startOfToday;
+};
+
 type ActionPanel = { appointmentId: string; kind: "reschedule" | "cancel" | "no_show" };
 
 export function AppointmentsPage() {
@@ -308,6 +334,7 @@ export function AppointmentsPage() {
   ).length;
   const confirmedCount = appointments.filter((a) => a.status === "confirmed" || a.status === "checked_in").length;
   const cancelledCount = appointments.filter((a) => a.status === "cancelled" || a.status === "no_show").length;
+  const overdueCount = appointments.filter(isOverdue).length;
 
   return (
     <div className="page">
@@ -343,6 +370,12 @@ export function AppointmentsPage() {
             <div className="stat-card-value">{cancelledCount}</div>
             <div className="stat-card-label">ملغاة/لم يحضر</div>
           </div>
+          {overdueCount > 0 && (
+            <div className="stat-card">
+              <div className="stat-card-value">{overdueCount}</div>
+              <div className="stat-card-label">متأخرة — بحاجة إنهاء</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -487,7 +520,7 @@ export function AppointmentsPage() {
 
               return group.items.map((appt, idx) => (
                 <Fragment key={appt.id}>
-                  <tr>
+                  <tr className={isOverdue(appt) ? "row-overdue" : undefined}>
                     <td>{nameOf(branches, appt.branch_id)}</td>
                     {idx === 0 && (
                       <td rowSpan={rowSpan} className={isMerged ? "merged-cell" : undefined}>
@@ -501,6 +534,7 @@ export function AppointmentsPage() {
                       <span className={`badge ${statusBadgeClass[appt.status]}`}>
                         {statusLabel[appt.status]}
                       </span>
+                      {isOverdue(appt) && <span className="badge danger">متأخر — بحاجة إنهاء</span>}
                     </td>
                     <td>
                       <select value={appt.status} onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}>
@@ -515,7 +549,10 @@ export function AppointmentsPage() {
                       {/* check_in/reschedule/cancel all need permissions doctors
                           don't have -- only status and no_show (appointment.update)
                           actually work for them. */}
-                      <button onClick={() => handleCheckIn(appt)}>تسجيل حضور</button>
+                      {/* Checking someone in for a day that has already passed
+                          isn't a real action -- what an overdue row needs is
+                          "لم يحضر" or "مكتمل", which stay available. */}
+                      {!isOverdue(appt) && <button onClick={() => handleCheckIn(appt)}>تسجيل حضور</button>}
                       <button onClick={() => openReschedule(appt)}>إعادة جدولة</button>
                       <button onClick={() => setPanel({ appointmentId: appt.id, kind: "cancel" })}>إلغاء</button>
                       <button onClick={() => setPanel({ appointmentId: appt.id, kind: "no_show" })}>لم يحضر</button>

@@ -171,6 +171,49 @@ def cancel_appointment(db: Client, appointment_id: str, reason: str, cancelled_b
     return {"appointment": updated, "fee_charged": fee, "refunded": settlement["refunded"]}
 
 
+# Exactly the statuses status_transitions allows to reach 'expired' -- and
+# the reason it allows only these is the one that matters here (see
+# expire_past_unconfirmed_appointments).
+_EXPIRABLE_STATUSES = ["requested", "pending_payment", "waitlisted"]
+
+
+def expire_past_unconfirmed_appointments(db: Client, changed_by: str | None = None) -> int:
+    """Closes out appointments whose time passed while they were still waiting
+    on a confirmation or payment that never came.
+
+    Only the never-confirmed statuses, because a lapsed unconfirmed booking
+    asserts nothing clinical or financial -- so a machine can safely close
+    it. A past *confirmed* appointment is a different question entirely (did
+    the patient turn up? is a no-show fee owed?) that only a human can
+    answer, so those are deliberately left for staff to resolve rather than
+    auto-charged or auto-recorded.
+
+    Slots are deliberately not released: the slot is in the past too, so
+    freeing it helps nobody, and offering it to a waitlist candidate would
+    mean offering an appointment that has already happened."""
+    now = datetime.now(timezone.utc).isoformat()
+    stale = (
+        db.table("appointments")
+        .select("id")
+        .lt("scheduled_at", now)
+        .is_("deleted_at", "null")
+        .in_("status", _EXPIRABLE_STATUSES)
+        .execute()
+        .data
+    )
+
+    expired = 0
+    for row in stale:
+        try:
+            apply_status_transition(db, row["id"], "expired", "انتهت صلاحية الموعد بدون تأكيد", changed_by)
+        except HTTPException:
+            # One row rejected by the transition table must not stop the rest
+            # of the backlog from being cleared.
+            continue
+        expired += 1
+    return expired
+
+
 def bulk_cancel_appointments(
     db: Client, branch_id: str | None, doctor_id: str | None, date_from: str, date_to: str, reason: str, changed_by: str | None
 ) -> int:
