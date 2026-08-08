@@ -177,6 +177,76 @@ def _compute_fee(policy: dict | None, price_base: float) -> float:
     return 0.0
 
 
+def _refund_collected_payment(db: Client, payment: dict, amount: float, already_refunded_before: float) -> None:
+    db.table("refunds").insert(
+        {
+            "payment_id": payment["id"],
+            "amount": amount,
+            "reason": "استرجاع تلقائي بعد إلغاء الموعد",
+            # No staff member is present in a chat-driven cancellation --
+            # NULL records that honestly instead of forcing a fake attribution.
+            "processed_by": None,
+        }
+    ).execute()
+    fully_refunded = already_refunded_before + amount >= payment["amount"]
+    new_status = "refunded" if fully_refunded else "partially_refunded"
+    db.table("payments").update({"status": new_status}).eq("id", payment["id"]).execute()
+    if fully_refunded and payment.get("patient_package_id"):
+        db.table("patient_packages").update({"status": "cancelled"}).eq(
+            "id", payment["patient_package_id"]
+        ).eq("status", "active").execute()
+
+
+def _settle_cancellation_fee(db: Client, appointment: dict, fee: float) -> dict:
+    """Mirrors backend/app/services/payments.py::settle_appointment_fee — nets
+    the fee against whatever the patient already paid for this appointment
+    instead of charging it as a brand-new bill next to an untouched deposit.
+    Kept as a separate copy because ai-services and backend are two
+    independently-deployed apps that don't share a Python package."""
+    collected = (
+        db.table("payments")
+        .select("*")
+        .eq("appointment_id", appointment["id"])
+        .in_("status", ["verified", "partially_refunded"])
+        .neq("payment_type", "cancellation_fee")
+        .execute()
+        .data
+    )
+
+    remaining_fee = round(fee, 2)
+    refunded_total = 0.0
+    currency = ""
+    for payment in collected:
+        currency = payment.get("currency") or currency
+        already_refunded = sum(
+            r["amount"] for r in db.table("refunds").select("amount").eq("payment_id", payment["id"]).execute().data
+        )
+        available = payment["amount"] - already_refunded
+        if available <= 0:
+            continue
+        refund_amount = round(max(available - remaining_fee, 0), 2)
+        remaining_fee = round(max(remaining_fee - available, 0), 2)
+        if refund_amount > 0:
+            _refund_collected_payment(db, payment, refund_amount, already_refunded)
+            refunded_total += refund_amount
+
+    if remaining_fee > 0:
+        branch = db.table("branches").select("currency").eq("id", appointment["branch_id"]).limit(1).execute().data
+        currency = currency or ((branch[0].get("currency") if branch else None) or "")
+        db.table("payments").insert(
+            {
+                "appointment_id": appointment["id"],
+                "patient_id": appointment["patient_id"],
+                "amount": remaining_fee,
+                "currency": currency,
+                "payment_type": "cancellation_fee",
+                "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ).execute()
+
+    return {"refunded": round(refunded_total, 2), "currency": currency}
+
+
 def cancel_patient_appointment(db: Client, *, appointment_id: str, patient_id: str, reason: str | None) -> dict:
     rows = db.table("appointments").select("*, services(price)").eq("id", appointment_id).limit(1).execute().data
     if not rows:
@@ -198,24 +268,16 @@ def cancel_patient_appointment(db: Client, *, appointment_id: str, patient_id: s
 
     _apply_status_transition(db, appointment_id, "cancelled_by_patient", reason)
 
-    currency = ""
-    if fee > 0:
-        branch = db.table("branches").select("currency").eq("id", appt["branch_id"]).limit(1).execute().data
-        currency = (branch[0].get("currency") if branch else None) or ""
-        db.table("payments").insert(
-            {
-                "appointment_id": appointment_id,
-                "patient_id": patient_id,
-                "amount": fee,
-                "currency": currency,
-                "payment_type": "cancellation_fee",
-                "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
-            }
-        ).execute()
+    settlement = _settle_cancellation_fee(db, appt, fee)
 
     if appt.get("slot_id"):
         db.table("slots").update({"status": "available", "held_until": None, "held_by_session": None}).eq(
             "id", appt["slot_id"]
         ).execute()
 
-    return {"fee": fee, "currency": currency, "appointment_number": appt.get("appointment_number")}
+    return {
+        "fee": fee,
+        "refunded": settlement["refunded"],
+        "currency": settlement["currency"],
+        "appointment_number": appt.get("appointment_number"),
+    }

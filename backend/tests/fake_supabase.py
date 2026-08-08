@@ -6,17 +6,24 @@ in-memory rows, so a test reads as "here are the rows, here is what the caller
 should be able to see" rather than as a pile of mocks.
 """
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
+from uuid import uuid4
 
 
 class _Query:
-    def __init__(self, rows: list[dict]):
+    def __init__(self, rows: list[dict], backing: list[dict] | None = None):
         # A shallow copy of the list, but the dicts themselves are shared with
         # the table -- an update through one query is visible to the next,
         # which is what makes a write-then-read assertion mean anything.
         self._rows = list(rows)
+        # The real, persistent table list -- insert() appends here so a
+        # later .table(name) call (a fresh _Query with its own _rows copy)
+        # sees the new row too, not just this one.
+        self._backing = backing if backing is not None else rows
         self._pending_update: dict | None = None
         self._pending_delete = False
+        self._pending_insert: list[dict] | None = None
 
     def select(self, *_columns):
         return self
@@ -37,6 +44,10 @@ class _Query:
         self._rows = [r for r in self._rows if r.get(column) in allowed]
         return self
 
+    def neq(self, column: str, value):
+        self._rows = [r for r in self._rows if r.get(column) != value]
+        return self
+
     def is_(self, column: str, value: str):
         if value == "null":
             self._rows = [r for r in self._rows if r.get(column) is None]
@@ -52,6 +63,7 @@ class _Query:
 
     def insert(self, rows):
         self.inserted = rows if isinstance(rows, list) else [rows]
+        self._pending_insert = self.inserted
         return self
 
     def update(self, values: dict):
@@ -66,6 +78,16 @@ class _Query:
         return self
 
     def execute(self):
+        if self._pending_insert is not None:
+            # Mirrors real Supabase: insert().execute().data is the row(s)
+            # just created (with a stand-in id if the caller didn't supply
+            # one), and they become visible to whatever queries this table
+            # next -- an insert-then-read in the same test means something.
+            for row in self._pending_insert:
+                row.setdefault("id", str(uuid4()))
+                row.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+            self._backing.extend(self._pending_insert)
+            return SimpleNamespace(data=self._pending_insert)
         if self._pending_update is not None:
             for row in self._rows:
                 row.update(self._pending_update)
@@ -99,7 +121,8 @@ class FakeSupabase:
         return _Query(self.rpc_results.get(name, []))
 
     def table(self, name: str):
-        query = _Query(self._tables.get(name, []))
+        backing = self._tables.setdefault(name, [])
+        query = _Query(backing, backing)
         original_insert = query.insert
 
         def insert(rows):

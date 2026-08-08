@@ -13,6 +13,7 @@ from app.services.appointments import (
     generate_confirmation_code,
     meeting_link_for,
 )
+from app.services.payments import settle_appointment_fee
 from app.services.waitlist import offer_slot_to_top_candidate
 
 _ARRIVAL_EARLY_MINUTES = 15
@@ -66,21 +67,6 @@ def _compute_fee(policy: dict | None, fee_kind: str, price_base: float) -> float
     if fee_type == "percentage":
         return round((price_base or 0) * fee_value / 100, 2)
     return 0.0
-
-
-def _charge_fee(db: Client, appointment: dict, fee: float) -> None:
-    branch = db.table("branches").select("currency").eq("id", appointment["branch_id"]).limit(1).execute().data
-    currency = (branch[0]["currency"] if branch else None) or ""
-    db.table("payments").insert(
-        {
-            "appointment_id": appointment["id"],
-            "patient_id": appointment["patient_id"],
-            "amount": fee,
-            "currency": currency,
-            "payment_type": "cancellation_fee",
-            "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
-        }
-    ).execute()
 
 
 def reschedule_appointment(
@@ -174,12 +160,15 @@ def cancel_appointment(db: Client, appointment_id: str, reason: str, cancelled_b
             fee = _compute_fee(policy, "cancellation", price)
 
     updated = apply_status_transition(db, appointment_id, new_status, reason, changed_by)
-    if fee > 0:
-        _charge_fee(db, appt, fee)
+    # Runs regardless of fee: a clinic/doctor-caused cancellation carries no
+    # fee but still owes an automatic full refund of whatever deposit was
+    # already collected -- it shouldn't take a staff member noticing and
+    # processing that refund by hand.
+    settlement = settle_appointment_fee(db, appt, fee, changed_by)
     if appt.get("slot_id"):
         release_slot_and_offer_waitlist(db, appt["slot_id"])
 
-    return {"appointment": updated, "fee_charged": fee}
+    return {"appointment": updated, "fee_charged": fee, "refunded": settlement["refunded"]}
 
 
 def bulk_cancel_appointments(
@@ -351,12 +340,11 @@ def mark_no_show(db: Client, appointment_id: str, reason: str | None, changed_by
     policy = _find_cancellation_policy(db, appt["branch_id"], appt.get("service_id"), appt.get("staff_id"))
     price = (appt.get("services") or {}).get("price") or 0
     fee = _compute_fee(policy, "no_show", price)
-    if fee > 0:
-        _charge_fee(db, appt, fee)
+    settlement = settle_appointment_fee(db, appt, fee, changed_by)
     if appt.get("slot_id"):
         release_slot_and_offer_waitlist(db, appt["slot_id"])
 
-    return {"appointment": updated, "fee_charged": fee}
+    return {"appointment": updated, "fee_charged": fee, "refunded": settlement["refunded"]}
 
 
 def no_show_rate_report(

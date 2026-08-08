@@ -255,7 +255,7 @@ def apply_coupon(db: Client, payment_id: str, code: str) -> dict:
     return updated
 
 
-def refund_payment(db: Client, payment_id: str, amount: float, reason: str, staff_id: str) -> dict:
+def refund_payment(db: Client, payment_id: str, amount: float, reason: str, staff_id: str | None) -> dict:
     payment = db.table("payments").select("*").eq("id", payment_id).limit(1).execute().data
     if not payment:
         raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
@@ -293,6 +293,121 @@ def refund_payment(db: Client, payment_id: str, amount: float, reason: str, staf
         ).eq("status", "active").execute()
 
     return refund
+
+
+_CANCELLATION_REFUND_TEMPLATE = (
+    "بخصوص موعدك رقم {{appointment_number}}: تم استرجاع {{amount}} {{currency}} من المبلغ المدفوع مسبقاً."
+)
+_CANCELLATION_NET_REFUND_TEMPLATE = (
+    "بخصوص موعدك رقم {{appointment_number}}: من المبلغ المدفوع مسبقاً، تم خصم رسوم إلغاء بقيمة "
+    "{{fee}} {{currency}} وتم استرجاع الباقي وقيمته {{amount}} {{currency}}."
+)
+_CANCELLATION_FEE_DUE_TEMPLATE = (
+    "بخصوص موعدك رقم {{appointment_number}}: يترتب عليك رسم إلغاء بقيمة {{fee}} {{currency}}."
+)
+_CANCELLATION_PARTIAL_FEE_DUE_TEMPLATE = (
+    "بخصوص موعدك رقم {{appointment_number}}: المبلغ المدفوع مسبقاً غطى جزءاً من رسم الإلغاء، "
+    "والمتبقي عليك {{fee}} {{currency}}."
+)
+
+
+def charge_cancellation_fee(db: Client, appointment: dict, fee: float) -> dict:
+    branch = db.table("branches").select("currency").eq("id", appointment["branch_id"]).limit(1).execute().data
+    currency = (branch[0]["currency"] if branch else None) or ""
+    return (
+        db.table("payments")
+        .insert(
+            {
+                "appointment_id": appointment["id"],
+                "patient_id": appointment["patient_id"],
+                "amount": fee,
+                "currency": currency,
+                "payment_type": "cancellation_fee",
+                "payment_instructions_sent_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        .execute()
+        .data[0]
+    )
+
+
+def settle_appointment_fee(db: Client, appointment: dict, fee: float, processed_by: str | None) -> dict:
+    """Nets a cancellation/no-show fee against whatever the patient already
+    paid for this appointment instead of stacking a brand-new charge next to
+    an untouched deposit. A JOD 10 deposit against a JOD 4 fee means a JOD 6
+    refund, not a JOD 4 bill sitting next to a forgotten JOD 10. Only the
+    shortfall becomes a new charge, only the surplus a refund -- and the
+    patient is told the exact number either way, automatically.
+
+    processed_by may be None: this runs from contexts with no staff member
+    present at all (the AI chatbot cancelling on the patient's behalf), and
+    that's a legitimate "settled automatically" attribution, not a bug."""
+    collected = (
+        db.table("payments")
+        .select("*")
+        .eq("appointment_id", appointment["id"])
+        .in_("status", ["verified", "partially_refunded"])
+        .neq("payment_type", "cancellation_fee")
+        .execute()
+        .data
+    )
+
+    remaining_fee = round(fee, 2)
+    refunded_total = 0.0
+    currency = ""
+    for payment in collected:
+        currency = payment.get("currency") or currency
+        already_refunded = sum(
+            r["amount"] for r in db.table("refunds").select("amount").eq("payment_id", payment["id"]).execute().data
+        )
+        available = payment["amount"] - already_refunded
+        if available <= 0:
+            continue
+        refund_amount = round(max(available - remaining_fee, 0), 2)
+        remaining_fee = round(max(remaining_fee - available, 0), 2)
+        if refund_amount > 0:
+            refund_payment(db, payment["id"], refund_amount, "استرجاع تلقائي بعد إلغاء/عدم حضور الموعد", processed_by)
+            refunded_total += refund_amount
+
+    if remaining_fee > 0:
+        charge_cancellation_fee(db, appointment, remaining_fee)
+        if not currency:
+            branch = db.table("branches").select("currency").eq("id", appointment["branch_id"]).limit(1).execute().data
+            currency = (branch[0]["currency"] if branch else None) or ""
+
+    refunded_total = round(refunded_total, 2)
+    _notify_patient_of_settlement(db, appointment, fee, remaining_fee, refunded_total, currency)
+
+    return {"fee_charged": fee, "fee_pending": remaining_fee, "refunded": refunded_total}
+
+
+def _notify_patient_of_settlement(
+    db: Client, appointment: dict, fee: float, fee_pending: float, refunded: float, currency: str
+) -> None:
+    if fee <= 0 and refunded <= 0:
+        return
+    if refunded > 0 and fee > 0:
+        template, ctx = _CANCELLATION_NET_REFUND_TEMPLATE, {"fee": fee - refunded if fee_pending else fee}
+    elif refunded > 0:
+        template, ctx = _CANCELLATION_REFUND_TEMPLATE, {}
+    elif fee_pending > 0 and fee_pending < fee:
+        template, ctx = _CANCELLATION_PARTIAL_FEE_DUE_TEMPLATE, {"fee": fee_pending}
+    else:
+        template, ctx = _CANCELLATION_FEE_DUE_TEMPLATE, {"fee": fee_pending}
+
+    channel = _resolve_channel_for_patient(db, appointment["patient_id"])
+    if not channel or not channel.get("outbound_webhook_url"):
+        return
+    message = render_template(
+        template,
+        {
+            "appointment_number": appointment.get("appointment_number", ""),
+            "amount": refunded,
+            "currency": currency,
+            **ctx,
+        },
+    )
+    _deliver(db, channel, appointment["patient_id"], message)
 
 
 def submit_receipt(db: Client, payment_id: str, receipt_image_url: str) -> dict:

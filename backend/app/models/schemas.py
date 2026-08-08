@@ -458,6 +458,7 @@ class CancelRequest(BaseModel):
 class CancelResult(BaseModel):
     appointment: Appointment
     fee_charged: float = 0
+    refunded: float = 0
 
 
 class BulkCancelRequest(BaseModel):
@@ -896,7 +897,7 @@ class AiProviderSettingsUpdate(BaseModel):
 
 PaymentMethodType = Literal["mobile_cash", "bank_transfer", "cash", "other"]
 PaymentStatus = Literal["pending", "receipt_submitted", "verified", "rejected", "refunded", "partially_refunded"]
-PaymentType = Literal["deposit", "full", "balance", "package"]
+PaymentType = Literal["deposit", "full", "balance", "package", "cancellation_fee"]
 
 
 class PaymentMethod(BaseModel):
@@ -961,7 +962,7 @@ class Refund(BaseModel):
     payment_id: UUID
     amount: float
     reason: str
-    processed_by: UUID
+    processed_by: UUID | None = None
     processed_at: datetime
 
 
