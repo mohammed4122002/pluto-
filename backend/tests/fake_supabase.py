@@ -28,7 +28,10 @@ class _Query:
     def select(self, *_columns):
         return self
 
-    def order(self, *_args, **_kwargs):
+    def order(self, column: str, desc: bool = False, **_kwargs):
+        # None-safe: a row missing the sort column shouldn't crash the
+        # comparison, just sort as if it were the smallest value.
+        self._rows = sorted(self._rows, key=lambda r: (r.get(column) is None, r.get(column)), reverse=desc)
         return self
 
     def limit(self, n: int):
