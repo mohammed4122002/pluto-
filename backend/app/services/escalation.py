@@ -12,18 +12,31 @@ def pick_escalation_assignee(db: Client, branch_id: str | None) -> str | None:
     """Whoever is on escalation duty for this branch (falling back to the
     branch_id=null "all branches" pool) with the fewest currently-open
     assigned conversations right now -- a stateless least-loaded pick
-    instead of tracking rotation state anywhere."""
+    instead of tracking rotation state anywhere.
+
+    Staff who have linked their Telegram chat are preferred over staff who
+    haven't. Load-balancing alone would happily hand a conversation to
+    someone who cannot be alerted at all: confirmed live, a complaint went
+    to the pool member who happened to be idle, whose chat was never linked,
+    so the alert was silently dropped while the busier-but-linked colleague
+    sat available. An unlinked pick is only ever a last resort -- when
+    nobody in the pool is linked, assigning someone still gives the
+    conversation an owner in the dashboard, which beats leaving it
+    unassigned entirely."""
     pool = (
         db.table("escalation_staff")
-        .select("staff_id, staff(is_active)")
+        .select("staff_id, staff(is_active, telegram_chat_id)")
         .eq("is_active", True)
         .or_(f"branch_id.eq.{branch_id},branch_id.is.null" if branch_id else "branch_id.is.null")
         .execute()
         .data
     )
-    candidate_ids = {row["staff_id"] for row in pool if (row.get("staff") or {}).get("is_active")}
-    if not candidate_ids:
+    active = [row for row in pool if (row.get("staff") or {}).get("is_active")]
+    if not active:
         return None
+
+    linked_ids = {row["staff_id"] for row in active if (row.get("staff") or {}).get("telegram_chat_id")}
+    candidate_ids = linked_ids or {row["staff_id"] for row in active}
 
     open_convos = (
         db.table("conversations")
