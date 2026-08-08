@@ -51,6 +51,14 @@ class _Query:
         self._rows = [r for r in self._rows if r.get(column) != value]
         return self
 
+    def or_(self, _filter_string: str):
+        """Accepted but not applied -- parsing PostgREST's or-filter grammar
+        ("branch_id.eq.x,branch_id.is.null") into Python predicates is a
+        chunk of work no current test needs. Tests using this must assert on
+        something other than which rows the or-filter would have excluded;
+        put only rows that should survive it in the fixture."""
+        return self
+
     def is_(self, column: str, value: str):
         if value == "null":
             self._rows = [r for r in self._rows if r.get(column) is None]
