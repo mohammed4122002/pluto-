@@ -288,6 +288,21 @@ export function AppointmentsPage() {
     const doctorName = nameOf(staff, appt.staff_id).toLowerCase();
     return patientName.includes(q) || doctorName.includes(q);
   });
+  // Same patient booking several visits is normal, but repeating her name on
+  // every consecutive row just makes the table noisy. Merge the "المريض"
+  // cell (Excel-style, via rowSpan) across a run of adjacent rows for the
+  // same patient instead -- purely a rendering grouping, the data underneath
+  // is unchanged and stays sorted exactly as the API returned it.
+  const appointmentGroups: { patientId: string; items: Appointment[] }[] = [];
+  for (const appt of filteredAppointments) {
+    const last = appointmentGroups[appointmentGroups.length - 1];
+    if (last && last.patientId === appt.patient_id) {
+      last.items.push(appt);
+    } else {
+      appointmentGroups.push({ patientId: appt.patient_id, items: [appt] });
+    }
+  }
+
   const todayCount = appointments.filter(
     (a) => new Date(a.scheduled_at).toDateString() === new Date().toDateString(),
   ).length;
@@ -457,42 +472,59 @@ export function AppointmentsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredAppointments.map((appt) => (
-              <Fragment key={appt.id}>
-                <tr>
-                  <td>{nameOf(branches, appt.branch_id)}</td>
-                  <td>{nameOf(patients, appt.patient_id)}</td>
-                  <td>{nameOf(staff, appt.staff_id)}</td>
-                  <td>{nameOf(services, appt.service_id)}</td>
-                  <td>{new Date(appt.scheduled_at).toLocaleString("ar-JO")}</td>
-                  <td>
-                    <span className={`badge ${statusBadgeClass[appt.status]}`}>
-                      {statusLabel[appt.status]}
-                    </span>
-                  </td>
-                  <td>
-                    <select value={appt.status} onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}>
-                      {statuses.map((s) => (
-                        <option key={s} value={s}>
-                          {statusLabel[s]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    {/* check_in/reschedule/cancel all need permissions doctors
-                        don't have -- only status and no_show (appointment.update)
-                        actually work for them. */}
-                    <button onClick={() => handleCheckIn(appt)}>تسجيل حضور</button>
-                    <button onClick={() => openReschedule(appt)}>إعادة جدولة</button>
-                    <button onClick={() => setPanel({ appointmentId: appt.id, kind: "cancel" })}>إلغاء</button>
-                    <button onClick={() => setPanel({ appointmentId: appt.id, kind: "no_show" })}>لم يحضر</button>
-                  </td>
-                </tr>
-                {panel?.appointmentId === appt.id && (
+            {appointmentGroups.map((group) => {
+              const isMerged = group.items.length > 1;
+              // rowSpan counts physical <tr> elements, and an open action
+              // panel inserts one -- so a span that opens mid-group has to
+              // grow by exactly the rows that are currently expanded within it.
+              const rowSpan = isMerged
+                ? group.items.length + group.items.filter((a) => panel?.appointmentId === a.id).length
+                : undefined;
+              // A panel row spans the full table width normally (colSpan=8),
+              // but inside a merged group the "المريض" column is already
+              // claimed by the spanning cell above, so it only has 7 left.
+              const panelColSpan = isMerged ? 7 : 8;
+
+              return group.items.map((appt, idx) => (
+                <Fragment key={appt.id}>
                   <tr>
-                    <td colSpan={8}>
-                      {panel.kind === "reschedule" && (
+                    <td>{nameOf(branches, appt.branch_id)}</td>
+                    {idx === 0 && (
+                      <td rowSpan={rowSpan} className={isMerged ? "merged-cell" : undefined}>
+                        {nameOf(patients, appt.patient_id)}
+                      </td>
+                    )}
+                    <td>{nameOf(staff, appt.staff_id)}</td>
+                    <td>{nameOf(services, appt.service_id)}</td>
+                    <td>{new Date(appt.scheduled_at).toLocaleString("ar-JO")}</td>
+                    <td>
+                      <span className={`badge ${statusBadgeClass[appt.status]}`}>
+                        {statusLabel[appt.status]}
+                      </span>
+                    </td>
+                    <td>
+                      <select value={appt.status} onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}>
+                        {statuses.map((s) => (
+                          <option key={s} value={s}>
+                            {statusLabel[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      {/* check_in/reschedule/cancel all need permissions doctors
+                          don't have -- only status and no_show (appointment.update)
+                          actually work for them. */}
+                      <button onClick={() => handleCheckIn(appt)}>تسجيل حضور</button>
+                      <button onClick={() => openReschedule(appt)}>إعادة جدولة</button>
+                      <button onClick={() => setPanel({ appointmentId: appt.id, kind: "cancel" })}>إلغاء</button>
+                      <button onClick={() => setPanel({ appointmentId: appt.id, kind: "no_show" })}>لم يحضر</button>
+                    </td>
+                  </tr>
+                  {panel?.appointmentId === appt.id && (
+                    <tr>
+                      <td colSpan={panelColSpan}>
+                        {panel.kind === "reschedule" && (
                         <div className="data-form">
                           <select value={selectedSlotId} onChange={(e) => setSelectedSlotId(e.target.value)}>
                             <option value="">اختر الموعد الجديد</option>
@@ -544,9 +576,10 @@ export function AppointmentsPage() {
                       )}
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
+                  )}
+                </Fragment>
+              ));
+            })}
             {filteredAppointments.length === 0 && (
               <tr>
                 <td colSpan={8} className="table-empty">

@@ -673,6 +673,16 @@ button.btn-secondary:hover:not(:disabled) {
   border-bottom: none;
 }
 
+/* Patient-name cell merged (rowSpan) across a run of consecutive
+   appointments for the same patient -- top-aligned since the cell is now
+   taller than one row, with a subtle background so the merged span reads as
+   one grouped block instead of just a tall plain cell. */
+.data-table td.merged-cell {
+  vertical-align: top;
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
 .data-table tbody tr {
   transition: background-color 0.12s ease;
 }
