@@ -8,6 +8,7 @@ import { listServices } from "../api/services";
 import type { Service } from "../api/services";
 import { createPackage, listPackages, listPatientPackages, sellPackage, usePackageSession } from "../api/packages";
 import type { Package, PatientPackage } from "../api/packages";
+import { PatientPicker } from "../components/PatientPicker";
 
 const statusLabel: Record<PatientPackage["status"], string> = {
   pending_payment: "بانتظار الدفع",
@@ -184,13 +185,10 @@ export function PackagesPage() {
         <>
           <h2>بيع باقة لمريض</h2>
           <form className="data-form" onSubmit={handleSell}>
-            <select value={sellForm.patient_id} onChange={(e) => setSellForm({ ...sellForm, patient_id: e.target.value })}>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}
-                </option>
-              ))}
-            </select>
+            <PatientPicker
+              value={sellForm.patient_id}
+              onChange={(patientId) => setSellForm({ ...sellForm, patient_id: patientId })}
+            />
             <select value={sellForm.package_id} onChange={(e) => setSellForm({ ...sellForm, package_id: e.target.value })}>
               {packages.map((pkg) => (
                 <option key={pkg.id} value={pkg.id}>

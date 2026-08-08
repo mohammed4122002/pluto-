@@ -13,6 +13,7 @@ import { listServices } from "../api/services";
 import type { Service } from "../api/services";
 import { listActivePatientPackages } from "../api/packages";
 import type { PatientPackage } from "../api/packages";
+import { PatientPicker } from "../components/PatientPicker";
 
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
@@ -276,14 +277,7 @@ export function CalendarPage() {
                     {s.status === "available" &&
                       (bookingSlotId === s.id ? (
                         <span className="setup-row" style={{ display: "inline-flex", gap: 6 }}>
-                          <select value={bookingPatientId} onChange={(e) => setBookingPatientId(e.target.value)}>
-                            <option value="">اختر المريض</option>
-                            {patients.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.full_name}
-                              </option>
-                            ))}
-                          </select>
+                          <PatientPicker value={bookingPatientId} onChange={setBookingPatientId} />
                           <select value={bookingServiceId} onChange={(e) => setBookingServiceId(e.target.value)}>
                             <option value="">اختر الخدمة</option>
                             {services

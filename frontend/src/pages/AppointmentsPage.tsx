@@ -21,6 +21,7 @@ import {
 import type { Appointment, AppointmentCreate, AppointmentStatus } from "../api/appointments";
 import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
+import { PatientPicker } from "../components/PatientPicker";
 
 // Every status status_transitions can actually produce (confirmed against
 // the live table) -- not just the handful this UI creates directly, since
@@ -340,13 +341,10 @@ export function AppointmentsPage() {
               </option>
             ))}
           </select>
-          <select value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })}>
-            {patients.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-          </select>
+          <PatientPicker
+            value={form.patient_id}
+            onChange={(patientId) => setForm({ ...form, patient_id: patientId })}
+          />
           <select
             value={form.staff_id ?? ""}
             onChange={(e) => setForm({ ...form, staff_id: e.target.value || undefined })}

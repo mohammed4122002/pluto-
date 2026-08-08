@@ -8,6 +8,7 @@ import { listServices } from "../api/services";
 import type { Service } from "../api/services";
 import { addToWaitlist, cancelWaitlistEntry, listWaitlist } from "../api/waitlist";
 import type { WaitlistCreate, WaitlistEntry } from "../api/waitlist";
+import { PatientPicker } from "../components/PatientPicker";
 
 const statusLabel: Record<WaitlistEntry["status"], string> = {
   active: "بانتظار موعد",
@@ -112,13 +113,10 @@ export function WaitlistPage() {
 
       {form && (
         <form className="data-form" onSubmit={handleAdd}>
-          <select value={form.patient_id} onChange={(e) => setForm({ ...form, patient_id: e.target.value })}>
-            {patients.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-          </select>
+          <PatientPicker
+            value={form.patient_id}
+            onChange={(patientId) => setForm({ ...form, patient_id: patientId })}
+          />
           <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>

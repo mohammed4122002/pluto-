@@ -38,6 +38,7 @@ import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
 import { getAttentionCount } from "./api/conversations";
 import { GlobalSearchBar } from "./components/GlobalSearchBar";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getToken, setToken, setUnauthorizedHandler } from "./api/client";
 import {
   InboxIcon,
@@ -361,6 +362,8 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           {canSearch && <GlobalSearchBar onNavigate={selectTab} isSelfScoped={isSelfScoped} />}
         </header>
         <main>
+          {/* Keyed by tab so navigating away from a crashed screen clears it. */}
+          <ErrorBoundary key={active.key}>
           {active.key === "home" ? (
             <HomePage staffName={firstName(staff.full_name)} onNavigate={selectTab} />
           ) : active.key === "today" ? (
@@ -372,6 +375,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
           ) : (
             Active && <Active />
           )}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

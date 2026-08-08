@@ -24,7 +24,7 @@ export function BotPerformancePage() {
 
   useEffect(load, []);
 
-  const aiChannelCount = report?.breakdown.by_channel.find((c) => c.channel === "ai_chat")?.count ?? 0;
+  const aiChannelCount = report?.breakdown?.by_channel?.find((c) => c.channel === "ai_chat")?.count ?? 0;
 
   return (
     <div className="page">

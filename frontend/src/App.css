@@ -2413,3 +2413,112 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+
+/* Patient picker — search, not scroll. The booking screens used to render
+   every patient into a <select>; the query now carries the term instead. */
+.patient-picker {
+  position: relative;
+  min-width: 240px;
+  flex: 1;
+}
+
+.patient-picker input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  color: var(--text-h);
+}
+
+.patient-picker input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.patient-picker-clear {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.patient-picker-clear:hover {
+  color: var(--danger);
+}
+
+.patient-picker-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  inset-inline-start: 0;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.patient-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-h);
+  text-align: start;
+  cursor: pointer;
+}
+
+.patient-picker-option:hover {
+  background: var(--accent-bg);
+}
+
+.patient-picker-phone {
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.patient-picker-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+}
+
+.crash-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.crash-details {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.crash-details code {
+  display: block;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  word-break: break-word;
+}
