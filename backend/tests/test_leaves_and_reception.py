@@ -216,3 +216,60 @@ def test_directory_exposes_names_and_nothing_else():
 def test_full_staff_list_still_needs_staff_view():
     client, _ = _client(staff_router.router, {"appointment.view": {BRANCH}}, role="receptionist")
     assert client.get("/staff").status_code == 403
+
+
+# --- patient paging ----------------------------------------------------------
+#
+# The scoping moved into `patients_for_staff` (0057). What stays in Python --
+# and so what's worth pinning here -- is which arguments the router hands it
+# and how it shapes the page back.
+
+
+def _patient_client(permissions: dict[str, set], role: str = "doctor"):
+    from app.routers import patients as patients_router
+
+    db = _db()
+    db.rpc_results["patients_for_staff"] = [
+        {"id": PATIENT, "full_name": "محمد سعادة", "phone": "+962795550001", "email": None,
+         "date_of_birth": None, "gender": None, "notes": None, "is_merged_into": None,
+         "tags": ["chronic"], "total_count": 137},
+    ]
+    return _client(patients_router.router, permissions, role=role, db=db)
+
+
+def test_patient_page_reports_the_unfiltered_total():
+    """The page carries the real total, so the caller can page without a
+    second count query -- and without loading the table to measure it."""
+    client, _ = _patient_client({"patient.view": {BRANCH}})
+    body = client.get("/patients", params={"limit": 1}).json()
+    assert body["total"] == 137
+    assert len(body["items"]) == 1
+    assert body["items"][0]["tags"] == ["chronic"]
+
+
+def test_patient_page_passes_scope_to_the_database():
+    client, db = _patient_client({"patient.view": {BRANCH}})
+    client.get("/patients", params={"search": "محمد", "limit": 25, "offset": 50})
+    name, params = db.rpc_calls[-1]
+    assert name == "patients_for_staff"
+    assert params["p_self_scoped"] is True          # doctor
+    assert params["p_branch_ids"] == [BRANCH]
+    assert params["p_search"] == "محمد"
+    assert (params["p_limit"], params["p_offset"]) == (25, 50)
+
+
+def test_receptionist_is_not_self_scoped_in_the_query():
+    client, db = _patient_client({"patient.view": {BRANCH}}, role="receptionist")
+    client.get("/patients")
+    assert db.rpc_calls[-1][1]["p_self_scoped"] is False
+
+
+def test_clinic_wide_grant_passes_no_branch_filter():
+    client, db = _patient_client({"patient.view": {None}}, role="receptionist")
+    client.get("/patients")
+    assert db.rpc_calls[-1][1]["p_branch_ids"] is None
+
+
+def test_page_size_is_capped():
+    client, _ = _patient_client({"patient.view": {BRANCH}})
+    assert client.get("/patients", params={"limit": 5000}).status_code == 422

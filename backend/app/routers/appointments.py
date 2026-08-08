@@ -1,8 +1,9 @@
 import io
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import qrcode
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from supabase import Client
 
@@ -55,17 +56,43 @@ def _appointment_branch_id(db: Client, appointment_id: str) -> str:
     return rows[0]["branch_id"]
 
 
+# Appointments are inherently time-bounded work: nobody opens the dashboard to
+# read every appointment the clinic has ever had. Without a window this
+# endpoint returned the whole table on every page load, which is survivable at
+# a few dozen rows and not at a few hundred thousand.
+_DEFAULT_WINDOW_BACK_DAYS = 30
+_DEFAULT_WINDOW_FORWARD_DAYS = 90
+
+
 @router.get("", response_model=list[Appointment])
 def list_appointments(
     branch_id: str | None = None,
     status: str | None = None,
     patient_id: str | None = None,
     staff_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = Query(default=500, ge=1, le=2000),
     current: CurrentStaff = Depends(require_permission("appointment.view")),
     scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
+    """Appointments in a time window, newest schedule first.
+
+    The window defaults to the last 30 days and the next 90 unless one is given
+    explicitly, or unless a single patient is asked for — one patient's whole
+    history is bounded by that patient, so it is safe to return in full.
+    """
     query = db.table("appointments").select("*").is_("deleted_at", "null").order("scheduled_at")
+
+    if date_from:
+        query = query.gte("scheduled_at", date_from)
+    if date_to:
+        query = query.lt("scheduled_at", date_to)
+    if not date_from and not date_to and not patient_id:
+        now = datetime.now(timezone.utc)
+        query = query.gte("scheduled_at", (now - timedelta(days=_DEFAULT_WINDOW_BACK_DAYS)).isoformat())
+        query = query.lt("scheduled_at", (now + timedelta(days=_DEFAULT_WINDOW_FORWARD_DAYS)).isoformat())
     if branch_id:
         assert_branch_access(current, "appointment.view", branch_id)
         query = query.eq("branch_id", branch_id)
@@ -87,7 +114,7 @@ def list_appointments(
         query = query.eq("staff_id", scope.staff_id)
     elif staff_id:
         query = query.eq("staff_id", staff_id)
-    return query.execute().data
+    return query.limit(limit).execute().data
 
 
 @router.post("", response_model=Appointment)

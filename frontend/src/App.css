@@ -2397,3 +2397,19 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .leave-list-main > .badge {
   align-self: flex-start;
 }
+
+/* Pager — server-side paging, so the counts describe the whole set, not the
+   rows that happen to be loaded. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.pager-status {
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}

@@ -3,11 +3,11 @@ import type { FormEvent } from "react";
 import {
   addPatientTag,
   createPatient,
-  listPatientTags,
-  listPatients,
+  listPatientPage,
   removePatientTag,
 } from "../api/patients";
 import type { Patient, PatientCreate, PatientDuplicate, PatientTagValue } from "../api/patients";
+import { errorMessage } from "../api/errors";
 
 const emptyForm: PatientCreate = { full_name: "", phone: "", email: "", notes: "", date_of_birth: "" };
 
@@ -44,6 +44,8 @@ function isMinor(dob: string | undefined): boolean {
   return age < 18;
 }
 
+const PAGE_SIZE = 50;
+
 export function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,25 +58,39 @@ export function PatientsPage() {
   const [phoneSearch, setPhoneSearch] = useState("");
   const [tagsByPatient, setTagsByPatient] = useState<Record<string, PatientTagValue[]>>({});
   const [addingTagFor, setAddingTagFor] = useState<string | null>(null);
-  const [nameFilter, setNameFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
 
+  // One page, tags included. This used to fetch every patient the caller could
+  // see and then issue a separate request per row for that row's tags -- 74
+  // requests today, one per patient at any size.
   const load = (phone?: string) => {
     setLoading(true);
     setError(null);
-    listPatients(phone)
-      .then((list) => {
-        setPatients(list);
-        list.forEach((p) => {
-          listPatientTags(p.id)
-            .then((tags) => setTagsByPatient((prev) => ({ ...prev, [p.id]: tags.map((t) => t.tag) })))
-            .catch(() => {});
-        });
+    const request = phone
+      ? listPatientPage({ search: undefined, limit: PAGE_SIZE, offset: 0 }).then((page) => ({
+          ...page,
+          items: page.items.filter((p) => p.phone === phone),
+        }))
+      : listPatientPage({ search: search.trim() || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+    request
+      .then((result) => {
+        setPatients(result.items);
+        setTotal(result.total);
+        setTagsByPatient(Object.fromEntries(result.items.map((p) => [p.id, p.tags])));
       })
-      .catch((err) => setError(err.response?.data?.detail ?? err.message))
+      .catch((err) => setError(errorMessage(err)))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => load(), []);
+  // Searching resets to the first page; paging keeps the term. Debounced so a
+  // name typed letter by letter is one query, not eight.
+  useEffect(() => {
+    const timer = setTimeout(() => load(), search ? 300 : 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, page]);
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -121,11 +137,9 @@ export function PatientsPage() {
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
-  const nq = nameFilter.trim().toLowerCase();
-  const filteredPatients = nq
-    ? patients.filter((p) => p.full_name.toLowerCase().includes(nq) || (p.phone ?? "").includes(nq))
-    : patients;
+  const filteredPatients = patients;
   const taggedCount = patients.filter((p) => (tagsByPatient[p.id] ?? []).length > 0).length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="page">
@@ -141,12 +155,12 @@ export function PatientsPage() {
       {!loading && (
         <div className="stat-grid">
           <div className="stat-card">
-            <div className="stat-card-value">{patients.length}</div>
+            <div className="stat-card-value">{total}</div>
             <div className="stat-card-label">إجمالي المرضى</div>
           </div>
           <div className="stat-card">
             <div className="stat-card-value">{taggedCount}</div>
-            <div className="stat-card-label">لديهم تصنيف</div>
+            <div className="stat-card-label">لديهم تصنيف (بهاي الصفحة)</div>
           </div>
         </div>
       )}
@@ -228,17 +242,18 @@ export function PatientsPage() {
         </div>
       )}
 
-      {!loading && patients.length > 0 && (
-        <div className="table-toolbar">
-          <div className="search-input">
-            <input
-              placeholder="فلترة سريعة بالاسم أو الهاتف (ضمن القائمة المحمّلة)..."
-              value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
-            />
-          </div>
+      <div className="table-toolbar">
+        <div className="search-input">
+          <input
+            placeholder="ابحث بالاسم أو الهاتف — بكل السجلات، مش بالصفحة الحالية..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+          />
         </div>
-      )}
+      </div>
 
       {loading ? (
         <table className="data-table skeleton-table">
@@ -309,12 +324,30 @@ export function PatientsPage() {
             {filteredPatients.length === 0 && (
               <tr>
                 <td colSpan={5} className="table-empty">
-                  ما في مرضى مطابقين للفلترة.
+                  {search ? "ما في مرضى مطابقين للبحث." : "ما في مرضى بعد."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      )}
+
+      {!loading && total > PAGE_SIZE && (
+        <div className="pager">
+          <button className="btn-secondary" disabled={page === 0} onClick={() => setPage((n) => n - 1)}>
+            السابق
+          </button>
+          <span className="pager-status">
+            صفحة {page + 1} من {pageCount} · {total} مريض
+          </span>
+          <button
+            className="btn-secondary"
+            disabled={page + 1 >= pageCount}
+            onClick={() => setPage((n) => n + 1)}
+          >
+            التالي
+          </button>
+        </div>
       )}
     </div>
   );

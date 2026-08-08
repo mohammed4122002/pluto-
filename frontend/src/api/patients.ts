@@ -60,8 +60,28 @@ export type PatientTagValue =
 
 export type PatientTag = { patient_id: string; tag: PatientTagValue; tagged_at: string };
 
+export type PatientListItem = Patient & { tags: PatientTagValue[] };
+
+export type PatientPage = {
+  items: PatientListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+/** A page of patients, with tags already attached — fetching those per row was
+ * one HTTP request per patient. Search and scoping both run in the database. */
+export const listPatientPage = (params: { search?: string; limit?: number; offset?: number } = {}) =>
+  api.get<PatientPage>("/patients", { params }).then((res) => res.data);
+
+/** Compatibility shim for the booking screens, which still render every patient
+ * into a <select>. Capped server-side, so a clinic past that many patients
+ * needs those pickers turned into search boxes — the list itself is no longer
+ * the thing that would fall over. */
 export const listPatients = (phone?: string) =>
-  api.get<Patient[]>("/patients", { params: phone ? { phone } : {} }).then((res) => res.data);
+  api
+    .get<PatientPage>("/patients", { params: phone ? { phone } : { limit: 200 } })
+    .then((res) => res.data.items);
 
 export const createPatient = (payload: PatientCreate) =>
   api.post<PatientCreateResult>("/patients", payload).then((res) => res.data);

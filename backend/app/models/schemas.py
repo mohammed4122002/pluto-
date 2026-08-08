@@ -1502,3 +1502,24 @@ class StaffDirectoryEntry(BaseModel):
     full_name: str
     role: StaffRole
     is_active: bool = True
+
+
+class PatientListItem(Patient):
+    """A patient as the list renders them. `tags` rides along because fetching
+    them per row was one browser request per patient."""
+
+    tags: list[PatientTagValue] = []
+
+
+class PatientPage(BaseModel):
+    """A page of patients plus the unfiltered total.
+
+    Every list endpoint used to return the whole table. That is fine at 74
+    patients and impossible at 74,000 — and the scoping that fed it shipped
+    every visible id through the URL, which breaks far earlier than that.
+    """
+
+    items: list[PatientListItem] = []
+    total: int = 0
+    limit: int
+    offset: int

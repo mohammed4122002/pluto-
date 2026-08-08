@@ -35,37 +35,30 @@ def _name_map(db: Client, ids: set[str]) -> dict[str, str]:
 
 
 def _search_patients(db: Client, current: CurrentStaff, scope: StaffScope, term: str) -> list[SearchPatientResult]:
+    """Search the patients this staff member may see.
+
+    Both the scoping and the matching happen in `patients_for_staff` (0057).
+    This used to pull every visible patient into the API process and filter
+    them in Python, on top of a scoping pass that read whole tables to build a
+    set of ids for an `in.(...)` URL filter — a shape that stops working around
+    a few hundred patients, well before the search itself is slow.
+    """
     if not current.has_permission("patient.view"):
         return []
 
-    query = db.table("patients").select("id, full_name, phone").is_("is_merged_into", "null").is_("deleted_at", "null")
+    rows = db.rpc(
+        "patients_for_staff",
+        {
+            "p_staff_id": scope.staff_id,
+            "p_branch_ids": allowed_branch_ids(current, "patient.view"),
+            "p_self_scoped": scope.is_self_scoped,
+            "p_search": term,
+            "p_limit": _MAX_RESULTS,
+            "p_offset": 0,
+        },
+    ).execute().data
 
-    allowed = allowed_branch_ids(current, "patient.view")
-    visible_ids: set[str] | None = None
-    if allowed is not None:
-        if not allowed:
-            visible_ids = set()
-        else:
-            appt_ids = {
-                r["patient_id"]
-                for r in db.table("appointments").select("patient_id").in_("branch_id", allowed).execute().data
-            }
-            channel_ids = [r["id"] for r in db.table("channels").select("id").in_("branch_id", allowed).execute().data]
-            conv_ids: set[str] = set()
-            if channel_ids:
-                conv_ids = {
-                    r["patient_id"]
-                    for r in db.table("conversations").select("patient_id").in_("channel_id", channel_ids).execute().data
-                    if r["patient_id"]
-                }
-            visible_ids = appt_ids | conv_ids
-    visible_ids = scope.narrow_patient_ids(visible_ids)
-
-    if visible_ids is not None and not visible_ids:
-        return []
-    rows = (query.in_("id", list(visible_ids)) if visible_ids is not None else query).execute().data
-    matched = [r for r in rows if _matches(term, r["full_name"], r.get("phone"))]
-    return [SearchPatientResult(id=r["id"], full_name=r["full_name"], phone=r.get("phone")) for r in matched[:_MAX_RESULTS]]
+    return [SearchPatientResult(id=r["id"], full_name=r["full_name"], phone=r.get("phone")) for r in rows]
 
 
 def _search_appointments(

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, require_permission
@@ -11,6 +11,8 @@ from app.models.schemas import (
     MergePatientsRequest,
     Patient,
     PatientCreate,
+    PatientListItem,
+    PatientPage,
     PatientCreateResult,
     PatientDuplicate,
     PatientGuardianAttach,
@@ -52,40 +54,69 @@ def _patient_ids_visible_in_branches(db: Client, branch_ids: list[str]) -> set[s
     return appt_ids | conv_ids
 
 
-@router.get("/patients", response_model=list[Patient])
+@router.get("/patients", response_model=PatientPage)
 def list_patients(
     phone: str | None = None,
+    search: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current: CurrentStaff = Depends(require_permission("patient.view")),
     scope: StaffScope = Depends(get_staff_scope),
     db: Client = Depends(get_supabase),
 ):
-    query = db.table("patients").select("*").is_("is_merged_into", "null").is_("deleted_at", "null")
+    """A page of the patients this staff member may see.
 
-    visible_ids: set[str] | None = None
+    The scoping runs inside `patients_for_staff` (0057) rather than here. It
+    used to work by loading every appointment and conversation for the caller's
+    branches, reducing them to a set of ids in Python, and passing that set back
+    as `id=in.(...)` — which travels in the URL, so a branch with a few hundred
+    patients was on course to break its own receptionist's list. The database
+    was always the right place to answer "which patients can this person see".
+    """
     if phone:
-        # A patient may be visiting this branch for the very first time —
-        # exact-phone lookup stays open across *branches* so staff can find
-        # (or confirm the absence of) an existing record before booking.
-        # Still excludes merged-away tombstones — booking should always land
-        # on the surviving record.
-        query = query.eq("phone", phone)
-    else:
-        allowed = allowed_branch_ids(current, "patient.view")
-        if allowed is not None:
-            visible_ids = _patient_ids_visible_in_branches(db, allowed)
+        # Exact-phone lookup stays open across *branches*: a patient may be at
+        # this branch for the first time, and staff have to be able to find (or
+        # rule out) an existing record before booking a duplicate. Open across
+        # branches is not open across doctors, so self-scope still applies.
+        rows = (
+            db.table("patients")
+            .select("*")
+            .eq("phone", phone)
+            .is_("is_merged_into", "null")
+            .is_("deleted_at", "null")
+            .execute()
+            .data
+        )
+        own = scope.narrow_patient_ids({r["id"] for r in rows})
+        if own is not None:
+            rows = [r for r in rows if r["id"] in own]
+        return PatientPage(
+            items=[PatientListItem(**r, tags=[]) for r in rows],
+            total=len(rows),
+            limit=limit,
+            offset=offset,
+        )
 
-    # Self-scope applies last and unconditionally — including to the phone
-    # lookup above. Branch scope decides *where* you may look; it never decides
-    # *whose* records are yours. Keeping this outside the branch branch is the
-    # point: nested inside it, a doctor holding a clinic-wide grant skipped it
-    # entirely and read every patient in the clinic.
-    visible_ids = scope.narrow_patient_ids(visible_ids)
+    allowed = allowed_branch_ids(current, "patient.view")
+    rows = db.rpc(
+        "patients_for_staff",
+        {
+            "p_staff_id": scope.staff_id,
+            "p_branch_ids": allowed,
+            "p_self_scoped": scope.is_self_scoped,
+            "p_search": search,
+            "p_limit": limit,
+            "p_offset": offset,
+        },
+    ).execute().data
 
-    if visible_ids is not None:
-        if not visible_ids:
-            return []
-        query = query.in_("id", list(visible_ids))
-    return query.execute().data
+    total = rows[0]["total_count"] if rows else 0
+    return PatientPage(
+        items=[PatientListItem(**{k: v for k, v in r.items() if k != "total_count"}) for r in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/patients", response_model=PatientCreateResult)

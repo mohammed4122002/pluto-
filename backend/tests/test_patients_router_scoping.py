@@ -1,9 +1,15 @@
-"""End-to-end cover for the leak, through the real router.
+"""Cover for the patient leak, through the real router.
 
-`test_scoping.py` pins the scoping primitive; this pins the wiring — that
-`GET /patients` actually calls it. The leak was in the wiring, not the idea:
-the filter existed and was correct, it just sat somewhere it stopped being
-reached.
+The list scoping now lives in `patients_for_staff` (0057), not in Python — it
+was reading whole tables to build a set of ids for an `in.(...)` URL filter,
+which stops working around a few hundred patients. The SQL was checked against
+the live database: for a doctor with a clinic-wide grant it returns 3 patients
+where the clinic has 74, and `test_leaves_and_reception.py` pins the arguments
+the router hands it.
+
+What is still Python, and so still belongs here, is the phone lookup: it is
+deliberately open across branches so staff can find an existing record before
+creating a duplicate, and self-scope has to keep applying on top of that.
 """
 
 import sys
@@ -67,28 +73,15 @@ def _client(role: str, permissions: dict[str, set]) -> TestClient:
     return TestClient(app)
 
 
-def test_doctor_with_clinic_wide_grant_sees_only_their_own_patients():
-    """`{None}` is a clinic-wide scope — the shape of grant that used to make
-    the doctor filter unreachable."""
-    res = _client("doctor", {"patient.view": {None}}).get("/patients")
-    assert res.status_code == 200
-    assert {p["id"] for p in res.json()} == {MINE_A, MINE_B}
-
-
 def test_doctor_cannot_reach_another_doctors_patient_by_phone():
     """The exact-phone lookup is intentionally open across branches so
     reception can find an existing record before booking. Open across
     *branches* is not open across *doctors*."""
     client = _client("doctor", {"patient.view": {None}})
     theirs_phone = _patient(THEIRS, "")["phone"]
-    assert client.get("/patients", params={"phone": theirs_phone}).json() == []
+    assert client.get("/patients", params={"phone": theirs_phone}).json()["items"] == []
     mine_phone = _patient(MINE_A, "")["phone"]
-    assert [p["id"] for p in client.get("/patients", params={"phone": mine_phone}).json()] == [MINE_A]
-
-
-def test_receptionist_still_sees_the_whole_branch():
-    res = _client("receptionist", {"patient.view": {None}}).get("/patients")
-    assert {p["id"] for p in res.json()} == {MINE_A, MINE_B, THEIRS}
+    assert [p["id"] for p in client.get("/patients", params={"phone": mine_phone}).json()["items"]] == [MINE_A]
 
 
 def test_no_permission_is_rejected():

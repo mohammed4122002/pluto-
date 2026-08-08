@@ -86,6 +86,17 @@ class FakeSupabase:
     def __init__(self, tables: dict[str, list[dict]]):
         self._tables = tables
         self.inserts: dict[str, list[dict]] = {}
+        self.rpc_results: dict[str, list[dict]] = {}
+        self.rpc_calls: list[tuple[str, dict]] = []
+
+    def rpc(self, name: str, params: dict):
+        """Postgres functions are the one thing this double can't emulate --
+        `patients_for_staff` is 40 lines of SQL. Tests register the rows a call
+        should return; what's asserted is that the router passes the right
+        arguments and shapes the response, which is the part in Python.
+        """
+        self.rpc_calls.append((name, params))
+        return _Query(self.rpc_results.get(name, []))
 
     def table(self, name: str):
         query = _Query(self._tables.get(name, []))
