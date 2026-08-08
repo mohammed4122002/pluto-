@@ -22,6 +22,7 @@ import { CouponsPage } from "./pages/CouponsPage";
 import { CancellationPoliciesPage } from "./pages/CancellationPoliciesPage";
 import { NotificationSettingsPage } from "./pages/NotificationSettingsPage";
 import { EscalationStaffPage } from "./pages/EscalationStaffPage";
+import { StaffBotSettingsPage } from "./pages/StaffBotSettingsPage";
 import { BotPerformancePage } from "./pages/BotPerformancePage";
 import { WeeklyReportPage } from "./pages/WeeklyReportPage";
 import { PatientDuplicatesPage } from "./pages/PatientDuplicatesPage";
@@ -153,6 +154,13 @@ const adminGroups: readonly NavGroup[] = [
         Icon: AlertIcon,
         Component: EscalationStaffPage,
         requires: "clinic_settings.view",
+      },
+      {
+        key: "staff-bot-settings",
+        label: "بوت التنبيهات",
+        Icon: AlertIcon,
+        Component: StaffBotSettingsPage,
+        requires: "clinic_settings.update",
       },
       {
         key: "notification-settings",

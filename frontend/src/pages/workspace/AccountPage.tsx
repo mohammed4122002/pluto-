@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { changePassword, confirmMfa, disableMfa, setupMfa } from "../../api/auth";
 import type { MfaSetup, StaffMe } from "../../api/auth";
-import { getMyTelegramBot, removeMyTelegramBotToken, setMyTelegramBotToken } from "../../api/staffBot";
-import type { MyTelegramBotStatus } from "../../api/staffBot";
+import { generateMyTelegramLinkCode, getMyTelegramLink } from "../../api/staffBot";
+import type { TelegramLinkCode, TelegramLinkStatus } from "../../api/staffBot";
 import { errorMessage } from "../../api/errors";
 
 const roleLabel: Record<string, string> = {
@@ -186,52 +186,39 @@ function MfaCard({ initiallyEnabled }: { initiallyEnabled: boolean }) {
   );
 }
 
-/** The escalation bot. Was a loose sidebar link ("ربط بوت التنبيهات") that read
- * as a system-wide setting; it is personal configuration and belongs here. */
+/** The escalation bot -- one shared clinic bot (an admin configures it once,
+ * see "بوت التنبيهات" under إعدادات العيادة). Linking your own chat to it is
+ * self-service and needs nobody else's involvement, hence living here. */
 function TelegramBotCard() {
-  const [status, setStatus] = useState<MyTelegramBotStatus | null>(null);
-  const [token, setToken] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<TelegramLinkStatus | null>(null);
+  const [linkCode, setLinkCode] = useState<TelegramLinkCode | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getMyTelegramBot()
+    getMyTelegramLink()
       .then(setStatus)
       .catch((err) => setError(errorMessage(err)))
       .finally(() => setLoading(false));
   }, []);
 
-  const save = (e: FormEvent) => {
-    e.preventDefault();
-    if (!token.trim()) return;
-    setBusy(true);
+  const generate = () => {
+    setGenerating(true);
     setError(null);
-    setMyTelegramBotToken(token.trim())
-      .then((s) => {
-        setStatus(s);
-        setToken("");
-      })
+    generateMyTelegramLinkCode()
+      .then(setLinkCode)
       .catch((err) => setError(errorMessage(err)))
-      .finally(() => setBusy(false));
-  };
-
-  const unlink = () => {
-    setBusy(true);
-    setError(null);
-    removeMyTelegramBotToken()
-      .then(setStatus)
-      .catch((err) => setError(errorMessage(err)))
-      .finally(() => setBusy(false));
+      .finally(() => setGenerating(false));
   };
 
   return (
     <section className="account-card account-card-wide">
       <h2 className="account-card-title">
         بوت التنبيهات
-        {status?.configured && (
+        {status && (
           <span className={status.linked ? "badge active" : "badge inactive"}>
-            {status.linked ? "مربوط" : "بانتظار /start"}
+            {status.linked ? "مربوط" : "غير مربوط"}
           </span>
         )}
       </h2>
@@ -244,56 +231,34 @@ function TelegramBotCard() {
 
       {loading ? (
         <div className="skeleton-block" style={{ height: 80 }} />
-      ) : status?.configured ? (
+      ) : status?.linked ? (
+        <p className="success">حسابك مربوط — جاهز تستلم تنبيهات.</p>
+      ) : !status?.bot_username ? (
+        <p className="account-card-hint">بوت التنبيهات لسا ما انربط من مدير النظام — اسألي/اسأل مدير النظام يربطه من إعدادات العيادة.</p>
+      ) : linkCode ? (
         <>
-          <p>
-            بوتك: <strong dir="ltr">@{status.username}</strong>
+          <p className="account-card-hint">افتحي البوت بتيليجرام واضغطي "بدء" (Start):</p>
+          <a
+            className="btn-primary"
+            style={{ display: "inline-block", textDecoration: "none", textAlign: "center" }}
+            href={`https://t.me/${linkCode.bot_username}?start=${linkCode.code}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            فتح البوت بتيليجرام
+          </a>
+          <p className="account-card-hint">
+            أو يدوياً بعتي: <strong dir="ltr">/start {linkCode.code}</strong> — الكود صالح 10 دقايق.
           </p>
-          {status.linked ? (
-            <p className="success">حسابك مربوط — جاهز تستلم تنبيهات.</p>
-          ) : (
-            <p className="account-card-hint">
-              بقيت خطوة وحدة: افتح البوت بتيليجرام وابعتله{" "}
-              <strong dir="ltr">/start</strong>
-            </p>
-          )}
-          <button className="btn-secondary" onClick={unlink} disabled={busy}>
-            فك الربط
+          <button className="btn-secondary" onClick={generate} disabled={generating}>
+            {generating ? "..." : "توليد كود جديد"}
           </button>
         </>
       ) : (
-        <>
-          <ol className="account-steps">
-            <li>
-              افتح محادثة مع <strong dir="ltr">@BotFather</strong> بتيليجرام.
-            </li>
-            <li>
-              ابعتله <strong dir="ltr">/newbot</strong> واتبع التعليمات (اسم البوت + username بينتهي بـ bot).
-            </li>
-            <li>بيعطيك رمز (token) طويل — الصقه هون.</li>
-          </ol>
-          <form className="account-form" onSubmit={save}>
-            <label>
-              توكن البوت
-              <input
-                type="password"
-                dir="ltr"
-                placeholder="123456789:AAExampleTokenFromBotFather"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-              />
-            </label>
-            <button className="btn-primary" type="submit" disabled={busy}>
-              {busy ? "..." : "ربط البوت"}
-            </button>
-          </form>
-        </>
+        <button className="btn-primary" onClick={generate} disabled={generating}>
+          {generating ? "..." : "ربط حسابي"}
+        </button>
       )}
-
-      <p className="account-card-hint account-card-footnote">
-        واتساب مو مدعوم حالياً — ربط بوت واتساب بدّه حساب Meta Business موثّق وموافقة مسبقة، عكس تيليجرام
-        يلي بس بدّه توكن.
-      </p>
     </section>
   );
 }
