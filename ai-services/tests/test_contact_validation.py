@@ -96,3 +96,31 @@ def test_keeps_the_number_exactly_as_the_patient_typed_it():
     # 07... would quietly stop matching the same person.
     assert validate_phone("0791234567") == "0791234567"
     assert validate_phone("+962791234567") == "+962791234567"
+
+
+def test_prompt_no_longer_caps_options_at_two_or_three():
+    """The assistant named four services when twelve were active. The cause
+    was in the prompt itself -- a style rule that said to show "2-3 كحد
+    أقصى" of whatever a tool returned, which is correct for doctors but
+    silently truncated the price list a patient asked to see."""
+    from app.routers.chat import BASE_INSTRUCTIONS
+
+    assert "2-3 كحد أقصى" not in BASE_INSTRUCTIONS
+    assert "كل الأوقات" in BASE_INSTRUCTIONS
+    assert "كل الخدمات" in BASE_INSTRUCTIONS
+
+
+def test_prompt_has_no_unsubstituted_placeholders():
+    # BASE_INSTRUCTIONS is concatenated, never .format()ed, so a stray
+    # "{name}" would be shown to the patient verbatim.
+    import re
+
+    from app.routers.chat import BASE_INSTRUCTIONS
+
+    assert not re.search(r"\{[a-z_]+\}", BASE_INSTRUCTIONS)
+
+
+def test_list_services_is_exposed_as_a_tool():
+    from app.routers.chat import TOOLS
+
+    assert "list_services" in [t["function"]["name"] for t in TOOLS if t.get("function")]
