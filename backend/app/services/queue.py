@@ -77,3 +77,37 @@ def update_ticket(db: Client, ticket_id: str, priority_level: str | None, transf
     if not updates:
         return _get_ticket(db, ticket_id)
     return db.table("queue_tickets").update(updates).eq("id", ticket_id).execute().data[0]
+
+
+# A ticket that nobody closed keeps the patient in line on every queue screen.
+_OPEN_TICKET_STATUSES = ("waiting", "called", "in_progress")
+
+
+def close_open_ticket_for_appointment(db: Client, appointment_id: str) -> dict | None:
+    """Marks any still-open queue ticket for this appointment as skipped.
+
+    Cancelling or no-showing an appointment released its slot but left the
+    queue ticket untouched, so a patient who had already checked in stayed in
+    the line: reception kept seeing them, and the doctor would call a name
+    belonging to someone who had gone home. This is the mirror of the opposite
+    bug, where a status set by hand advanced the appointment without ever
+    creating a ticket.
+
+    'skipped' rather than 'done' on purpose -- the patient was never seen, and
+    'done' would count the visit as a completed consultation in the reports.
+
+    The caller has already moved the appointment to its cancelled/no_show
+    status, so this deliberately does not touch appointment status itself.
+    """
+    rows = (
+        db.table("queue_tickets")
+        .select("id,status")
+        .eq("appointment_id", appointment_id)
+        .in_("status", list(_OPEN_TICKET_STATUSES))
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows:
+        return None
+    return db.table("queue_tickets").update({"status": "skipped"}).eq("id", rows[0]["id"]).execute().data[0]
