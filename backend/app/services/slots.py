@@ -31,7 +31,17 @@ def _iso_day_of_week(d: date) -> int:
     return (d.weekday() + 1) % 7
 
 
-def generate_slots_for_doctor(db: Client, staff_id: str, branch_id: str, from_date: date, to_date: date) -> int:
+# Why a generate run produced nothing. Returning a bare 0 made every cause
+# look identical from the dashboard, which is how "generate does nothing"
+# became the reported symptom instead of "this doctor has no schedule".
+NO_AVAILABILITY = "no_availability"
+INACTIVE_DOCTOR = "inactive_doctor"
+NO_WORKING_DAYS = "no_working_days"
+
+
+def generate_slots_for_doctor(
+    db: Client, staff_id: str, branch_id: str, from_date: date, to_date: date
+) -> tuple[int, str | None]:
     """(Re)generates 'available' slots for a doctor at a branch across a date
     range from doctor_availability, honoring doctor_leaves and branch_holidays.
     Never touches slots that are already held/booked/blocked — only clears and
@@ -47,7 +57,7 @@ def generate_slots_for_doctor(db: Client, staff_id: str, branch_id: str, from_da
         # doctor, undoing the block (confirmed live: generating slots for an
         # already-deactivated QA doctor created 88 fresh bookable slots).
         # Regenerating a leaving/left doctor's schedule should be a no-op.
-        return 0
+        return 0, INACTIVE_DOCTOR
 
     availability = (
         db.table("doctor_availability")
@@ -59,7 +69,7 @@ def generate_slots_for_doctor(db: Client, staff_id: str, branch_id: str, from_da
         .data
     )
     if not availability:
-        return 0
+        return 0, NO_AVAILABILITY
 
     branch = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
     tz = ZoneInfo(branch[0]["timezone"] if branch else "Asia/Amman")
@@ -155,7 +165,7 @@ def generate_slots_for_doctor(db: Client, staff_id: str, branch_id: str, from_da
         for i in range(0, len(new_slots), 500):
             db.table("slots").insert(new_slots[i : i + 500]).execute()
 
-    return len(new_slots)
+    return len(new_slots), (None if new_slots else NO_WORKING_DAYS)
 
 
 def _parse_time(value):

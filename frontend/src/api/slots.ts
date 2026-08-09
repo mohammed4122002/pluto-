@@ -38,7 +38,18 @@ export const generateSlots = (payload: {
   branch_id: string;
   from_date: string;
   to_date: string;
-}) => api.post<{ created: number }>("/slots/generate", payload).then((res) => res.data);
+}) =>
+  api
+    .post<SlotGenerateResult>("/slots/generate", payload)
+    .then((res) => res.data);
+
+export type SlotGenerateReason = "no_availability" | "inactive_doctor" | "no_working_days";
+
+export type SlotGenerateResult = {
+  created: number;
+  /** Why nothing was created, when nothing was. */
+  reason: SlotGenerateReason | null;
+};
 
 export const holdSlot = (slotId: string, sessionId: string) =>
   api.post<Slot>(`/slots/${slotId}/hold`, { session_id: sessionId }).then((res) => res.data);

@@ -311,6 +311,8 @@ class SlotGenerateRequest(BaseModel):
 
 class SlotGenerateResult(BaseModel):
     created: int
+    # Why nothing was created, when nothing was. None on a successful run.
+    reason: str | None = None
 
 
 class SlotHoldRequest(BaseModel):
