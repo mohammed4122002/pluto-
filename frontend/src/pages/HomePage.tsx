@@ -11,7 +11,7 @@ import { listStaffDirectory } from "../api/staff";
 import type { StaffDirectoryEntry } from "../api/staff";
 import { BarChart, Donut, Sparkline } from "../components/Charts";
 import type { DonutSlice } from "../components/Charts";
-import { bucketLabel, statusBadgeClass, statusBucket, statusLabel } from "../appointmentStatus";
+import { bucketLabel, statusBadgeClass, statusBucket, statusLabel } from "../statusLabels";
 
 type HomePageProps = {
   staffName: string;

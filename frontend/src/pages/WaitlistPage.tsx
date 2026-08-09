@@ -9,22 +9,9 @@ import type { Service } from "../api/services";
 import { addToWaitlist, cancelWaitlistEntry, listWaitlist } from "../api/waitlist";
 import type { WaitlistCreate, WaitlistEntry } from "../api/waitlist";
 import { PatientPicker } from "../components/PatientPicker";
+import { waitlistStatusBadgeClass as statusBadgeClass, waitlistStatusLabel as statusLabel } from "../statusLabels";
 
-const statusLabel: Record<WaitlistEntry["status"], string> = {
-  active: "بانتظار موعد",
-  offered: "عُرض عليه موعد",
-  booked: "تم الحجز",
-  expired: "انتهت المهلة",
-  cancelled: "ملغى",
-};
 
-const statusBadgeClass: Record<WaitlistEntry["status"], string> = {
-  active: "warning",
-  offered: "active",
-  booked: "active",
-  expired: "inactive",
-  cancelled: "danger",
-};
 
 export function WaitlistPage() {
   const [branches, setBranches] = useState<Branch[]>([]);

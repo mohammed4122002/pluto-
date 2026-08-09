@@ -23,7 +23,7 @@ import type { Appointment, AppointmentCreate, AppointmentStatus, VisitType } fro
 import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
 import { PatientPicker } from "../components/PatientPicker";
-import { statusBadgeClass, statusLabel } from "../appointmentStatus";
+import { QUEUE_OWNED_STATUSES, statusBadgeClass, statusLabel } from "../statusLabels";
 
 // Every status status_transitions can actually produce (confirmed against
 // the live table) -- not just the handful this UI creates directly, since
@@ -479,9 +479,19 @@ export function AppointmentsPage() {
                       {isOverdue(appt) && <span className="badge danger">متأخر — بحاجة إنهاء</span>}
                     </td>
                     <td>
-                      <select value={appt.status} onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}>
+                      {/* Queue-owned statuses stay listed so the dropdown shows
+                          the truth for an appointment the queue already moved,
+                          but they cannot be picked here -- choosing one would
+                          advance the appointment without creating its queue
+                          ticket. The current value is never disabled, so the
+                          select always has a matching option. */}
+                      <select
+                        value={appt.status}
+                        onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}
+                        title={"حالات الطابور تُضبط من زر «تسجيل حضور» ومن شاشة الطابور، مش من هون."}
+                      >
                         {statuses.map((s) => (
-                          <option key={s} value={s}>
+                          <option key={s} value={s} disabled={s !== appt.status && QUEUE_OWNED_STATUSES.has(s)}>
                             {statusLabel[s]}
                           </option>
                         ))}

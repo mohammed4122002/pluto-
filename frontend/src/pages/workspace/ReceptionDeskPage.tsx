@@ -3,31 +3,8 @@ import { getDesk } from "../../api/reception";
 import type { DeskArrival, ReceptionDesk } from "../../api/reception";
 import { checkInAppointment, checkInByCode } from "../../api/appointments";
 import { errorMessage } from "../../api/errors";
+import { labelFor, queueStatusLabel, statusLabel } from "../../statusLabels";
 
-const statusLabel: Record<string, string> = {
-  requested: "مطلوب",
-  confirmed: "مؤكّد",
-  patient_confirmed: "أكّده المريض",
-  checked_in: "سجّل حضور",
-  waiting: "بالانتظار",
-  called: "تم النداء",
-  in_consultation: "بالكشف",
-  completed: "خلص",
-  checked_out: "خرج",
-  no_show: "ما حضر",
-  cancelled: "ملغي",
-  cancelled_by_patient: "ألغاه المريض",
-  cancelled_by_clinic: "ألغته العيادة",
-  rescheduled: "معاد جدولته",
-};
-
-const queueStatusLabel: Record<string, string> = {
-  waiting: "بالانتظار",
-  called: "تم النداء",
-  in_progress: "بالكشف",
-  done: "خلص",
-  skipped: "تخطّي",
-};
 
 const SETTLED = new Set([
   "completed", "checked_out", "cancelled", "cancelled_by_patient",
@@ -224,10 +201,10 @@ export function ReceptionDeskPage() {
                 <td>
                   {a.checked_in ? (
                     <span className="badge active">
-                      دور {a.ticket_number} · {queueStatusLabel[a.queue_status ?? ""] ?? ""}
+                      دور {a.ticket_number} · {labelFor(queueStatusLabel, a.queue_status, "")}
                     </span>
                   ) : (
-                    <span className="badge inactive">{statusLabel[a.status] ?? a.status}</span>
+                    <span className="badge inactive">{labelFor(statusLabel, a.status, a.status)}</span>
                   )}
                 </td>
                 <td>

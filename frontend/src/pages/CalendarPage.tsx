@@ -15,18 +15,10 @@ import { listActivePatientPackages } from "../api/packages";
 import type { PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 
+import { slotStatusLabel as statusLabel } from "../statusLabels";
+
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
-const statusLabel: Record<string, string> = {
-  available: "متاح",
-  temporarily_held: "محجوز مؤقتاً",
-  booked: "محجوز",
-  blocked: "معطّل",
-  unavailable: "غير متاح",
-  reserved: "محجوز إدارياً",
-  overbooked: "حجز إضافي",
-  waitlist_only: "قائمة انتظار فقط",
-};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
