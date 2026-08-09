@@ -34,6 +34,7 @@ from app.models.schemas import (
     WalkInResult,
 )
 from app.services.appointments import (
+    QUEUE_OWNED_STATUSES,
     apply_status_transition,
     generate_appointment_number,
     generate_confirmation_code,
@@ -194,6 +195,15 @@ def update_appointment_status(
     if not existing:
         raise HTTPException(status_code=404, detail="الموعد غير موجود")
     assert_branch_access(current, "appointment.update", existing[0]["branch_id"])
+
+    if payload.status in QUEUE_OWNED_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "هذه الحالة بتتضبط من زر «تسجيل حضور» ومن شاشة الطابور، مش من قائمة الحالات — "
+                "لأنها بتحتاج تذكرة دور، وبدونها المريض بيختفي من شاشات الطابور."
+            ),
+        )
 
     return apply_status_transition(
         db,

@@ -311,6 +311,8 @@ class SlotGenerateRequest(BaseModel):
 
 class SlotGenerateResult(BaseModel):
     created: int
+    # Why nothing was created, when nothing was. None on a successful run.
+    reason: str | None = None
 
 
 class SlotHoldRequest(BaseModel):
@@ -868,6 +870,11 @@ class ClinicSettings(BaseModel):
     min_booking_lead_minutes: int
     max_booking_advance_days: int
     same_day_cutoff_time: time | None = None
+    # Hold new bookings at pending_payment until the deposit is verified,
+    # instead of confirming them outright. Off by default.
+    require_deposit_to_confirm: bool = False
+    # Clinic-wide fallback; services.deposit_amount wins where it is set.
+    default_deposit_amount: float | None = None
     updated_at: datetime
 
 
@@ -877,6 +884,8 @@ class ClinicSettingsUpdate(BaseModel):
     min_booking_lead_minutes: int | None = None
     max_booking_advance_days: int | None = None
     same_day_cutoff_time: time | None = None
+    require_deposit_to_confirm: bool | None = None
+    default_deposit_amount: float | None = None
 
 
 class AiProviderSettings(BaseModel):
@@ -1131,17 +1140,24 @@ class TelegramLinkCode(BaseModel):
     expires_at: datetime
 
 
+EscalationCategory = Literal["medical", "administrative"]
+
+
 class EscalationStaffMember(BaseModel):
     id: UUID
     staff_id: UUID
     staff_name: str | None = None
     branch_id: UUID | None = None
     is_active: bool = True
+    # None = infer from the staff member's role (doctor -> medical, everyone
+    # else -> administrative), which is what makes routing work unconfigured.
+    handles: EscalationCategory | None = None
 
 
 class EscalationStaffCreate(BaseModel):
     staff_id: UUID
     branch_id: UUID | None = None
+    handles: EscalationCategory | None = None
 
 
 class StaffMe(BaseModel):

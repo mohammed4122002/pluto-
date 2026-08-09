@@ -39,6 +39,14 @@ def create_payment_for_appointment(db: Client, appointment_id: str) -> None:
             # Already billed against a package at booking time -- no fresh
             # payment to request, the visit is covered by a session there.
             return
+
+        existing = db.table("payments").select("id").eq("appointment_id", appointment_id).limit(1).execute().data
+        if existing:
+            # Confirming an appointment fires this hook, and with the
+            # deposit gate on, confirmation happens *because* a payment was
+            # just verified -- charging again here would bill the patient
+            # twice for one booking.
+            return
         service = appt.get("services") or {}
         amount = service.get("deposit_amount") or service.get("price")
         if not amount:
@@ -112,12 +120,23 @@ def verify_payment(db: Client, payment_id: str, staff_id: str) -> dict:
 
         appt = (
             db.table("appointments")
-            .select("appointment_number, patient_id")
+            .select("appointment_number, patient_id, status")
             .eq("id", payment["appointment_id"])
             .limit(1)
             .execute()
             .data
         )
+        if appt and appt[0].get("status") == "pending_payment":
+            # The booking was deliberately held unconfirmed until the money
+            # arrived (clinic_settings.require_deposit_to_confirm). This is
+            # the moment it becomes real -- without it the patient pays and
+            # the appointment sits pending forever.
+            # Imported here, not at module scope: app.services.appointments
+            # imports create_payment_for_appointment from this module, so a
+            # top-level import would be circular.
+            from app.services.appointments import apply_status_transition
+
+            apply_status_transition(db, payment["appointment_id"], "confirmed", "تم تأكيد الدفع", staff_id)
         if appt:
             channel = _resolve_channel_for_patient(db, appt[0]["patient_id"])
             if channel and channel.get("outbound_webhook_url"):

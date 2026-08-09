@@ -59,8 +59,6 @@ def confirm_booking_and_request_payment(db: Client, appointment_id: str) -> dict
     hold it on. If the service has a price/deposit configured, opens a
     pending payment and returns what the AI should tell the patient (amount,
     currency, how to pay); returns None if no payment step applies."""
-    _apply_status_transition(db, appointment_id, "confirmed", None)
-
     appt = (
         db.table("appointments")
         .select("branch_id, patient_id, appointment_number, patient_package_id, services(price, deposit_amount)")
@@ -69,15 +67,38 @@ def confirm_booking_and_request_payment(db: Client, appointment_id: str) -> dict
         .execute()
         .data[0]
     )
+    settings_rows = (
+        db.table("clinic_settings")
+        .select("require_deposit_to_confirm, default_deposit_amount")
+        .limit(1)
+        .execute()
+        .data
+    )
+    clinic = settings_rows[0] if settings_rows else {}
+    service = appt.get("services") or {}
+    # Per-service deposit beats the clinic-wide default, same precedence the
+    # cancellation policies use: the more specific rule wins.
+    deposit = service.get("deposit_amount") or clinic.get("default_deposit_amount")
+
     if appt.get("patient_package_id"):
         # Already billed against a package at booking time -- no fresh
-        # payment to request, the visit is covered by a session there.
+        # payment to request, and nothing to hold the booking on.
+        _apply_status_transition(db, appointment_id, "confirmed", None)
         return None
-    service = appt.get("services") or {}
-    amount = service.get("deposit_amount") or service.get("price")
+
+    gate_on = bool(clinic.get("require_deposit_to_confirm")) and bool(deposit)
+    if gate_on:
+        # Hold it unconfirmed until the money is verified. The slot is still
+        # reserved -- pending_payment is a live booking, not a lapsed one --
+        # so the patient does not lose it while paying.
+        _apply_status_transition(db, appointment_id, "pending_payment", None)
+    else:
+        _apply_status_transition(db, appointment_id, "confirmed", None)
+
+    amount = deposit or service.get("price")
     if not amount:
         return None
-    payment_type = "deposit" if service.get("deposit_amount") else "full"
+    payment_type = "deposit" if deposit else "full"
 
     branch = db.table("branches").select("currency").eq("id", appt["branch_id"]).limit(1).execute().data
     currency = (branch[0].get("currency") if branch else None) or ""
@@ -103,7 +124,7 @@ def confirm_booking_and_request_payment(db: Client, appointment_id: str) -> dict
     )
     methods_text = "\n".join(f"- {m['display_name']}: {m.get('account_number') or ''}" for m in methods) or "تواصل معنا لمعرفة طرق الدفع."
 
-    return {"amount": amount, "currency": currency, "methods_text": methods_text}
+    return {"amount": amount, "currency": currency, "methods_text": methods_text, "confirmation_pending": gate_on}
 
 
 def find_upcoming_appointments_for_patient(db: Client, patient_id: str) -> list[dict]:

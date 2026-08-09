@@ -5,12 +5,28 @@ from supabase import Client
 
 from app.core.auth import CurrentStaff, allowed_branch_ids, assert_branch_access, require_permission
 from app.core.database import get_supabase
+from app.core.service_auth import require_service_token
 from app.core.scoping import StaffScope, get_staff_scope
 from app.models.schemas import Queue, QueueTicket, QueueTicketUpdate, TriageRequest
-from app.services.queue import call_ticket, complete_ticket, skip_ticket, start_ticket, update_ticket
+from app.services.queue import (
+    call_ticket,
+    close_stale_queue_tickets,
+    complete_ticket,
+    skip_ticket,
+    start_ticket,
+    update_ticket,
+)
 from app.services.scheduling import record_triage
 
 router = APIRouter(tags=["queue"])
+
+
+@router.post("/queues/process-stale", dependencies=[Depends(require_service_token)])
+def process_stale(db: Client = Depends(get_supabase)):
+    """Called by an external scheduler (n8n Cron) to close out yesterday's
+    unfinished queue tickets -- same pattern as /waitlist/process-expired and
+    /appointments/process-expired."""
+    return {"closed": close_stale_queue_tickets(db)}
 
 
 @router.get("/queues/{queue_id}/tickets", response_model=list[QueueTicket])

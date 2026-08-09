@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { actOnMyTicket, getMyQueue } from "../../api/me";
-import type { MyQueueDay, MyQueueTicket } from "../../api/me";
+import type { MyQueueDay } from "../../api/me";
 import { errorMessage } from "../../api/errors";
+import { queueStatusLabel as statusLabel } from "../../statusLabels";
 
-const statusLabel: Record<MyQueueTicket["status"], string> = {
-  waiting: "بالانتظار",
-  called: "تم النداء",
-  in_progress: "بالكشف",
-  done: "خلص",
-  skipped: "تخطّي",
-};
 
 const priorityLabel: Record<string, string> = {
   emergency: "طارئ",

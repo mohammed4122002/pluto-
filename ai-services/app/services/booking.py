@@ -27,6 +27,59 @@ def _is_placeholder_phone(phone: str | None) -> bool:
     return not phone or phone.startswith("tg:")
 
 
+# The clinic wants a triple name (given + father + family), the norm on any
+# Arabic medical record and what makes two "محمد" apart at the front desk.
+_REQUIRED_NAME_PARTS = 3
+
+# Deliberately not Jordan-only: live records already include Egyptian and
+# Palestinian numbers, and rejecting a real patient is worse than accepting a
+# foreign format. This only rules out what cannot be a phone number at all --
+# "00800080" (8 digits) was accepted and stored before this existed.
+_MIN_PHONE_DIGITS = 9
+_MAX_PHONE_DIGITS = 15
+
+
+def validate_full_name(full_name: str) -> str:
+    """A triple name, or a clear reason why it isn't one.
+
+    Digits are rejected outright: the AI used to be handed the phone number
+    again when a patient sent both on one line, and it would happily store
+    that as the name."""
+    name = " ".join((full_name or "").split())
+    if any(ch.isdigit() for ch in name):
+        raise BookingError("الاسم فيه أرقام — اطلبي الاسم الثلاثي بالحروف فقط (الاسم واسم الأب واسم العائلة).")
+    parts = [p for p in name.split(" ") if len(p) > 1]
+    if len(parts) < _REQUIRED_NAME_PARTS:
+        raise BookingError(
+            "الاسم لازم يكون ثلاثي — الاسم واسم الأب واسم العائلة. اطلبي من المريض الاسم الثلاثي كامل "
+            "ولا تحفظي ناقص ولا تكملي الاسم من عندك."
+        )
+    return name
+
+
+def validate_phone(phone: str) -> str:
+    """Plausible as a real mobile number, kept in the exact form the patient
+    typed it.
+
+    Not normalised on purpose: dedup matches patients on the stored string
+    (`.eq("phone", ...)`), and rewriting new numbers into +962 form while
+    every existing row is still 07... would silently stop matching the same
+    person and create duplicate patient records."""
+    raw = (phone or "").strip()
+    if raw.startswith("tg:"):
+        raise BookingError("هذا مش رقم هاتف حقيقي — اطلبي من المريض رقم جواله.")
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits or not all(ch.isdigit() or ch in "+-() " for ch in raw):
+        raise BookingError("رقم الجوال غير صحيح — اطلبي من المريض رقم جواله بالأرقام فقط.")
+    if len(digits) < _MIN_PHONE_DIGITS or len(digits) > _MAX_PHONE_DIGITS:
+        raise BookingError(
+            "رقم الجوال غير صحيح — لازم يكون رقم جوال كامل (مثال: 0791234567). اطلبيه من المريض من جديد."
+        )
+    if len(set(digits)) == 1:
+        raise BookingError("رقم الجوال غير صحيح — اطلبي من المريض رقم جواله الحقيقي.")
+    return raw
+
+
 def missing_contact_fields(db: Client, patient_id: str) -> list[str]:
     """Which of "name"/"phone" are still placeholders for this patient —
     booking must not proceed until both are real, since without a real name
@@ -76,6 +129,11 @@ def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str) -
     phone = (phone or "").strip()
     if not full_name or not phone:
         raise BookingError("لازم الاسم ورقم الهاتف الاثنين مع بعض، مش وحدة بس.")
+    # Enforced here rather than in the prompt alone: a model that forgets an
+    # instruction still cannot write a one-word name or a junk number into a
+    # medical record.
+    full_name = validate_full_name(full_name)
+    phone = validate_phone(phone)
 
     existing = db.table("patients").select("id, full_name").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
     if existing:

@@ -9,20 +9,9 @@ import type { Service } from "../api/services";
 import { createPackage, listPackages, listPatientPackages, sellPackage, usePackageSession } from "../api/packages";
 import type { Package, PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
+import { packageStatusBadgeClass as statusBadgeClass, packageStatusLabel as statusLabel } from "../statusLabels";
 
-const statusLabel: Record<PatientPackage["status"], string> = {
-  pending_payment: "بانتظار الدفع",
-  active: "مفعّلة",
-  cancelled: "ملغاة",
-  expired: "منتهية",
-};
 
-const statusBadgeClass: Record<PatientPackage["status"], string> = {
-  pending_payment: "warning",
-  active: "active",
-  cancelled: "danger",
-  expired: "inactive",
-};
 
 export function PackagesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);

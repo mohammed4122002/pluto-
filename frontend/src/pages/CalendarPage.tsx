@@ -15,18 +15,10 @@ import { listActivePatientPackages } from "../api/packages";
 import type { PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 
+import { slotStatusLabel as statusLabel } from "../statusLabels";
+
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
-const statusLabel: Record<string, string> = {
-  available: "متاح",
-  temporarily_held: "محجوز مؤقتاً",
-  booked: "محجوز",
-  blocked: "معطّل",
-  unavailable: "غير متاح",
-  reserved: "محجوز إدارياً",
-  overbooked: "حجز إضافي",
-  waitlist_only: "قائمة انتظار فقط",
-};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -46,6 +38,7 @@ export function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [generateDays, setGenerateDays] = useState(7);
   const [generating, setGenerating] = useState(false);
+  const [generateNotice, setGenerateNotice] = useState<string | null>(null);
   const [bookingSlotId, setBookingSlotId] = useState<string | null>(null);
   const [bookingPatientId, setBookingPatientId] = useState("");
   const [bookingServiceId, setBookingServiceId] = useState("");
@@ -105,8 +98,30 @@ export function CalendarPage() {
     setGenerating(true);
     const from = date;
     const to = new Date(new Date(date).getTime() + (generateDays - 1) * 86400000).toISOString().slice(0, 10);
+    setError(null);
+    setGenerateNotice(null);
     generateSlots({ staff_id: doctorId, branch_id: branchId, from_date: from, to_date: to })
-      .then(() => load())
+      .then((result) => {
+        // Reporting the outcome is the whole point: three different causes
+        // all produce zero slots, and silently reloading made every one of
+        // them look like the button simply did nothing.
+        if (result.created > 0) {
+          setGenerateNotice(`تم توليد ${result.created} موعد متاح.`);
+          return load();
+        }
+        // Nothing was created, so there is nothing new to fetch -- and load()
+        // clears `error` on entry, which would swallow the message below.
+        if (result.reason === "no_availability") {
+          setError(
+            "هذا الطبيب ما إله دوام محدد بهذا الفرع، فما في أوقات تتولّد. حدّدي دوامه أول من صفحة" +
+              " الموظفين ← جدول الطبيب، وبعدها ولّدي من هون.",
+          );
+        } else if (result.reason === "inactive_doctor") {
+          setError("هذا الطبيب موقوف، فما بتتولّدله أوقات. فعّليه أول من صفحة الموظفين.");
+        } else {
+          setError("ما في أيام دوام ضمن الفترة المختارة (إجازة أو عطلة أو المدة قصيرة) — جرّبي مدة أطول.");
+        }
+      })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
       .finally(() => setGenerating(false));
   };
@@ -207,6 +222,14 @@ export function CalendarPage() {
       </div>
 
       {error && <p className="error">{error}</p>}
+      {generateNotice && (
+        <p className="settings-hint">
+          {generateNotice}{" "}
+          <button type="button" className="link-button" onClick={() => setGenerateNotice(null)}>
+            إخفاء
+          </button>
+        </p>
+      )}
 
       {loading ? (
         <p>...جاري التحميل</p>

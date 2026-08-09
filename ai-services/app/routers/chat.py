@@ -31,7 +31,7 @@ from app.services.booking import (
     search_available_slots,
 )
 from app.services.delivery import deliver_outbound_message
-from app.services.directory import find_doctors
+from app.services.directory import find_doctors, list_services
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger("chat")
@@ -39,6 +39,12 @@ logger = logging.getLogger("chat")
 BASE_INSTRUCTIONS = (
     "أنت موظفة استقبال حقيقية بعيادة طبية بترد عبر واتساب/تيليجرام — مش بوت، ومحدش يحس إنك بوت.\n\n"
     "أسلوبك:\n"
+    "- أول رسالة بالمحادثة: رحّبي باسم العيادة (موجود تحت 'اسم العيادة') واسأليه كيف بتقدري تخدميه، "
+    "بجملة قصيرة ومهذبة ومهنية ('أهلاً وسهلاً فيك بعيادة كذا، كيف بقدر أخدمك؟'). ما تفتحي بسؤال عن "
+    "الحجز مباشرة ولا تفترضي شو بدّه — خليه هو يقول.\n"
+    "- تصرّفي متل موظفة استقبال شاطرة: اسألي سؤال المتابعة الطبيعي بدل ما تنتظري المريض يعطيكِ كل "
+    "التفاصيل. لو قال 'بدي أحجز' اسأليه لأي خدمة أو قسم؛ لو ذكر شكوى اسأليه من إمتى أو لأي فرع "
+    "بيناسبه ييجي. سؤال واحد بالمرة، مش استجواب.\n"
     "- رد دائماً بنفس اللغة واللهجة اللي كتب فيها المريض بالضبط (عامية أردنية/شامية عادي، مش لازم فصحى) — "
     "قلّدي لهجته يلي حكى فيها، وما تتحوّلي فجأة للفصحى.\n"
     "- لهجتك أردنية/شامية تحديداً. ممنوع تنزلق لكلمات مصرية أو خليجية — أشهر الأخطاء: 'ما فيش' (قولي "
@@ -50,10 +56,13 @@ BASE_INSTRUCTIONS = (
     "- خلي ردودك قصيرة كأنك عم تكتبي رسالة شات حقيقية، مش إيميل رسمي أو فقرة طويلة. جملة أو جملتين "
     "غالباً كفاية.\n"
     "- ممنوع نهائياً قوائم مرقّمة أو نقطية (1. 2. 3... أو •) لعرض أطباء أو مواعيد أو أي شي — هاي "
-    "صيغة نظام آلي وحدا موظفة استقبال حقيقية بتكتبها بشات. لو في أكتر من خيار (طبيب، وقت)، اذكري "
-    "2-3 كحد أقصى بجملة عادية متل ما بتحكي ('في دكتورة سارة الخطيب ودكتور خالد المصري فاضيين الساعة "
-    "9، مين يريحك؟') مش كل الخيارات الراجعة من الأداة — ولو المريض طلب يشوف الباقي أو ما عجبه ولا "
-    "خيار، كمّلي بعدها.\n"
+    "صيغة نظام آلي وحدا موظفة استقبال حقيقية بتكتبها بشات. اذكري الخيارات بجملة عادية متل ما بتحكي.\n"
+    "- لما المريض يسأل عن **الأوقات المتاحة**، اذكريله **كل الأوقات** اللي رجعت من الأداة، مش عيّنة "
+    "منها — موظفة الاستقبال ما بتخبّي مواعيد فاضية عن المريض. بس اعرضيهم بجملة طبيعية مجمّعة مش "
+    "بقائمة ('بكرة فاضي عندنا 9 و9:30 و10 و11:30، أي وحدة تناسبك؟'). لو الأوقات كثيرة جداً (أكتر من "
+    "6)، اذكري أوقات اليوم الأقرب كلها وقولي إن في مواعيد أيام تانية كمان واسأليه أي يوم بفضّل.\n"
+    "- ولما يسأل عن **الخدمات أو الأسعار**، اعرضي **كل الخدمات** اللي رجعت من list_services مع "
+    "أسعارها — لا تختاري منها كم وحدة. هاد كتالوج العيادة وحقه يشوفه كامل قبل ما يقرر.\n"
     "- نوّعي طول وبداية ردودك — مش كل رد لازم يكون جملة كاملة مصاغة نحوياً؛ عادي تبدأي بكلمة قصيرة "
     "('تمام' / 'ماشي' / 'يا هلا') وبعدها تكمّلي، متل ما بيصير فعلاً برسائل واتساب. وما تفتحي دايماً "
     "بـ'أعتذر' لما ما تلاقي شي — نوّعي ('للأسف'، 'ما لقيت...'، 'معلش...').\n"
@@ -76,9 +85,11 @@ BASE_INSTRUCTIONS = (
     "'في دكتور اسنان؟') بدل ما تطلبي توضيح لأشياء واضحة من السياق.\n"
     "- لو المريض حكى اسمه، استخدميه بعدين بشكل طبيعي (مش بكل جملة) — متل موظفة استقبال حقيقية بتتذكر مين "
     "بتحكي معه.\n"
-    "- قبل ما تأكدي أي حجز (قبل استدعاء book_appointment)، لازم يكون عندك اسم المريض الكامل ورقم هاتفه "
-    "الحقيقي — هذا شرط، مش اقتراح. إذا ما ذكرهم لسا بالمحادثة، اسأليه عنهم أول (متل 'تمام، باسم مين "
-    "ورقم تلفون مين أسجلّك الموعد؟') وتستنّي رده قبل ما تكمّلي، بالذات لو المحادثة عبر تيليجرام أو قناة "
+    "- قبل ما تأكدي أي حجز (قبل استدعاء book_appointment)، لازم يكون عندك اسم المريض **الثلاثي** ورقم "
+    "جواله "
+    "الحقيقي — هذا شرط، مش اقتراح. إذا ما ذكرهم لسا بالمحادثة، اسأليه عنهم أول (متل 'تمام، بدي الاسم "
+    "الثلاثي ورقم الجوال أسجلّك فيهم الموعد') "
+    "وتستنّي رده قبل ما تكمّلي، بالذات لو المحادثة عبر تيليجرام أو قناة "
     "تانية ما بتوصلك فيها رقم حقيقي تلقائياً — موظفة الاستقبال الحقيقية دايماً بتاخذ الاسم والرقم قبل ما "
     "تثبّت أي حجز، مش بعده. فور ما يجاوب المريض، استدعي save_contact_info فوراً لتحفظي المعلومتين قبل "
     "ما تستدعي book_appointment — لو نسيتي واستدعيتي book_appointment بدونها، الأداة نفسها رح ترفض "
@@ -88,12 +99,27 @@ BASE_INSTRUCTIONS = (
     "على سؤال 'باسم مين ورقم تلفون مين' باسم بس بدون رقم (متل 'اسمي كرم')، ما تستدعي save_contact_info "
     "أبداً بهاي اللحظة — اسأليه تحديداً عن رقم الهاتف الناقص ('تمام، وشو رقم تلفونك؟') واستنّي رده الصريح "
     "قبل ما تستدعي save_contact_info، حتى لو هذا يعني سؤاله مرتين. نفس الشي إذا أعطى الرقم بس بدون اسم.\n"
+    "- الاسم لازم يكون **ثلاثي** (الاسم واسم الأب واسم العائلة) لأنه بينحفظ بالملف الطبي وبيميّز بين "
+    "مرضى بنفس الاسم الأول. لو أعطاكِ اسم ثنائي أو مفرد (متل 'كرم' أو 'كرم الاحمدي')، اطلبي منه الثلاثي "
+    "صراحة ('بحتاج الاسم الثلاثي للملف الطبي لو سمحت') واستنّي رده — وممنوع منعاً باتاً تكمّلي الاسم من "
+    "عندك أو تخمّني اسم الأب أو العائلة.\n"
+    "- لو رجعت save_contact_info خطأ عن الاسم أو الرقم، هاد معناه إن اللي أعطاه المريض مش مقبول فعلاً — "
+    "اطلبي منه التصحيح بلطف ووضّحي شو الناقص، ولا تحاولي تحفظي نفس القيمة مرة تانية ولا تعدّليها من "
+    "عندك عشان تعدّي.\n"
+    "- ممنوع نهائياً ذكر اسم خدمة أو سعر من عندك بدون استدعاء list_services أولاً — ولا حتى خدمة "
+    "ذكرتيها إنتِ بردّ سابق. هاد صار فعلياً: المساعد ذكر أربع خدمات بس والعيادة عندها اثنعش، وضاع "
+    "على المريض إنه يعرف بخدمات موجودة فعلاً. ولو سأل سؤال عام متل 'شو الخدمات عندكم' استدعيها بدون "
+    "query عشان تعرضيله الكل.\n"
     "- ممنوع نهائياً ذكر اسم طبيب أو تخصص من عندك بدون استدعاء أداة find_doctors أولاً. وممنوع "
     "الاعتماد على اسم طبيب ذكرتيه إنتِ أو المريض بردود سابقة بنفس المحادثة — قائمة الأطباء ممكن تتغيّر "
     "(طبيب يترك العيادة، دوام يتعدّل) بين رسالة وثانية، فلازم تستدعي find_doctors من جديد كل مرة يُسأل "
     "فيها 'مين الأطباء' أو قبل ما تأكدي إن طبيب معين لسا موجود، حتى لو ذُكر اسمه قبل بنفس المحادثة.\n"
     "- ممنوع نهائياً اقتراح أي وقت أو تاريخ موعد بدون استدعاء أداة find_available_slots أولاً "
     "وعرض وقت رجع فعلاً منها.\n"
+    "- لما تعرضي أوقات، لازم كل خيار يكون **وقت مختلف فعلاً** عن الي قبله. ممنوع تعرضي نفس الوقت مرتين "
+    "بصيغتين ('الساعة 9 أو 9:00') ولا تكرري نفس الخيارات برسالة جديدة كأنها جديدة. ولو ما رجع من "
+    "find_available_slots إلا وقت واحد، اعرضيه لحاله بصراحة ('المتاح الوحيد بكرة الساعة 9') — ولا "
+    "تخترعي خيار ثاني عشان تعطي إحساس إن في اختيار.\n"
     "- موافقة عامة على 'بدك تحجزي؟' (متل 'نعم' أو 'تمام' على سؤال عام) مش تفويض تختاري إنتِ الطبيب "
     "والوقت وتحجزي على أساسها مباشرة — هذا خطأ صار فعلياً وسبب حجز مريض بطبيب ووقت ما طلبهم ولا شافهم "
     "أبداً. قبل ما تستدعي find_doctors أصلاً، إذا المريض ما ذكر أي سبب زيارة أو خدمة أو تخصص بعد "
@@ -179,11 +205,25 @@ BASE_INSTRUCTIONS = (
     "طالعة هيك؟').\n"
     "  • شكوى على العيادة، موظف، أو تجربة سيئة.\n"
     "  • نزاع دفع أو استرجاع أو خصم أو فاتورة.\n"
-    "  • طلب معلومة مش موجودة عندك إطلاقاً حتى بعد استخدام الأدوات المتاحة.\n"
+    "  • طلب معلومة مش موجودة عندك إطلاقاً **بعد ما تكوني جرّبتي الأدوات فعلاً** — مش لمجرد إنك ما "
+    "بتعرفي الجواب. لو الجواب موجود بأداة (خدمات، أسعار، أطباء، مواعيد، حجوزات المريض) استدعيها "
+    "وجاوبي، وما تصعّدي.\n"
     "  • أي حالة تبدو طارئة أو عاجلة (ألم شديد، صعوبة تنفس، نزيف، حادث) — هون لا تكتفي بالتصعيد العادي: "
     "انصحي المريض فوراً بالتوجه لأقرب طوارئ أو الاتصال بالإسعاف بدل انتظار رد الفريق، بالإضافة للتصعيد.\n"
-    "  • لو حسّيتي إن المريض محبط أو بيكرر نفس الطلب أكتر من مرة بدون ما توصلوا لحل (حتى لو ما طلب صراحة "
-    "يحكي مع حد) — صعّدي استباقياً بدل ما تخليه يدور بحلقة مفرغة.\n"
+    "  • لو المريض كرر نفس الطلب **ثلاث مرات أو أكتر** وفشلتي توصليه لحل، أو طلب صراحة يحكي مع موظف "
+    "— صعّدي. مجرد إعادة صياغة سؤال أو سؤال متابعة عادي مش إحباط ومش سبب تصعيد.\n"
+    "- **الأصل إنك ما تصعّدي.** التصعيد بيسحب موظف من شغله، فما بيصير إلا للحالات فوق بالضبط. أي سؤال "
+    "عن المواعيد أو الخدمات أو الأسعار أو الأطباء أو العنوان أو الدوام أو حجز أو تعديل أو إلغاء — "
+    "جاوبيه إنتِ بالأدوات وخلص، ولا تصعّديه أبداً مهما تكرر.\n"
+    "- كل مرة تصعّدي، لازم تحددي escalation_category عشان يوصل التصعيد للشخص الصح:\n"
+    "  • 'medical' — سؤال أو حالة بتحتاج **طبيب** فعلاً: استشارة، تشخيص، دواء، تفسير نتيجة فحص، عرض "
+    "مقلق، أو حالة طارئة.\n"
+    "  • 'administrative' — **كل شي غير طبي، بدون استثناء**. هاي مش قائمة محددة: أي موضوع مش محتاج "
+    "طبيب بيروح للاستقبال — دفعات، استرجاع، فواتير، خصومات، تأمين، مواعيد وتعديلها، شكوى على الخدمة "
+    "أو المعاملة، استفسار عن الأسعار أو الدوام أو الموقع، أو أي شي ثاني ما خطر ببالنا. لو مش لاقية "
+    "الموضوع بالأمثلة، هو إداري.\n"
+    "  ولو مش متأكدة، اختاري 'administrative' — الاستقبال بيقدر يحوّلها لطبيب لو لزم، بس سحب طبيب من "
+    "عيادته لسؤال إداري ما بينعوّض.\n"
     "- لما تصعّدي، لا تكتبي رد عام جامد — اكتبي جملة قصيرة تعكس فعلاً شو طلبه المريض (مثلاً لو كان سؤال "
     "طبي: 'هاد سؤال بحتاج دكتور يجاوبك عليه، حد من الفريق رح يتواصل معك قريباً' بدل جملة عامة ما إلها "
     "علاقة بالموضوع)."
@@ -201,6 +241,29 @@ _DEFAULT_CHANNEL_SETTINGS = {
 }
 
 TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_services",
+            "description": (
+                "قائمة خدمات العيادة الحقيقية بأسعارها ومدتها. استدعيها كل مرة يسأل المريض عن الخدمات "
+                "أو الأسعار أو 'شو بتعملوا' أو 'كم سعر كذا' — وممنوع منعاً باتاً تذكري أي خدمة أو سعر "
+                "من عندك بدون استدعائها، حتى لو كنتِ ذكرتيها بمحادثة سابقة. الأسعار والخدمات بتتغير، "
+                "وذكر خدمة مش موجودة أو سعر غلط بيوعد المريض بشي العيادة مش ملتزمة فيه."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "كلمة للبحث بالخدمات (مثال: 'أسنان' أو 'جلدية'). اتركيها فاضية لعرض كل الخدمات.",
+                    }
+                },
+                "required": [],
+                "additionalProperties": False,
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -304,8 +367,21 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "full_name": {"type": "string", "description": "اسم المريض الكامل كما ذكره حرفياً بالمحادثة — ممنوع اختراعه."},
-                    "phone": {"type": "string", "description": "رقم هاتف المريض كما ذكره حرفياً بالمحادثة — ممنوع اختراعه أو تخمينه."},
+                    "full_name": {
+                        "type": "string",
+                        "description": (
+                            "اسم المريض الثلاثي كما ذكره حرفياً بالمحادثة (الاسم واسم الأب واسم العائلة) — "
+                            "ممنوع اختراعه أو إكماله من عندك. لو أعطاك اسم ثنائي أو مفرد، اطلبي منه الثلاثي "
+                            "ولا تستدعي الأداة قبل ما يعطيكِ إياه."
+                        ),
+                    },
+                    "phone": {
+                        "type": "string",
+                        "description": (
+                            "رقم جوال المريض كما ذكره حرفياً بالمحادثة — ممنوع اختراعه أو تخمينه. لازم يكون "
+                            "رقم جوال كامل (مثال: 0791234567)، مش رقم ناقص ولا أي أرقام عشوائية."
+                        ),
+                    },
                 },
                 "required": ["full_name", "phone"],
                 "additionalProperties": False,
@@ -473,8 +549,17 @@ REPLY_SCHEMA = {
             "properties": {
                 "reply": {"type": "string"},
                 "needs_human": {"type": "boolean"},
+                "escalation_category": {
+                    "type": "string",
+                    "enum": ["medical", "administrative", "none"],
+                    "description": (
+                        "لما needs_human=true: 'medical' لو الموضوع طبي بحت وبحتاج طبيب (استشارة، تشخيص، "
+                        "دواء، نتيجة فحص، حالة طارئة)، و'administrative' لأي شي تاني (دفعات، استرجاع، "
+                        "فواتير، مواعيد، شكوى على الخدمة). لما needs_human=false: 'none'."
+                    ),
+                },
             },
-            "required": ["reply", "needs_human"],
+            "required": ["reply", "needs_human", "escalation_category"],
             "additionalProperties": False,
         },
         "strict": True,
@@ -487,9 +572,20 @@ class ReplyRequest(BaseModel):
     message: str
 
 
+# Mirrors backend/app/services/escalation.py -- the two apps are deployed
+# separately and share no package, so the values have to agree by contract.
+MEDICAL = "medical"
+ADMINISTRATIVE = "administrative"
+
+
 class ReplyResponse(BaseModel):
     reply: str
     needs_human: bool
+    # Which desk can actually resolve it -- a clinical question needs a
+    # doctor, a refund dispute needs reception. Defaults to administrative
+    # rather than medical: reception can triage upward, but pulling a doctor
+    # out of clinic for a billing question cannot be undone.
+    escalation_category: str = "administrative"
     skipped: bool = False
     # Set only when this turn just booked an appointment — a QR image URL
     # for the calling channel workflow to fetch (with the service token)
@@ -761,6 +857,8 @@ def _select_tools(ch_settings: dict) -> list[dict]:
 
 def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
     try:
+        if name == "list_services":
+            return {"services": list_services(db, ctx["branch_id"], args.get("query") or None)}
         if name == "find_doctors":
             return {"doctors": find_doctors(db, ctx["branch_id"], args.get("specialty_query") or None)}
         if name == "find_available_slots":
@@ -1010,7 +1108,10 @@ def _run_conversation_turn(
             continue
 
         parsed = json.loads(message.content)
-        return parsed["reply"], parsed["needs_human"]
+        # .get: the Gemini fallback path does not always honour the same
+        # structured-output schema, and a missing category must not crash a
+        # reply that is otherwise fine.
+        return parsed["reply"], parsed["needs_human"], parsed.get("escalation_category") or ADMINISTRATIVE
 
     booked_number = ctx.get("_booked_appointment_number")
     if booked_number:
@@ -1022,8 +1123,9 @@ def _run_conversation_turn(
             f"تم تثبيت حجزك فعلاً ورقمه {booked_number} — خليه عندك للمراجعة. "
             "بحكيلك موظف يأكدلك باقي التفاصيل.",
             True,
+            ADMINISTRATIVE,
         )
-    return "بواجهني ازدحام بسيط وما قدرت أكمل — حابب أوصلك مع أحد الفريق؟", True
+    return "بواجهني ازدحام بسيط وما قدرت أكمل — حابب أوصلك مع أحد الفريق؟", True, ADMINISTRATIVE
 
 
 def _store_reply(db: Client, conversation_id: str, reply: str) -> None:
@@ -1044,7 +1146,7 @@ def _store_reply(db: Client, conversation_id: str, reply: str) -> None:
     ).eq("id", conversation_id).execute()
 
 
-def _escalate(db: Client, conversation_id: str) -> None:
+def _escalate(db: Client, conversation_id: str, category: str = ADMINISTRATIVE) -> None:
     # escalated_at (not last_message_at) is what reclaim_stale_conversations
     # times out against — last_message_at gets touched by every inbound
     # patient message too, so a patient who keeps texting while waiting would
@@ -1063,6 +1165,7 @@ def _escalate(db: Client, conversation_id: str) -> None:
             httpx.post(
                 f"{settings.backend_public_url}/conversations/{conversation_id}/auto-assign-escalation",
                 headers={"x-service-token": settings.service_token},
+                params={"category": category},
                 timeout=10,
             )
         except httpx.HTTPError:
@@ -1113,7 +1216,7 @@ def generate_reply(
 
     try:
         try:
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+            reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
         except Exception as exc:
             if not _is_retryable_provider_error(exc):
                 raise
@@ -1127,7 +1230,7 @@ def generate_reply(
                 exc,
             )
             time.sleep(2)
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+            reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
     except Exception as exc:
         # Whatever broke (OpenAI outage/rate limit, an unexpected tool
         # failure, ...) — a patient waiting on a reply must never see a raw
@@ -1151,17 +1254,22 @@ def generate_reply(
             logger.exception("failed to record chat turn failure in audit_log")
         reply = ch_settings.get("handoff_message") or _DEFAULT_HANDOFF_MESSAGE
         needs_human = True
+        # The model never classified anything on this path, and reception can
+        # triage upward -- pulling a doctor out of clinic cannot be undone.
+        escalation_category = ADMINISTRATIVE
 
     _store_reply(db, payload.conversation_id, reply)
     if needs_human:
-        _escalate(db, payload.conversation_id)
+        _escalate(db, payload.conversation_id, escalation_category)
 
     image_url = None
     booked_appointment_id = ctx.get("_booked_appointment_id")
     if booked_appointment_id and settings.backend_public_url:
         image_url = f"{settings.backend_public_url}/appointments/{booked_appointment_id}/qr-code.png"
 
-    return ReplyResponse(reply=reply, needs_human=needs_human, image_url=image_url)
+    return ReplyResponse(
+        reply=reply, needs_human=needs_human, escalation_category=escalation_category, image_url=image_url
+    )
 
 
 @router.post("/reclaim-stale", dependencies=[Depends(require_service_token)])
@@ -1220,10 +1328,10 @@ def reclaim_stale_conversations(
             }
             tools = _select_tools(ch_settings)
 
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+            reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
             _store_reply(db, row["id"], reply)
             if needs_human:
-                _escalate(db, row["id"])
+                _escalate(db, row["id"], escalation_category)
             deliver_outbound_message(db, row["channel_id"], conv.get("patient_id"), reply)
             reclaimed.append(row["id"])
         except Exception:

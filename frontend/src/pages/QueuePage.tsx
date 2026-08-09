@@ -7,14 +7,8 @@ import { listStaffDirectory } from "../api/staff";
 import type { StaffDirectoryEntry } from "../api/staff";
 import { callTicket, completeTicket, listQueues, listQueueTickets, skipTicket, startTicket } from "../api/queue";
 import type { Queue, QueueTicket } from "../api/queue";
+import { queueStatusLabel as statusLabel } from "../statusLabels";
 
-const statusLabel: Record<QueueTicket["status"], string> = {
-  waiting: "بالانتظار",
-  called: "تم النداء",
-  in_progress: "قيد الكشف",
-  done: "انتهى",
-  skipped: "تم تخطيه",
-};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);

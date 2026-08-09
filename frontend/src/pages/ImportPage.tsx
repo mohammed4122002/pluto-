@@ -35,12 +35,8 @@ const SOURCE_LABELS: Record<ImportSourceType | "sqlserver", string> = {
   sqlserver: "SQL Server",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  dry_run: "معاينة",
-  running: "جارٍ التنفيذ",
-  completed: "مكتمل",
-  failed: "فشل",
-};
+
+import { importStatusLabel as STATUS_LABELS } from "../statusLabels";
 
 const UNDO_LABELS: Record<string, string> = {
   not_applicable: "—",

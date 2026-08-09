@@ -36,10 +36,10 @@ def generate_slots(
     payload: SlotGenerateRequest, current: CurrentStaff = Depends(require_permission("slot.manage")), db: Client = Depends(get_supabase)
 ):
     assert_branch_access(current, "slot.manage", str(payload.branch_id))
-    created = generate_slots_for_doctor(
+    created, reason = generate_slots_for_doctor(
         db, str(payload.staff_id), str(payload.branch_id), payload.from_date, payload.to_date
     )
-    return SlotGenerateResult(created=created)
+    return SlotGenerateResult(created=created, reason=reason)
 
 
 @router.get("", response_model=list[Slot])

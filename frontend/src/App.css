@@ -1013,6 +1013,21 @@ button.btn-secondary:hover:not(:disabled) {
   color: var(--text-h);
 }
 
+/* A checkbox belongs beside its label, not stacked above it like the
+   column-oriented text fields around it. */
+.settings-form label.settings-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-form label.settings-check input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
 .settings-form input,
 .settings-form textarea,
 .settings-form select {
@@ -2541,4 +2556,412 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   background: var(--surface-2);
   border: 1px solid var(--border);
   word-break: break-word;
+}
+
+/* --- Dashboard ------------------------------------------------------------
+   The data-viz tones extend the existing palette rather than replacing it:
+   same violet accent, plus three muted companions picked to stay legible
+   side by side without competing with it. */
+
+:root {
+  --tone-violet: #7c5cff;
+  --tone-teal: #3d9f8e;
+  --tone-amber: #d0913f;
+  --tone-rose: #c26b7e;
+
+  --tone-violet-bg: rgba(124, 92, 255, 0.1);
+  --tone-teal-bg: rgba(61, 159, 142, 0.12);
+  --tone-amber-bg: rgba(208, 145, 63, 0.13);
+  --tone-rose-bg: rgba(194, 107, 126, 0.12);
+
+  --chart-1: var(--tone-violet);
+}
+
+/* Cards drift up as they land, staggered by inline animation-delay so the
+   dashboard assembles instead of snapping in all at once. */
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.dashboard .kpi-card,
+.dashboard .dash-card {
+  animation: dash-rise 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.kpi-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "icon value"
+    "icon label"
+    "spark spark"
+    "hint hint";
+  align-items: center;
+  gap: 2px 12px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
+}
+
+/* A hairline in the card's own tone -- enough to tell the four cards apart
+   at a glance without colouring the whole surface. */
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--card-tone);
+}
+
+.kpi-card.tone-violet { --card-tone: var(--tone-violet); --card-tone-bg: var(--tone-violet-bg); }
+.kpi-card.tone-teal { --card-tone: var(--tone-teal); --card-tone-bg: var(--tone-teal-bg); }
+.kpi-card.tone-amber { --card-tone: var(--tone-amber); --card-tone-bg: var(--tone-amber-bg); }
+.kpi-card.tone-rose { --card-tone: var(--tone-rose); --card-tone-bg: var(--tone-rose-bg); }
+
+.kpi-icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--card-tone-bg);
+  color: var(--card-tone);
+}
+
+.kpi-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.kpi-value {
+  grid-area: value;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-h);
+}
+
+.kpi-label {
+  grid-area: label;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.kpi-card .spark {
+  grid-area: spark;
+  width: 100%;
+  height: 26px;
+  margin-top: 12px;
+}
+
+.kpi-hint {
+  grid-area: hint;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.dash-split {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 900px) {
+  .dash-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dash-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px;
+}
+
+.dash-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.dash-card-header h2 {
+  font-size: 15px;
+}
+
+.dash-card-note {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.chart-empty {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.bar-chart {
+  position: relative;
+}
+
+.chart-empty-overlay {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: 0;
+  margin: 0;
+  display: grid;
+  place-content: center;
+  /* The day stubs and labels stay visible underneath; this only sits on top
+     of the empty plot area. */
+  pointer-events: none;
+}
+
+/* Bar chart */
+
+.bar-chart-plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 148px;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 5px;
+}
+
+.bar {
+  width: 100%;
+  max-width: 44px;
+  border-radius: 6px 6px 3px 3px;
+  transform-origin: bottom;
+  animation: bar-grow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.bar-value {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-h);
+  min-height: 15px;
+}
+
+.bar-label {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* Donut */
+
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.donut {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  flex-shrink: 0;
+}
+
+.donut svg {
+  width: 100%;
+  height: 100%;
+}
+
+.donut circle {
+  transition: stroke-dasharray 0.5s ease;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+}
+
+.donut-center strong {
+  font-size: 24px;
+  color: var(--text-h);
+  line-height: 1.1;
+}
+
+.donut-center span {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.donut-legend {
+  flex: 1;
+  min-width: 150px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.donut-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.donut-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.donut-legend-label {
+  flex: 1;
+  color: var(--text);
+}
+
+.donut-legend-value {
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+/* Today's agenda */
+
+.agenda {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.agenda-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.agenda-row:first-child {
+  border-top: 0;
+}
+
+.agenda-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-h);
+  font-size: 13px;
+  min-width: 62px;
+}
+
+.agenda-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.agenda-main strong {
+  color: var(--text-h);
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda-sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* Quick links — chips, not fake stat cards. They navigate; they carry no
+   number, so they should not look like they do. */
+
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-link {
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.quick-link:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard .kpi-card,
+  .dashboard .dash-card,
+  .bar,
+  .donut circle {
+    animation: none;
+    transition: none;
+  }
 }

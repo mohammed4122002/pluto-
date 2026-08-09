@@ -7,6 +7,7 @@ from supabase import Client
 
 from uuid import uuid4
 
+from app.services.queue import close_open_ticket_for_appointment
 from app.services.appointments import (
     apply_status_transition,
     generate_appointment_number,
@@ -139,6 +140,9 @@ def reschedule_appointment(
 
     if old.get("slot_id"):
         release_slot_and_offer_waitlist(db, old["slot_id"])
+    # The old appointment is finished; if the patient had already checked in
+    # for it, their ticket belongs to a visit that is no longer happening.
+    close_open_ticket_for_appointment(db, appointment_id)
 
     return new_appt
 
@@ -167,6 +171,9 @@ def cancel_appointment(db: Client, appointment_id: str, reason: str, cancelled_b
     settlement = settle_appointment_fee(db, appt, fee, changed_by)
     if appt.get("slot_id"):
         release_slot_and_offer_waitlist(db, appt["slot_id"])
+    # A patient who had already checked in is still standing in the queue as
+    # far as every queue screen is concerned until this runs.
+    close_open_ticket_for_appointment(db, appointment_id)
 
     return {"appointment": updated, "fee_charged": fee, "refunded": settlement["refunded"]}
 
@@ -241,6 +248,9 @@ def bulk_cancel_appointments(
         count += 1
         if row.get("slot_id"):
             release_slot_and_offer_waitlist(db, row["slot_id"])
+        # This query deliberately includes 'checked_in', so some of these
+        # patients are standing in the waiting room right now.
+        close_open_ticket_for_appointment(db, row["id"])
     return count
 
 
@@ -386,6 +396,7 @@ def mark_no_show(db: Client, appointment_id: str, reason: str | None, changed_by
     settlement = settle_appointment_fee(db, appt, fee, changed_by)
     if appt.get("slot_id"):
         release_slot_and_offer_waitlist(db, appt["slot_id"])
+    close_open_ticket_for_appointment(db, appointment_id)
 
     return {"appointment": updated, "fee_charged": fee, "refunded": settlement["refunded"]}
 

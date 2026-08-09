@@ -39,6 +39,20 @@ def meeting_link_for(db: Client, appointment_id: str, visit_type_id: str | None)
     return f"https://meet.jit.si/pluto-{appointment_id}"
 
 
+# Statuses that only check-in and the queue may set. Each one is written
+# alongside a queue_tickets row -- check_in_appointment creates the ticket and
+# moves the appointment to checked_in then waiting, and queue call/start drive
+# called and in_consultation. Setting one through the plain status endpoint
+# advances the appointment without ever creating the ticket, so the patient
+# reads as waiting on the appointments table while being invisible on every
+# queue screen. Internal callers use apply_status_transition directly and are
+# deliberately not subject to this; it guards the untrusted API boundary.
+#
+# 'completed' is absent on purpose: closing out an appointment that never
+# entered the queue is legitimate manual work.
+QUEUE_OWNED_STATUSES = frozenset({"checked_in", "waiting", "called", "in_consultation"})
+
+
 def apply_status_transition(
     db: Client, appointment_id: str, new_status: str, reason: str | None, changed_by: str | None
 ) -> dict:

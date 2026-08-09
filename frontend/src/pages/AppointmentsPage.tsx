@@ -23,6 +23,7 @@ import type { Appointment, AppointmentCreate, AppointmentStatus, VisitType } fro
 import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
 import { PatientPicker } from "../components/PatientPicker";
+import { QUEUE_OWNED_STATUSES, statusBadgeClass, statusLabel } from "../statusLabels";
 
 // Every status status_transitions can actually produce (confirmed against
 // the live table) -- not just the handful this UI creates directly, since
@@ -58,65 +59,6 @@ const statuses: AppointmentStatus[] = [
   "on_hold",
 ];
 
-const statusLabel: Record<AppointmentStatus, string> = {
-  draft: "مسودة",
-  requested: "بانتظار التأكيد",
-  pending_review: "قيد المراجعة",
-  pending_approval: "بانتظار الموافقة",
-  pending_payment: "بانتظار الدفع",
-  pending_insurance_verification: "بانتظار التحقق من التأمين",
-  pending_prior_authorization: "بانتظار الموافقة المسبقة",
-  confirmed: "مؤكد",
-  patient_confirmed: "أكّده المريض",
-  waitlisted: "قائمة انتظار",
-  rescheduled: "أُعيدت جدولته",
-  checked_in: "سجّل حضوره",
-  arrived_late: "وصل متأخراً",
-  waiting: "بانتظار الدور",
-  called: "تم نداؤه",
-  in_consultation: "داخل الكشف",
-  procedure_started: "بدأ الإجراء",
-  completed: "مكتمل",
-  checked_out: "غادر العيادة",
-  cancelled: "ملغى",
-  cancelled_by_patient: "ألغاه المريض",
-  cancelled_by_clinic: "ألغته العيادة",
-  cancelled_by_doctor: "ألغاه الطبيب",
-  rejected: "مرفوض",
-  no_show: "لم يحضر",
-  expired: "انتهت صلاحيته",
-  on_hold: "معلّق",
-};
-
-const statusBadgeClass: Record<AppointmentStatus, string> = {
-  draft: "inactive",
-  requested: "warning",
-  pending_review: "warning",
-  pending_approval: "warning",
-  pending_payment: "warning",
-  pending_insurance_verification: "warning",
-  pending_prior_authorization: "warning",
-  confirmed: "active",
-  patient_confirmed: "active",
-  waitlisted: "warning",
-  rescheduled: "inactive",
-  checked_in: "active",
-  arrived_late: "warning",
-  waiting: "active",
-  called: "active",
-  in_consultation: "active",
-  procedure_started: "active",
-  completed: "inactive",
-  checked_out: "inactive",
-  cancelled: "danger",
-  cancelled_by_patient: "danger",
-  cancelled_by_clinic: "danger",
-  cancelled_by_doctor: "danger",
-  rejected: "danger",
-  no_show: "danger",
-  expired: "danger",
-  on_hold: "warning",
-};
 
 // Statuses that mean the visit is settled one way or another -- mirrors
 // _FINISHED_STATUSES in backend app/routers/me.py.
@@ -537,9 +479,19 @@ export function AppointmentsPage() {
                       {isOverdue(appt) && <span className="badge danger">متأخر — بحاجة إنهاء</span>}
                     </td>
                     <td>
-                      <select value={appt.status} onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}>
+                      {/* Queue-owned statuses stay listed so the dropdown shows
+                          the truth for an appointment the queue already moved,
+                          but they cannot be picked here -- choosing one would
+                          advance the appointment without creating its queue
+                          ticket. The current value is never disabled, so the
+                          select always has a matching option. */}
+                      <select
+                        value={appt.status}
+                        onChange={(e) => changeStatus(appt, e.target.value as AppointmentStatus)}
+                        title={"حالات الطابور تُضبط من زر «تسجيل حضور» ومن شاشة الطابور، مش من هون."}
+                      >
                         {statuses.map((s) => (
-                          <option key={s} value={s}>
+                          <option key={s} value={s} disabled={s !== appt.status && QUEUE_OWNED_STATUSES.has(s)}>
                             {statusLabel[s]}
                           </option>
                         ))}

@@ -8,22 +8,54 @@ from app.core.security import decrypt_secret
 logger = logging.getLogger(__name__)
 
 
-def _active_pool(db: Client, branch_id: str | None) -> list[dict]:
+# What an escalation is actually about, which decides who can resolve it.
+# Two, not more: every extra category is another thing the model can get
+# wrong, and billing/complaints/scheduling all land on the same desk anyway.
+MEDICAL = "medical"
+ADMINISTRATIVE = "administrative"
+ESCALATION_CATEGORIES = (MEDICAL, ADMINISTRATIVE)
+
+
+def _handles(row: dict) -> str:
+    """Which category a pool member takes.
+
+    Falls back to their role so routing works with zero configuration --
+    a doctor answers clinical questions, everyone else works the front desk.
+    The explicit `handles` column exists only for where that inference is
+    wrong (a nurse practitioner on medical duty, a doctor who also handles
+    billing)."""
+    explicit = row.get("handles")
+    if explicit in ESCALATION_CATEGORIES:
+        return explicit
+    role = (row.get("staff") or {}).get("role")
+    return MEDICAL if role == "doctor" else ADMINISTRATIVE
+
+
+def _active_pool(db: Client, branch_id: str | None, category: str | None = None) -> list[dict]:
     """Active staff on escalation duty for this branch, falling back to the
     branch_id=null "all branches" pool. Rows carry the joined staff record,
-    so callers can read is_active/telegram_chat_id without a second query."""
+    so callers can read is_active/telegram_chat_id without a second query.
+
+    Narrowed to whoever handles `category` when one is given -- but never to
+    nobody: if the clinic has no doctor on escalation duty, a clinical
+    question still has to reach a human, so an empty match falls back to the
+    whole pool rather than silently dropping the patient."""
     pool = (
         db.table("escalation_staff")
-        .select("staff_id, staff(is_active, telegram_chat_id)")
+        .select("staff_id, handles, staff(is_active, role, telegram_chat_id)")
         .eq("is_active", True)
         .or_(f"branch_id.eq.{branch_id},branch_id.is.null" if branch_id else "branch_id.is.null")
         .execute()
         .data
     )
-    return [row for row in pool if (row.get("staff") or {}).get("is_active")]
+    active = [row for row in pool if (row.get("staff") or {}).get("is_active")]
+    if not category:
+        return active
+    matching = [row for row in active if _handles(row) == category]
+    return matching or active
 
 
-def pick_escalation_assignee(db: Client, branch_id: str | None) -> str | None:
+def pick_escalation_assignee(db: Client, branch_id: str | None, category: str | None = None) -> str | None:
     """Who *owns* an escalated conversation -- one person, so the dashboard
     has a single assignee and load stays balanced. This is distinct from who
     gets *notified*: broadcast_escalation_alert messages the whole linked
@@ -42,7 +74,7 @@ def pick_escalation_assignee(db: Client, branch_id: str | None) -> str | None:
     nobody in the pool is linked, assigning someone still gives the
     conversation an owner in the dashboard, which beats leaving it
     unassigned entirely."""
-    active = _active_pool(db, branch_id)
+    active = _active_pool(db, branch_id, category)
     if not active:
         return None
 
@@ -179,7 +211,9 @@ def send_escalation_alert(db: Client, conversation_id: str, staff_id: str) -> No
         logger.exception("send_escalation_alert failed for conversation_id=%s staff_id=%s", conversation_id, staff_id)
 
 
-def broadcast_escalation_alert(db: Client, conversation_id: str, branch_id: str | None) -> int:
+def broadcast_escalation_alert(
+    db: Client, conversation_id: str, branch_id: str | None, category: str | None = None
+) -> int:
     """Alerts every linked member of the escalation pool, not just the
     assignee. They all share one bot but each has their own chat_id, so this
     is one send per person.
@@ -196,7 +230,7 @@ def broadcast_escalation_alert(db: Client, conversation_id: str, branch_id: str 
     try:
         linked = [
             (row["staff_id"], (row.get("staff") or {})["telegram_chat_id"])
-            for row in _active_pool(db, branch_id)
+            for row in _active_pool(db, branch_id, category)
             if (row.get("staff") or {}).get("telegram_chat_id")
         ]
         if not linked:
@@ -271,7 +305,7 @@ def relay_patient_message_to_assignee(db: Client, conversation_id: str, message_
         return False
 
 
-def auto_assign_conversation(db: Client, conversation_id: str) -> str | None:
+def auto_assign_conversation(db: Client, conversation_id: str, category: str | None = None) -> str | None:
     """Called whenever a conversation escalates to human (whatever the
     trigger -- keyword, turn limit, an AI provider failure). Best-effort:
     an assignment/alert hiccup must never block the escalation itself from
@@ -281,14 +315,14 @@ def auto_assign_conversation(db: Client, conversation_id: str) -> str | None:
     dashboard)."""
     try:
         branch_id = _resolve_branch_id(db, conversation_id)
-        staff_id = pick_escalation_assignee(db, branch_id)
+        staff_id = pick_escalation_assignee(db, branch_id, category)
         if not staff_id:
             return None
         db.table("conversations").update({"assigned_staff_id": staff_id}).eq("id", conversation_id).execute()
         # The whole linked pool hears about it, not just the assignee -- see
         # broadcast_escalation_alert. The assignee owns it on paper; whoever
         # is free answers it in practice.
-        broadcast_escalation_alert(db, conversation_id, branch_id)
+        broadcast_escalation_alert(db, conversation_id, branch_id, category)
         return staff_id
     except Exception:
         logger.exception("auto_assign_conversation failed for conversation_id=%s", conversation_id)

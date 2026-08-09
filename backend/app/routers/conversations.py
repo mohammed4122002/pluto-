@@ -390,13 +390,15 @@ def deliver_staff_reply(db: Client, conversation_id: str, message_text: str) -> 
 
 
 @router.post("/{conversation_id}/auto-assign-escalation", dependencies=[Depends(require_service_token)])
-def auto_assign_escalation_endpoint(conversation_id: UUID, db: Client = Depends(get_supabase)):
+def auto_assign_escalation_endpoint(
+    conversation_id: UUID, category: str | None = None, db: Client = Depends(get_supabase)
+):
     """Called by ai-services right after it escalates a conversation to
     human -- picks a staff member from the configured escalation pool (see
     escalation_staff) and alerts them via the staff Telegram bot, if one is
     linked. A no-op (returns assigned_staff_id=null) when the pool is empty
     for this branch, same as before this feature existed."""
-    staff_id = auto_assign_conversation(db, str(conversation_id))
+    staff_id = auto_assign_conversation(db, str(conversation_id), category)
     return {"assigned_staff_id": staff_id}
 
 
