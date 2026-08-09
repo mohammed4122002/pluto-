@@ -10,6 +10,8 @@ export function SettingsPage() {
   const [minLeadMinutes, setMinLeadMinutes] = useState(0);
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(90);
   const [sameDayCutoff, setSameDayCutoff] = useState("");
+  const [requireDeposit, setRequireDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -25,6 +27,8 @@ export function SettingsPage() {
         setMinLeadMinutes(s.min_booking_lead_minutes);
         setMaxAdvanceDays(s.max_booking_advance_days);
         setSameDayCutoff(s.same_day_cutoff_time ?? "");
+        setRequireDeposit(s.require_deposit_to_confirm);
+        setDepositAmount(s.default_deposit_amount != null ? String(s.default_deposit_amount) : "");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -40,6 +44,8 @@ export function SettingsPage() {
       min_booking_lead_minutes: minLeadMinutes,
       max_booking_advance_days: maxAdvanceDays,
       same_day_cutoff_time: sameDayCutoff || null,
+      require_deposit_to_confirm: requireDeposit,
+      default_deposit_amount: depositAmount.trim() === "" ? null : Number(depositAmount),
     })
       .then((s) => {
         setSettings(s);
@@ -104,6 +110,34 @@ export function SettingsPage() {
           هاي القيود بتنطبق بس على حجز المريض عبر الشات (AI) — موظفي الاستقبال يقدروا يحجزوا خارج هاي
           الحدود عند الحاجة.
         </p>
+
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={requireDeposit}
+            onChange={(e) => setRequireDeposit(e.target.checked)}
+          />
+          لا يتأكد الحجز إلا بعد دفع مقدّم
+        </label>
+        {requireDeposit && (
+          <label>
+            المبلغ المطلوب لتأكيد الحجز
+            <input
+              type="number"
+              min={1}
+              step="0.01"
+              placeholder="مثال: 10"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+            />
+          </label>
+        )}
+        <p className="settings-hint">
+          لما تفعّليه، الحجز الجديد بيضل «بانتظار الدفع» وبيتأكد أول ما تأكّدي الدفعة من صفحة المدفوعات —
+          والموعد محجوز للمريض طول هالفترة، ما بيروح لحدا تاني. لو خدمة معيّنة إلها مقدّم خاص فيها،
+          بياخد الأولوية على هالمبلغ.
+        </p>
+
         <button type="submit" disabled={saving}>
           {saving ? "..." : "حفظ"}
         </button>

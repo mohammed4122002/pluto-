@@ -868,6 +868,11 @@ class ClinicSettings(BaseModel):
     min_booking_lead_minutes: int
     max_booking_advance_days: int
     same_day_cutoff_time: time | None = None
+    # Hold new bookings at pending_payment until the deposit is verified,
+    # instead of confirming them outright. Off by default.
+    require_deposit_to_confirm: bool = False
+    # Clinic-wide fallback; services.deposit_amount wins where it is set.
+    default_deposit_amount: float | None = None
     updated_at: datetime
 
 
@@ -877,6 +882,8 @@ class ClinicSettingsUpdate(BaseModel):
     min_booking_lead_minutes: int | None = None
     max_booking_advance_days: int | None = None
     same_day_cutoff_time: time | None = None
+    require_deposit_to_confirm: bool | None = None
+    default_deposit_amount: float | None = None
 
 
 class AiProviderSettings(BaseModel):

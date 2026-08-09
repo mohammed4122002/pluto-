@@ -1013,6 +1013,21 @@ button.btn-secondary:hover:not(:disabled) {
   color: var(--text-h);
 }
 
+/* A checkbox belongs beside its label, not stacked above it like the
+   column-oriented text fields around it. */
+.settings-form label.settings-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-form label.settings-check input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
 .settings-form input,
 .settings-form textarea,
 .settings-form select {
