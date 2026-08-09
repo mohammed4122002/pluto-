@@ -78,3 +78,26 @@ Redeploy after a change: `cd backend && railway up -s clinic-backend -y` (same
 pattern for `ai-services`). Env vars are managed with `railway variables
 --set KEY=VALUE -s <service>`; a `--set` doesn't restart the running
 container by itself — follow it with `railway redeploy -s <service> -y`.
+
+## Scheduled endpoints
+
+These endpoints do work that nothing else triggers. Each one is guarded by
+`SERVICE_TOKEN` (send it as the service auth header) and is meant to be called
+on a schedule from n8n Cron — the backend runs no scheduler of its own, so an
+endpoint that is never wired is simply work that never happens.
+
+| Endpoint | Cadence | What it does |
+| --- | --- | --- |
+| `POST /notifications/process-due` | every few minutes | sends reminders whose send time has arrived |
+| `POST /conversations/inbound` | per message | not a cron — the channel webhook target |
+| `POST /appointments/process-expired` | hourly | closes appointments whose time passed while still unconfirmed |
+| `POST /waitlist/process-expired` | hourly | expires waitlist offers past their deadline and falls through to the next candidate |
+| `POST /queues/process-stale` | nightly | closes out tickets left open on a queue whose day has ended |
+| `POST /patient-packages/process-expiring` | daily | flags packages approaching their expiry |
+| `POST /recalls/process-due` | daily | sends recalls that have come due |
+| `POST /imports/sheets-sync/process-due` | as configured | runs due Google Sheets syncs |
+
+`/queues/process-stale` is the newest and is not wired yet. Without it, a
+patient who checks in and is never called stays `waiting` forever: they drop
+off the queue screen (which reads today's queue) but keep skewing every
+wait-time and throughput figure drawn from `queue_tickets`.

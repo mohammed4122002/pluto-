@@ -7,6 +7,7 @@ call a name belonging to someone who had gone home.
 """
 
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -154,3 +155,46 @@ def test_rescheduling_clears_the_old_visits_ticket(_no_notify):
 
     reschedule_appointment(db, APPT, "slot-new", "sess-1", "الطبيب تأخر", STAFF)
     assert _ticket(db)["status"] == "skipped"
+
+
+def test_stale_queues_are_closed_out_and_todays_is_left_alone():
+    from app.services.queue import close_stale_queue_tickets
+
+    today = datetime.now(timezone.utc).date()
+    db = FakeSupabase(
+        {
+            "queues": [
+                {"id": "q-old", "queue_date": (today - timedelta(days=3)).isoformat()},
+                {"id": "q-yesterday", "queue_date": (today - timedelta(days=1)).isoformat()},
+                {"id": "q-today", "queue_date": today.isoformat()},
+            ],
+            "queue_tickets": [
+                {"id": "t-old", "queue_id": "q-old", "appointment_id": "a1", "status": "waiting"},
+                {"id": "t-yesterday", "queue_id": "q-yesterday", "appointment_id": "a2", "status": "called"},
+                # Already finished days ago -- must keep its real outcome.
+                {"id": "t-done", "queue_id": "q-old", "appointment_id": "a3", "status": "done"},
+                # Today's line is still live.
+                {"id": "t-today", "queue_id": "q-today", "appointment_id": "a4", "status": "waiting"},
+            ],
+        }
+    )
+
+    assert close_stale_queue_tickets(db) == 2
+    by_id = {t["id"]: t["status"] for t in db._tables["queue_tickets"]}
+    assert by_id["t-old"] == "skipped"
+    assert by_id["t-yesterday"] == "skipped"
+    assert by_id["t-done"] == "done"
+    assert by_id["t-today"] == "waiting"
+
+
+def test_nothing_stale_is_not_an_error():
+    from app.services.queue import close_stale_queue_tickets
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    db = FakeSupabase(
+        {
+            "queues": [{"id": "q-today", "queue_date": today}],
+            "queue_tickets": [{"id": "t", "queue_id": "q-today", "appointment_id": "a", "status": "waiting"}],
+        }
+    )
+    assert close_stale_queue_tickets(db) == 0
