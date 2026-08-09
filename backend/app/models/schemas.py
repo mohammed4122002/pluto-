@@ -1131,17 +1131,24 @@ class TelegramLinkCode(BaseModel):
     expires_at: datetime
 
 
+EscalationCategory = Literal["medical", "administrative"]
+
+
 class EscalationStaffMember(BaseModel):
     id: UUID
     staff_id: UUID
     staff_name: str | None = None
     branch_id: UUID | None = None
     is_active: bool = True
+    # None = infer from the staff member's role (doctor -> medical, everyone
+    # else -> administrative), which is what makes routing work unconfigured.
+    handles: EscalationCategory | None = None
 
 
 class EscalationStaffCreate(BaseModel):
     staff_id: UUID
     branch_id: UUID | None = None
+    handles: EscalationCategory | None = None
 
 
 class StaffMe(BaseModel):

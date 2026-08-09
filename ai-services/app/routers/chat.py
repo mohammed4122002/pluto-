@@ -215,6 +215,13 @@ BASE_INSTRUCTIONS = (
     "- **الأصل إنك ما تصعّدي.** التصعيد بيسحب موظف من شغله، فما بيصير إلا للحالات فوق بالضبط. أي سؤال "
     "عن المواعيد أو الخدمات أو الأسعار أو الأطباء أو العنوان أو الدوام أو حجز أو تعديل أو إلغاء — "
     "جاوبيه إنتِ بالأدوات وخلص، ولا تصعّديه أبداً مهما تكرر.\n"
+    "- كل مرة تصعّدي، لازم تحددي escalation_category عشان يوصل التصعيد للشخص الصح:\n"
+    "  • 'medical' — سؤال أو حالة بتحتاج **طبيب** فعلاً: استشارة، تشخيص، دواء، تفسير نتيجة فحص، عرض "
+    "مقلق، أو حالة طارئة.\n"
+    "  • 'administrative' — أي شي تاني بيقدر يحله الاستقبال: دفعات، استرجاع، فواتير، خصومات، مواعيد، "
+    "شكوى على الخدمة أو المعاملة، أو طلب معلومة إدارية.\n"
+    "  ولو مش متأكدة، اختاري 'administrative' — الاستقبال بيقدر يحوّلها لطبيب لو لزم، بس سحب طبيب من "
+    "عيادته لسؤال إداري ما بينعوّض.\n"
     "- لما تصعّدي، لا تكتبي رد عام جامد — اكتبي جملة قصيرة تعكس فعلاً شو طلبه المريض (مثلاً لو كان سؤال "
     "طبي: 'هاد سؤال بحتاج دكتور يجاوبك عليه، حد من الفريق رح يتواصل معك قريباً' بدل جملة عامة ما إلها "
     "علاقة بالموضوع)."
@@ -540,8 +547,17 @@ REPLY_SCHEMA = {
             "properties": {
                 "reply": {"type": "string"},
                 "needs_human": {"type": "boolean"},
+                "escalation_category": {
+                    "type": "string",
+                    "enum": ["medical", "administrative", "none"],
+                    "description": (
+                        "لما needs_human=true: 'medical' لو الموضوع طبي بحت وبحتاج طبيب (استشارة، تشخيص، "
+                        "دواء، نتيجة فحص، حالة طارئة)، و'administrative' لأي شي تاني (دفعات، استرجاع، "
+                        "فواتير، مواعيد، شكوى على الخدمة). لما needs_human=false: 'none'."
+                    ),
+                },
             },
-            "required": ["reply", "needs_human"],
+            "required": ["reply", "needs_human", "escalation_category"],
             "additionalProperties": False,
         },
         "strict": True,
@@ -554,9 +570,20 @@ class ReplyRequest(BaseModel):
     message: str
 
 
+# Mirrors backend/app/services/escalation.py -- the two apps are deployed
+# separately and share no package, so the values have to agree by contract.
+MEDICAL = "medical"
+ADMINISTRATIVE = "administrative"
+
+
 class ReplyResponse(BaseModel):
     reply: str
     needs_human: bool
+    # Which desk can actually resolve it -- a clinical question needs a
+    # doctor, a refund dispute needs reception. Defaults to administrative
+    # rather than medical: reception can triage upward, but pulling a doctor
+    # out of clinic for a billing question cannot be undone.
+    escalation_category: str = "administrative"
     skipped: bool = False
     # Set only when this turn just booked an appointment — a QR image URL
     # for the calling channel workflow to fetch (with the service token)
@@ -1079,7 +1106,10 @@ def _run_conversation_turn(
             continue
 
         parsed = json.loads(message.content)
-        return parsed["reply"], parsed["needs_human"]
+        # .get: the Gemini fallback path does not always honour the same
+        # structured-output schema, and a missing category must not crash a
+        # reply that is otherwise fine.
+        return parsed["reply"], parsed["needs_human"], parsed.get("escalation_category") or ADMINISTRATIVE
 
     booked_number = ctx.get("_booked_appointment_number")
     if booked_number:
@@ -1091,8 +1121,9 @@ def _run_conversation_turn(
             f"تم تثبيت حجزك فعلاً ورقمه {booked_number} — خليه عندك للمراجعة. "
             "بحكيلك موظف يأكدلك باقي التفاصيل.",
             True,
+            ADMINISTRATIVE,
         )
-    return "بواجهني ازدحام بسيط وما قدرت أكمل — حابب أوصلك مع أحد الفريق؟", True
+    return "بواجهني ازدحام بسيط وما قدرت أكمل — حابب أوصلك مع أحد الفريق؟", True, ADMINISTRATIVE
 
 
 def _store_reply(db: Client, conversation_id: str, reply: str) -> None:
@@ -1113,7 +1144,7 @@ def _store_reply(db: Client, conversation_id: str, reply: str) -> None:
     ).eq("id", conversation_id).execute()
 
 
-def _escalate(db: Client, conversation_id: str) -> None:
+def _escalate(db: Client, conversation_id: str, category: str = ADMINISTRATIVE) -> None:
     # escalated_at (not last_message_at) is what reclaim_stale_conversations
     # times out against — last_message_at gets touched by every inbound
     # patient message too, so a patient who keeps texting while waiting would
@@ -1132,6 +1163,7 @@ def _escalate(db: Client, conversation_id: str) -> None:
             httpx.post(
                 f"{settings.backend_public_url}/conversations/{conversation_id}/auto-assign-escalation",
                 headers={"x-service-token": settings.service_token},
+                params={"category": category},
                 timeout=10,
             )
         except httpx.HTTPError:
@@ -1182,7 +1214,7 @@ def generate_reply(
 
     try:
         try:
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+            reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
         except Exception as exc:
             if not _is_retryable_provider_error(exc):
                 raise
@@ -1196,7 +1228,7 @@ def generate_reply(
                 exc,
             )
             time.sleep(2)
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+            reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
     except Exception as exc:
         # Whatever broke (OpenAI outage/rate limit, an unexpected tool
         # failure, ...) — a patient waiting on a reply must never see a raw
@@ -1220,17 +1252,22 @@ def generate_reply(
             logger.exception("failed to record chat turn failure in audit_log")
         reply = ch_settings.get("handoff_message") or _DEFAULT_HANDOFF_MESSAGE
         needs_human = True
+        # The model never classified anything on this path, and reception can
+        # triage upward -- pulling a doctor out of clinic cannot be undone.
+        escalation_category = ADMINISTRATIVE
 
     _store_reply(db, payload.conversation_id, reply)
     if needs_human:
-        _escalate(db, payload.conversation_id)
+        _escalate(db, payload.conversation_id, escalation_category)
 
     image_url = None
     booked_appointment_id = ctx.get("_booked_appointment_id")
     if booked_appointment_id and settings.backend_public_url:
         image_url = f"{settings.backend_public_url}/appointments/{booked_appointment_id}/qr-code.png"
 
-    return ReplyResponse(reply=reply, needs_human=needs_human, image_url=image_url)
+    return ReplyResponse(
+        reply=reply, needs_human=needs_human, escalation_category=escalation_category, image_url=image_url
+    )
 
 
 @router.post("/reclaim-stale", dependencies=[Depends(require_service_token)])
@@ -1289,10 +1326,10 @@ def reclaim_stale_conversations(
             }
             tools = _select_tools(ch_settings)
 
-            reply, needs_human = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
+            reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
             _store_reply(db, row["id"], reply)
             if needs_human:
-                _escalate(db, row["id"])
+                _escalate(db, row["id"], escalation_category)
             deliver_outbound_message(db, row["channel_id"], conv.get("patient_id"), reply)
             reclaimed.append(row["id"])
         except Exception:

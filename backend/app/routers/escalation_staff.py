@@ -18,7 +18,7 @@ def list_escalation_staff(
     _current: CurrentStaff = Depends(require_permission("conversation.view")),
     db: Client = Depends(get_supabase),
 ):
-    rows = db.table("escalation_staff").select("id, staff_id, branch_id, is_active, staff(full_name)").execute().data
+    rows = db.table("escalation_staff").select("id, staff_id, branch_id, is_active, handles, staff(full_name)").execute().data
     return [
         EscalationStaffMember(
             id=r["id"],
@@ -26,6 +26,7 @@ def list_escalation_staff(
             staff_name=(r.get("staff") or {}).get("full_name"),
             branch_id=r["branch_id"],
             is_active=r["is_active"],
+            handles=r.get("handles"),
         )
         for r in rows
     ]
@@ -46,6 +47,7 @@ def add_escalation_staff(
         staff_name=staff_rows[0]["full_name"] if staff_rows else None,
         branch_id=row["branch_id"],
         is_active=row["is_active"],
+        handles=row.get("handles"),
     )
 
 
