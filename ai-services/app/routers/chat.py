@@ -787,6 +787,13 @@ def _load_history(db: Client, conversation_id: str) -> list[dict]:
     return [{"role": "user" if r["direction"] == "inbound" else "assistant", "content": r["content"]} for r in rows]
 
 
+def _patient_said(history: list[dict]) -> str:
+    """Only what the patient themselves wrote. The assistant's own replies are
+    excluded on purpose: a name it invented in an earlier turn would otherwise
+    vouch for itself when validate_full_name checks the name against this."""
+    return " ".join(m["content"] or "" for m in history if m["role"] == "user")
+
+
 def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -911,15 +918,9 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         if name == "save_contact_info":
             if not ctx.get("patient_id"):
                 return {"error": "ما في مريض مرتبط بهذه المحادثة بعد."}
-            # Only what the patient themselves wrote -- the assistant's own
-            # replies are excluded on purpose, or a name it invented in an
-            # earlier turn would vouch for itself here.
-            patient_said = " ".join(
-                m["content"] for m in _load_history(db, payload.conversation_id) if m["role"] == "user"
-            )
             try:
                 saved = save_contact_info(
-                    db, ctx["patient_id"], args["full_name"], args["phone"], patient_said=patient_said
+                    db, ctx["patient_id"], args["full_name"], args["phone"], patient_said=ctx["patient_said"]
                 )
             except Exception:
                 # Booking in the same turn the contact details were rejected
@@ -1301,6 +1302,7 @@ def generate_reply(
         "branch_id": conv["branch_id"],
         "patient_id": conv.get("patient_id"),
         "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
+        "patient_said": _patient_said(history),
     }
     tools = _select_tools(ch_settings)
 
@@ -1415,6 +1417,7 @@ def reclaim_stale_conversations(
                 "branch_id": conv["branch_id"],
                 "patient_id": conv.get("patient_id"),
                 "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
+                "patient_said": _patient_said(history),
             }
             tools = _select_tools(ch_settings)
 

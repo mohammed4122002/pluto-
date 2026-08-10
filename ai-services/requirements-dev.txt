@@ -1,0 +1,7 @@
+# Test-only dependencies. Production installs requirements.txt alone.
+-r requirements.txt
+pytest>=8.0
+# Used by test_no_undefined_names.py. A tool call that referenced a variable
+# from another function's scope shipped to production and broke every booking;
+# pyflakes reports it in under a second.
+pyflakes>=3.2
