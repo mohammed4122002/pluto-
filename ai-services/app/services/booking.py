@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.services.money import tidy_amount
 from app.services.text_match import fuzzy_contains
 
 
@@ -375,7 +376,7 @@ def search_available_slots(
                     # patient as-is, don't reinterpret or convert it again.
                     "start_at_clinic_local_time": start_utc.astimezone(tz).isoformat(),
                     "duration_minutes": r["duration_minutes"],
-                    "price": service.get("price"),
+                    "price": tidy_amount(service.get("price")),
                 }
             )
             if len(out) >= limit:

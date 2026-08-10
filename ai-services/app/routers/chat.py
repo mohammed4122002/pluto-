@@ -35,6 +35,7 @@ from app.services.booking import (
 )
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors, list_services
+from app.services.money import tidy_amount
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger("chat")
@@ -876,7 +877,7 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
     if services:
         lines = ["الخدمات:"]
         for s in services:
-            price = f"{s['price']}" if s.get("price") is not None else "N/A"
+            price = f"{tidy_amount(s['price'])}" if s.get("price") is not None else "N/A"
             lines.append(f"- {s['name']} ({s['duration_minutes']} min, price: {price})")
         parts.append("\n".join(lines))
 
@@ -962,7 +963,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     {
                         "package_name": p["name"],
                         "sessions_count": p["sessions_count"],
-                        "price": p.get("price"),
+                        "price": tidy_amount(p.get("price")),
                         "validity_days": p.get("validity_days"),
                         "applies_to": sorted(
                             service_names[sid] for sid in package_services_of(p) if sid in service_names
@@ -975,7 +976,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     {
                         "code": c["code"],
                         "discount_type": c["discount_type"],
-                        "discount_value": c.get("discount_value"),
+                        "discount_value": tidy_amount(c.get("discount_value")),
                         # Which services the code covers, by name, so the
                         # assistant can say so instead of implying it is
                         # valid on everything.
@@ -1066,7 +1067,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # real instead of a generic failure — see _run_conversation_turn.
             ctx["_booked_appointment_number"] = appointment["appointment_number"]
             if payment_info:
-                result["deposit_amount"] = payment_info["amount"]
+                result["deposit_amount"] = tidy_amount(payment_info["amount"])
                 result["deposit_currency"] = payment_info["currency"]
                 result["payment_methods"] = payment_info["methods_text"]
             return result
@@ -1113,8 +1114,8 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             )
             return {
                 "cancelled": True,
-                "fee_charged": result["fee"],
-                "refunded": result.get("refunded", 0),
+                "fee_charged": tidy_amount(result["fee"]),
+                "refunded": tidy_amount(result.get("refunded", 0)),
                 "currency": result.get("currency"),
                 "appointment_number": result.get("appointment_number"),
             }
