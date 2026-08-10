@@ -911,7 +911,14 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         if name == "save_contact_info":
             if not ctx.get("patient_id"):
                 return {"error": "ما في مريض مرتبط بهذه المحادثة بعد."}
-            saved = save_contact_info(db, ctx["patient_id"], args["full_name"], args["phone"])
+            try:
+                saved = save_contact_info(db, ctx["patient_id"], args["full_name"], args["phone"])
+            except Exception:
+                # Booking in the same turn the contact details were rejected
+                # produced a reply that asked for the full name and attached a
+                # confirmed booking's QR code to it. Observed live.
+                ctx["_contact_rejected_this_turn"] = True
+                raise
             # A phone match with a different patient re-links this
             # conversation to that (real, already-known) record instead of
             # raising — every tool call for the rest of this turn must book
@@ -996,6 +1003,11 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {"error": "الحجز غير متاح حالياً عبر هذه المحادثة."}
             if not ctx.get("patient_id"):
                 return {"error": "ما في رقم هاتف موثوق لهذا المستخدم بعد — اطلب منه رقمه قبل ما تكمل الحجز."}
+            if ctx.get("_contact_rejected_this_turn"):
+                return {
+                    "error": "الاسم أو الرقم اللي أعطاه المريض انرفض بهذا الدور — اطلبيهم منه من جديد "
+                    "واستنّي رده، وما تحجزي بنفس الرسالة."
+                }
             missing = missing_contact_fields(db, ctx["patient_id"])
             if missing:
                 # A hard gate, not just the prompt asking nicely: the prompt

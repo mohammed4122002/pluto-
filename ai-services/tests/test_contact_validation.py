@@ -124,3 +124,36 @@ def test_list_services_is_exposed_as_a_tool():
     from app.routers.chat import TOOLS
 
     assert "list_services" in [t["function"]["name"] for t in TOOLS if t.get("function")]
+
+
+# --- Who still counts as unidentified -------------------------------------
+# WhatsApp supplies a real phone number alongside the display name, so a
+# patient arriving as "Sami" cleared both placeholder checks and could book
+# without ever being asked for the triple name. The gate existed; nothing
+# reached it.
+
+from app.services.booking import looks_like_a_full_name, _is_placeholder_name  # noqa: E402
+
+
+def test_a_channel_display_name_is_not_a_collected_name():
+    assert _is_placeholder_name("Sami", "+962790000001") is True
+    assert _is_placeholder_name("سامي خالد", "+962790000001") is True
+
+
+def test_a_real_triple_name_passes():
+    assert _is_placeholder_name("سامي خالد النجار", "+962790000001") is False
+
+
+def test_the_old_placeholder_forms_still_count():
+    assert _is_placeholder_name(None, None) is True
+    assert _is_placeholder_name("tg:12345", "tg:12345") is True
+    assert _is_placeholder_name("+962790000001", "+962790000001") is True
+
+
+def test_a_name_carrying_digits_is_not_a_name():
+    # The phone pasted into the name field was a real failure mode.
+    assert looks_like_a_full_name("سامي 0790000001 خالد") is False
+
+
+def test_single_letter_fragments_do_not_pad_a_name():
+    assert looks_like_a_full_name("سامي خ النجار") is False

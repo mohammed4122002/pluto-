@@ -12,12 +12,27 @@ class BookingError(Exception):
     pass
 
 
+def looks_like_a_full_name(name: str | None) -> bool:
+    """The test validate_full_name applies, as a predicate that doesn't raise."""
+    if not name or any(ch.isdigit() for ch in name):
+        return False
+    return len([p for p in name.split() if len(p) > 1]) >= _REQUIRED_NAME_PARTS
+
+
 def _is_placeholder_name(name: str | None, phone: str | None) -> bool:
     """A patient record's full_name is auto-filled at first contact (Telegram
     display name, or the phone/synthetic id itself when no display name was
     sent) — this tells apart a name the patient actually gave us from one we
-    made up to satisfy the not-null column."""
-    return not name or name.startswith("tg:") or name == phone
+    made up to satisfy the not-null column.
+
+    A one- or two-part display name counts as made-up too. WhatsApp supplies a
+    real phone number alongside it, so a patient arriving as "Sami" cleared
+    both checks and could book without ever being asked for the triple name
+    the medical record needs -- the gate existed but nothing reached it.
+    """
+    if not name or name.startswith("tg:") or name == phone:
+        return True
+    return not looks_like_a_full_name(name)
 
 
 def _is_placeholder_phone(phone: str | None) -> bool:
