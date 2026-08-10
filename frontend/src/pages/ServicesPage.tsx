@@ -130,6 +130,7 @@ export function ServicesPage() {
       )}
 
     <form className="data-form" onSubmit={handleCreate}>
+      <p className="data-form-title">خدمة جديدة</p>
       <input
         placeholder="اسم الخدمة"
         value={form.name}
@@ -213,6 +214,9 @@ export function ServicesPage() {
 
       {doctors.length > 0 && (
         <div className="checkbox-group">
+          {/* Without this the run of names read as a floating list of doctors
+              with no stated relationship to the form above it. */}
+          <p className="checkbox-group-title">الأطباء اللي بيقدّموا هذه الخدمة</p>
           {doctors.map((d) => (
             <label key={d.id}>
               <input

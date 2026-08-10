@@ -100,6 +100,7 @@ export function WaitlistPage() {
 
       {form && (
         <form className="data-form" onSubmit={handleAdd}>
+          <p className="data-form-title">إضافة مريض لقائمة الانتظار</p>
           <PatientPicker
             value={form.patient_id}
             onChange={(patientId) => setForm({ ...form, patient_id: patientId })}
@@ -131,7 +132,7 @@ export function WaitlistPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : entries.length === 0 ? (
-        <p className="inbox-empty">لا يوجد أحد بقائمة الانتظار حالياً.</p>
+        <p className="section-empty">لا يوجد أحد بقائمة الانتظار حالياً.</p>
       ) : (
         <table className="data-table">
           <thead>

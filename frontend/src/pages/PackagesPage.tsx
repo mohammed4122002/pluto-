@@ -201,7 +201,7 @@ export function PackagesPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : patientPackages.length === 0 ? (
-        <p className="inbox-empty">لا توجد باقات مباعة بعد.</p>
+        <p className="section-empty">لا توجد باقات مباعة بعد.</p>
       ) : (
         <table className="data-table">
           <thead>

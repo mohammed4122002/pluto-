@@ -83,7 +83,7 @@ export function QueuePage() {
       {error && <p className="error">{error}</p>}
 
       {queues.length === 0 ? (
-        <p className="inbox-empty">
+        <p className="section-empty">
           لا يوجد طابور نشط اليوم بعد — سيظهر هنا بعد أول تسجيل حضور.
         </p>
       ) : (
@@ -104,7 +104,7 @@ export function QueuePage() {
           </div>
 
           {tickets.length === 0 ? (
-            <p className="inbox-empty">لا يوجد أحد بالطابور حالياً.</p>
+            <p className="section-empty">لا يوجد أحد بالطابور حالياً.</p>
           ) : (
             <table className="data-table">
               <thead>

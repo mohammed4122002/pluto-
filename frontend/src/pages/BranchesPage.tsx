@@ -86,6 +86,7 @@ export function BranchesPage() {
       </div>
 
       <form className="data-form" onSubmit={handleCreate}>
+        <p className="data-form-title">فرع جديد</p>
         <input
           placeholder="اسم الفرع"
           value={form.name}

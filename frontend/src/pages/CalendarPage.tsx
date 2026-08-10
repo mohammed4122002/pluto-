@@ -234,7 +234,7 @@ export function CalendarPage() {
       {loading ? (
         <p>...جاري التحميل</p>
       ) : slots.length === 0 ? (
-        <p className="inbox-empty">ما في أوقات مولّدة لهذا اليوم. استخدم "توليد" فوق بعد ما تحدد الطبيب.</p>
+        <p className="section-empty">ما في أوقات مولّدة لهذا اليوم. استخدم "توليد" فوق بعد ما تحدد الطبيب.</p>
       ) : (
         <table className="data-table">
           <thead>

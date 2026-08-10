@@ -335,6 +335,7 @@ export function AppointmentsPage() {
 
       {form && (
         <form className="data-form" onSubmit={handleCreate}>
+          <p className="data-form-title">حجز موعد جديد</p>
           <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>

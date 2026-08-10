@@ -81,7 +81,7 @@ export function AlertsPage() {
 
       <h2>دفعات بانتظار المراجعة ({payments.length})</h2>
       {payments.length === 0 ? (
-        <p className="inbox-empty">ولا دفعة بانتظار المراجعة.</p>
+        <p className="section-empty">ولا دفعة بانتظار المراجعة.</p>
       ) : (
         <table className="data-table">
           <thead>
@@ -107,7 +107,7 @@ export function AlertsPage() {
 
       <h2>محادثات محتاجة موظف ({conversations.length})</h2>
       {conversations.length === 0 ? (
-        <p className="inbox-empty">ولا محادثة محتاجة تدخّل بشري الآن.</p>
+        <p className="section-empty">ولا محادثة محتاجة تدخّل بشري الآن.</p>
       ) : (
         <table className="data-table">
           <thead>
@@ -131,7 +131,7 @@ export function AlertsPage() {
 
       <h2>باقات قاربت على الانتهاء (خلال {EXPIRING_WITHIN_DAYS} أيام) ({expiringPackages.length})</h2>
       {expiringPackages.length === 0 ? (
-        <p className="inbox-empty">ولا باقة قاربت على الانتهاء.</p>
+        <p className="section-empty">ولا باقة قاربت على الانتهاء.</p>
       ) : (
         <table className="data-table">
           <thead>

@@ -114,6 +114,7 @@ export function CouponsPage() {
       )}
 
       <form className="data-form" onSubmit={handleCreate}>
+        <p className="data-form-title">كوبون جديد</p>
         <input
           placeholder="كود الكوبون"
           value={form.code}
@@ -183,7 +184,7 @@ export function CouponsPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : coupons.length === 0 ? (
-        <p className="inbox-empty">لا يوجد كوبونات بعد.</p>
+        <p className="section-empty">لا يوجد كوبونات بعد.</p>
       ) : (
         <table className="data-table">
           <thead>

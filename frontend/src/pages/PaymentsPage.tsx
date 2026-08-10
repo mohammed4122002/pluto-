@@ -159,7 +159,7 @@ export function PaymentsPage() {
           </tbody>
         </table>
       ) : payments.length === 0 ? (
-        <p className="inbox-empty">ما في دفعات بهاي الحالة حالياً.</p>
+        <p className="section-empty">ما في دفعات بهاي الحالة حالياً.</p>
       ) : (
         <table className="data-table">
           <thead>

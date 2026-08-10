@@ -62,7 +62,7 @@ export function PatientDuplicatesPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : duplicates.length === 0 ? (
-        <p className="inbox-empty">لا يوجد سجلات مكررة بانتظار المراجعة حالياً.</p>
+        <p className="section-empty">لا يوجد سجلات مكررة بانتظار المراجعة حالياً.</p>
       ) : (
         <table className="data-table">
           <thead>

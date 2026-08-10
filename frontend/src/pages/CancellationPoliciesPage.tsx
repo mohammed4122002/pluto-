@@ -98,6 +98,7 @@ export function CancellationPoliciesPage() {
       {error && <p className="error">{error}</p>}
 
       <form className="data-form" onSubmit={handleCreate}>
+        <p className="data-form-title">سياسة إلغاء جديدة</p>
         <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
           <option value="">كل الفروع</option>
           {branches.map((b) => (
@@ -178,7 +179,7 @@ export function CancellationPoliciesPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : policies.length === 0 ? (
-        <p className="inbox-empty">لا يوجد سياسات إلغاء بعد — بدون سياسة، الإلغاء وعدم الحضور بدون رسوم دائماً.</p>
+        <p className="section-empty">لا يوجد سياسات إلغاء بعد — بدون سياسة، الإلغاء وعدم الحضور بدون رسوم دائماً.</p>
       ) : (
         <table className="data-table">
           <thead>
