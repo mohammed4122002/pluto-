@@ -54,12 +54,20 @@ _MIN_PHONE_DIGITS = 9
 _MAX_PHONE_DIGITS = 15
 
 
-def validate_full_name(full_name: str) -> str:
-    """A triple name, or a clear reason why it isn't one.
+def validate_full_name(full_name: str, patient_said: str | None = None) -> str:
+    """A triple name the patient actually gave, or a clear reason why not.
 
     Digits are rejected outright: the AI used to be handed the phone number
     again when a patient sent both on one line, and it would happily store
-    that as the name."""
+    that as the name.
+
+    patient_said is the patient's own messages. Requiring a triple name only
+    by shape turned out to reward inventing one: asked to complete "سامي خالد",
+    the model saved "سامي خالد الأحمد" -- a family name nobody had said, on a
+    medical record. The prompt forbade exactly that and the model did it
+    anyway, so the check cannot be advice. Every part has to appear in what
+    the patient wrote.
+    """
     name = " ".join((full_name or "").split())
     if any(ch.isdigit() for ch in name):
         raise BookingError("الاسم فيه أرقام — اطلبي الاسم الثلاثي بالحروف فقط (الاسم واسم الأب واسم العائلة).")
@@ -69,6 +77,13 @@ def validate_full_name(full_name: str) -> str:
             "الاسم لازم يكون ثلاثي — الاسم واسم الأب واسم العائلة. اطلبي من المريض الاسم الثلاثي كامل "
             "ولا تحفظي ناقص ولا تكملي الاسم من عندك."
         )
+    if patient_said is not None:
+        invented = [part for part in parts if not fuzzy_contains(patient_said, part)]
+        if invented:
+            raise BookingError(
+                "ما حفظنا الاسم: فيه جزء منه (" + "، ".join(invented) + ") المريض ما ذكره أبداً. "
+                "ممنوع تكملي الاسم من عندك — اطلبي منه يكتب اسمه الثلاثي كامل بنفسه واستنّي رده."
+            )
     return name
 
 
@@ -128,7 +143,7 @@ def _resolve_patient(db: Client, patient_id: str) -> str:
     return current_id
 
 
-def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str) -> dict:
+def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str, patient_said: str | None = None) -> dict:
     """Persists the name/phone the patient just gave in chat, so
     missing_contact_fields stops blocking book_appointment. A phone that
     already belongs to a different patient record means this contact IS that
@@ -147,7 +162,7 @@ def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str) -
     # Enforced here rather than in the prompt alone: a model that forgets an
     # instruction still cannot write a one-word name or a junk number into a
     # medical record.
-    full_name = validate_full_name(full_name)
+    full_name = validate_full_name(full_name, patient_said)
     phone = validate_phone(phone)
 
     existing = db.table("patients").select("id, full_name").eq("phone", phone).neq("id", patient_id).limit(1).execute().data

@@ -911,8 +911,16 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         if name == "save_contact_info":
             if not ctx.get("patient_id"):
                 return {"error": "ما في مريض مرتبط بهذه المحادثة بعد."}
+            # Only what the patient themselves wrote -- the assistant's own
+            # replies are excluded on purpose, or a name it invented in an
+            # earlier turn would vouch for itself here.
+            patient_said = " ".join(
+                m["content"] for m in _load_history(db, payload.conversation_id) if m["role"] == "user"
+            )
             try:
-                saved = save_contact_info(db, ctx["patient_id"], args["full_name"], args["phone"])
+                saved = save_contact_info(
+                    db, ctx["patient_id"], args["full_name"], args["phone"], patient_said=patient_said
+                )
             except Exception:
                 # Booking in the same turn the contact details were rejected
                 # produced a reply that asked for the full name and attached a

@@ -157,3 +157,38 @@ def test_a_name_carrying_digits_is_not_a_name():
 
 def test_single_letter_fragments_do_not_pad_a_name():
     assert looks_like_a_full_name("سامي خ النجار") is False
+
+
+# --- A name has to have been said -----------------------------------------
+# Requiring three parts by shape alone rewarded inventing one: asked to
+# complete "سامي خالد", the live assistant saved "سامي خالد الأحمد" -- a family
+# name nobody had said, onto a medical record.
+
+from app.services.booking import BookingError, validate_full_name  # noqa: E402
+import pytest as _pytest  # noqa: E402
+
+
+def test_a_part_the_patient_never_said_is_refused():
+    with _pytest.raises(BookingError) as exc:
+        validate_full_name("سامي خالد الأحمد", patient_said="اسمي سامي خالد ورقمي 0791234567")
+    assert "الأحمد" in str(exc.value)
+
+
+def test_a_name_the_patient_did_say_is_accepted():
+    assert validate_full_name(
+        "سامي خالد الأحمد", patient_said="اسمي سامي خالد الأحمد ورقمي 0791234567"
+    ) == "سامي خالد الأحمد"
+
+
+def test_hamza_and_alef_spellings_still_match():
+    # The patient types "الاحمد", the model writes back "الأحمد".
+    assert validate_full_name(
+        "سامي خالد الأحمد", patient_said="انا سامي خالد الاحمد"
+    ) == "سامي خالد الأحمد"
+
+
+def test_without_the_patient_text_the_shape_check_still_applies():
+    # Callers that cannot supply the transcript keep the old behaviour.
+    assert validate_full_name("سامي خالد الأحمد") == "سامي خالد الأحمد"
+    with _pytest.raises(BookingError):
+        validate_full_name("سامي خالد")
