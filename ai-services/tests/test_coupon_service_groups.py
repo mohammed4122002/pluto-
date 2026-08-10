@@ -164,3 +164,75 @@ def test_a_package_scoped_to_services_is_offered_only_for_them():
 def test_without_a_service_the_whole_catalogue_is_offered():
     rows = [_package(name="عامة"), _package(name="أسنان", package_services=[{"service_id": DENTAL_A}])]
     assert _pkg_names(rows) == ["عامة", "أسنان"]
+
+
+# --- Service prices carry their currency ----------------------------------
+# list_services returned a bare number, so the assistant supplied a unit of
+# its own: a Jordanian clinic's prices came back quoted in "جنيه".
+
+
+class _ServiceRows:
+    def __init__(self, tables):
+        self._tables = tables
+        self._name = None
+
+    def table(self, name):
+        self._name = name
+        return self
+
+    def select(self, *_):
+        return self
+
+    def eq(self, *_):
+        return self
+
+    def is_(self, *_):
+        return self
+
+    def order(self, *_, **__):
+        return self
+
+    def limit(self, *_):
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(data=self._tables.get(self._name, []))
+
+
+def test_service_prices_come_back_with_the_branch_currency():
+    from app.services.directory import list_services
+
+    db = _ServiceRows(
+        {
+            "services": [
+                {"id": "s1", "name": "كشفية باطنية", "description": None, "price": 25,
+                 "duration_minutes": 20, "specialty_id": None, "specialties": {"name_ar": "باطنية"}}
+            ],
+            "branches": [{"currency": "JOD"}],
+            "staff_branches": [],
+            "service_doctors": [],
+        }
+    )
+    out = list_services(db, "branch-1")
+    assert out[0]["price"] == 25
+    assert out[0]["currency"] == "JOD"
+
+
+def test_a_branch_with_no_currency_set_reports_an_empty_one():
+    # Better an empty string the prompt can react to than a guessed unit.
+    from app.services.directory import list_services
+
+    db = _ServiceRows(
+        {
+            "services": [
+                {"id": "s1", "name": "كشفية", "description": None, "price": 10,
+                 "duration_minutes": 20, "specialty_id": None, "specialties": None}
+            ],
+            "branches": [{"currency": None}],
+            "staff_branches": [],
+            "service_doctors": [],
+        }
+    )
+    assert list_services(db, "branch-1")[0]["currency"] == ""

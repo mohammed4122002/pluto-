@@ -71,6 +71,9 @@ def list_services(db: Client, branch_id: str, query: str | None = None) -> list[
         .data
     )
 
+    branch_row = db.table("branches").select("currency").eq("id", branch_id).limit(1).execute().data
+    currency = (branch_row[0].get("currency") if branch_row else None) or ""
+
     # Branch scoping goes through the doctors who actually provide each
     # service: a service nobody at this branch performs must not be offered
     # to someone booking here.
@@ -97,6 +100,10 @@ def list_services(db: Client, branch_id: str, query: str | None = None) -> list[
             {
                 "name": row["name"],
                 "price": row.get("price"),
+                # A bare number left the assistant to supply a unit, and it
+                # guessed: a Jordanian clinic's prices came back quoted in
+                # "جنيه". The booking path already reads this same column.
+                "currency": currency,
                 "duration_minutes": row.get("duration_minutes"),
                 "specialty": (row.get("specialties") or {}).get("name_ar"),
             }
