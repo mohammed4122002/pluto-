@@ -47,6 +47,15 @@ def test_separators_and_arabic_digits_are_not_treated_as_a_different_number(type
     assert validate_phone(given, patient_said=f"اهلا {typed}") == given
 
 
+def test_a_number_typed_in_arabic_digits_is_accepted_and_stored_in_ascii():
+    """Caught live: the patient sent ٠٧٩٨٨٨٧٧٦٦ and was asked to type it again
+    "بالأرقام العادية". Only the patient's side of the comparison was being
+    folded to ASCII, so their own number read as one they had never written.
+    Storing the Arabic-Indic form would be wrong anyway -- it cannot be dialled
+    or matched against the 07... already in every other row."""
+    assert validate_phone("٠٧٩٨٨٨٧٧٦٦", patient_said="رقمي ٠٧٩٨٨٨٧٧٦٦") == "0798887766"
+
+
 @pytest.mark.parametrize("bad", ["", "abc", "079", "00800080", "0000000000", "tg:12345", "0791234567"])
 def test_no_error_the_model_can_see_offers_a_usable_number(bad):
     """The fix is not only the check -- it is not handing the model a number.

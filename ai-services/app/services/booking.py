@@ -6,7 +6,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.services.money import tidy_amount
-from app.services.text_match import digits_only, fuzzy_contains
+from app.services.text_match import digits_only, fuzzy_contains, to_ascii_digits
 
 
 class BookingError(Exception):
@@ -91,11 +91,11 @@ def validate_full_name(full_name: str, patient_said: str | None = None) -> str:
 def validate_phone(phone: str, patient_said: str | None = None) -> str:
     """Plausible as a real mobile number that the patient actually gave.
 
-    Kept in the exact form the patient typed it, and not normalised on
-    purpose: dedup matches patients on the stored string (`.eq("phone", ...)`),
-    and rewriting new numbers into +962 form while every existing row is still
-    07... would silently stop matching the same person and create duplicate
-    patient records.
+    Kept in the form the patient typed it apart from folding Arabic-Indic
+    digits to ASCII, and not reformatted on purpose: dedup matches patients on
+    the stored string (`.eq("phone", ...)`), and rewriting new numbers into
+    +962 form while every existing row is still 07... would silently stop
+    matching the same person and create duplicate patient records.
 
     patient_said is checked for the same reason it is checked on the name, and
     for a reason that turned out to be worse. The "not a full number" error
@@ -107,10 +107,13 @@ def validate_phone(phone: str, patient_said: str | None = None) -> str:
     invented one can no longer be stored even if it reaches here from
     somewhere else.
     """
-    raw = (phone or "").strip()
+    # Arabic-Indic digits are folded to ASCII before anything else: patients
+    # type ٠٧٩... as readily as 079..., and a record holding the first cannot
+    # be dialled or matched against the second.
+    raw = to_ascii_digits((phone or "").strip())
     if raw.startswith("tg:"):
         raise BookingError("هذا مش رقم هاتف حقيقي — اطلبي من المريض رقم جواله.")
-    digits = "".join(ch for ch in raw if ch.isdigit())
+    digits = digits_only(raw)
     if not digits or not all(ch.isdigit() or ch in "+-() " for ch in raw):
         raise BookingError("رقم الجوال غير صحيح — اطلبي من المريض رقم جواله بالأرقام فقط.")
     if len(digits) < _MIN_PHONE_DIGITS or len(digits) > _MAX_PHONE_DIGITS:
