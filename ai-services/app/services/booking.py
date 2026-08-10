@@ -6,7 +6,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.services.money import tidy_amount
-from app.services.text_match import fuzzy_contains
+from app.services.text_match import digits_only, fuzzy_contains
 
 
 class BookingError(Exception):
@@ -88,14 +88,25 @@ def validate_full_name(full_name: str, patient_said: str | None = None) -> str:
     return name
 
 
-def validate_phone(phone: str) -> str:
-    """Plausible as a real mobile number, kept in the exact form the patient
-    typed it.
+def validate_phone(phone: str, patient_said: str | None = None) -> str:
+    """Plausible as a real mobile number that the patient actually gave.
 
-    Not normalised on purpose: dedup matches patients on the stored string
-    (`.eq("phone", ...)`), and rewriting new numbers into +962 form while
-    every existing row is still 07... would silently stop matching the same
-    person and create duplicate patient records."""
+    Kept in the exact form the patient typed it, and not normalised on
+    purpose: dedup matches patients on the stored string (`.eq("phone", ...)`),
+    and rewriting new numbers into +962 form while every existing row is still
+    07... would silently stop matching the same person and create duplicate
+    patient records.
+
+    patient_said is checked for the same reason it is checked on the name, and
+    for a reason that turned out to be worse. The "not a full number" error
+    below used to end with a sample number in brackets. Asked for a phone the
+    patient had not given, the model lifted that sample straight out of the
+    error text and saved it as the patient's number — confirmed live on a real
+    Telegram booking, where the record ended up holding a number for someone
+    who never typed a digit. No error message offers a number any more, and an
+    invented one can no longer be stored even if it reaches here from
+    somewhere else.
+    """
     raw = (phone or "").strip()
     if raw.startswith("tg:"):
         raise BookingError("هذا مش رقم هاتف حقيقي — اطلبي من المريض رقم جواله.")
@@ -103,11 +114,15 @@ def validate_phone(phone: str) -> str:
     if not digits or not all(ch.isdigit() or ch in "+-() " for ch in raw):
         raise BookingError("رقم الجوال غير صحيح — اطلبي من المريض رقم جواله بالأرقام فقط.")
     if len(digits) < _MIN_PHONE_DIGITS or len(digits) > _MAX_PHONE_DIGITS:
-        raise BookingError(
-            "رقم الجوال غير صحيح — لازم يكون رقم جوال كامل (مثال: 0791234567). اطلبيه من المريض من جديد."
-        )
+        # Deliberately no example number here. See the docstring.
+        raise BookingError("رقم الجوال غير صحيح — لازم يكون رقم جوال كامل. اطلبيه من المريض من جديد.")
     if len(set(digits)) == 1:
         raise BookingError("رقم الجوال غير صحيح — اطلبي من المريض رقم جواله الحقيقي.")
+    if patient_said is not None and digits not in digits_only(patient_said):
+        raise BookingError(
+            "ما حفظنا الرقم: هذا الرقم المريض ما كتبه أبداً. ممنوع تحطي رقم من عندك أو من مثال — "
+            "اطلبي منه يكتب رقم جواله بنفسه واستنّي رده، وما تحجزي قبل ما يبعته."
+        )
     return raw
 
 
@@ -164,7 +179,7 @@ def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str, p
     # instruction still cannot write a one-word name or a junk number into a
     # medical record.
     full_name = validate_full_name(full_name, patient_said)
-    phone = validate_phone(phone)
+    phone = validate_phone(phone, patient_said)
 
     existing = db.table("patients").select("id, full_name").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
     if existing:
@@ -280,6 +295,42 @@ def _resolve_specialty_doctor_ids(db: Client, branch_id: str, specialty_query: s
     return matched
 
 
+_ARABIC_WEEKDAYS_SHORT = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+
+
+def _day_label(start_local: datetime, now_local: datetime) -> str:
+    delta = (start_local.date() - now_local.date()).days
+    if delta == 0:
+        return "اليوم"
+    if delta == 1:
+        return "بكرة"
+    return f"{_ARABIC_WEEKDAYS_SHORT[start_local.weekday()]} {start_local.strftime('%Y-%m-%d')}"
+
+
+def _as_utc_bound(value: str | None, tz: ZoneInfo) -> str | None:
+    """A date/datetime the model wrote, as a UTC instant.
+
+    The model only ever sees clinic-local times (find_available_slots returns
+    start_at_clinic_local_time), so a bound it writes back is clinic-local
+    too -- but it was being compared straight against start_at, which is UTC.
+    In Amman that is a three-hour shift, enough to push the end of a working
+    day into the next one. A bare date means midnight local, the same reading
+    a receptionist would give it.
+
+    An unparseable value is passed through rather than raised on: a slot list
+    that ignores a malformed filter is a smaller failure than one that errors
+    out mid-booking."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=tz)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
 def search_available_slots(
     db: Client,
     branch_id: str,
@@ -325,6 +376,16 @@ def search_available_slots(
     tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
     window = _load_booking_window(db)
 
+    date_from = _as_utc_bound(date_from, tz)
+    date_to = _as_utc_bound(date_to, tz)
+
+    # Asked for "today" at 15:33 clinic time, the assistant sent
+    # date_from="2026-08-10" and the two remaining slots that afternoon were
+    # still returned -- but the same day filter three hours later, or any
+    # narrower window the model builds out of the clinic-local times this tool
+    # itself hands back, lands in the wrong day once the +03:00 offset is
+    # dropped. Both ends are now read in the clinic's timezone, which is the
+    # only timezone the model is ever shown.
     def eligible(r: dict) -> bool:
         staff = r.get("staff") or {}
         if doctor_gender and staff.get("gender") != doctor_gender:
@@ -372,6 +433,13 @@ def search_available_slots(
                 {
                     "slot_id": r["id"],
                     "doctor_name": (r.get("staff") or {}).get("full_name"),
+                    # Which day this is, in the words the patient will hear,
+                    # so the model never has to do the date arithmetic itself.
+                    # It got it wrong live: it offered "اليوم 4 و4:30", the
+                    # patient said 4:30, and it answered that 4:30 was not
+                    # available today -- while that slot sat available in the
+                    # table the whole time.
+                    "day": _day_label(start_utc.astimezone(tz), datetime.now(timezone.utc).astimezone(tz)),
                     # Clinic-local time, already converted — show this to the
                     # patient as-is, don't reinterpret or convert it again.
                     "start_at_clinic_local_time": start_utc.astimezone(tz).isoformat(),
@@ -727,6 +795,31 @@ def _resolve_recalls_on_booking(db: Client, patient_id: str, appointment_id: str
         pass
 
 
+def _alternatives_for(
+    db: Client, branch_id: str, doctor_name: str, requested_dt: datetime, tz: ZoneInfo
+) -> list[dict]:
+    """What to offer instead when the requested time can't be booked.
+
+    The requested day first, since that is what the patient asked for. But
+    when that day has nothing left, an empty list used to be all the model
+    got, and it filled the gap itself -- live, it told a patient 4:30 wasn't
+    available "today" and offered only tomorrow, while 4:00 that same
+    afternoon was still free. So fall back to the doctor's next available
+    slots rather than handing back nothing."""
+    day_start_local = requested_dt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end_local = day_start_local.replace(hour=23, minute=59, second=59)
+    same_day = search_available_slots(
+        db,
+        branch_id,
+        doctor_name=doctor_name,
+        date_from=day_start_local.isoformat(),
+        date_to=day_end_local.isoformat(),
+    )
+    if same_day["slots"]:
+        return same_day["slots"]
+    return search_available_slots(db, branch_id, doctor_name=doctor_name)["slots"]
+
+
 def book_by_doctor_and_time(
     db: Client,
     branch_id: str,
@@ -770,16 +863,11 @@ def book_by_doctor_and_time(
     window = _load_booking_window(db)
     violation = _window_violation_reason(window, tz, requested_utc)
     if violation:
-        day_start_local = requested_dt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_local = day_start_local.replace(hour=23, minute=59, second=59)
-        alternatives = search_available_slots(
-            db,
-            branch_id,
-            doctor_name=doctor_name,
-            date_from=day_start_local.astimezone(timezone.utc).isoformat(),
-            date_to=day_end_local.astimezone(timezone.utc).isoformat(),
-        )
-        return {"booked": False, "reason": violation, "alternative_slots": alternatives["slots"]}
+        return {
+            "booked": False,
+            "reason": violation,
+            "alternative_slots": _alternatives_for(db, branch_id, doctor_name, requested_dt, tz),
+        }
 
     slot_rows = (
         db.table("slots")
@@ -793,19 +881,10 @@ def book_by_doctor_and_time(
         .data
     )
     if not slot_rows:
-        day_start_local = requested_dt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end_local = day_start_local.replace(hour=23, minute=59, second=59)
-        alternatives = search_available_slots(
-            db,
-            branch_id,
-            doctor_name=doctor_name,
-            date_from=day_start_local.astimezone(timezone.utc).isoformat(),
-            date_to=day_end_local.astimezone(timezone.utc).isoformat(),
-        )
         return {
             "booked": False,
             "reason": "هذا الوقت بالضبط مع هذا الطبيب مش متاح (خذه شخص ثاني للتو أو تغيّر الجدول).",
-            "alternative_slots": alternatives["slots"],
+            "alternative_slots": _alternatives_for(db, branch_id, doctor_name, requested_dt, tz),
         }
 
     slot_id = slot_rows[0]["id"]
