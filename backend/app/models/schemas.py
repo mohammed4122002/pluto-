@@ -1203,7 +1203,7 @@ class SetupResult(BaseModel):
 
 
 ImportDataType = Literal["patients", "services", "staff", "appointments"]
-ImportSourceType = Literal["file", "google_sheets", "postgres"]
+ImportSourceType = Literal["file", "google_sheets", "postgres", "sqlserver"]
 
 
 class ImportFieldInfo(BaseModel):

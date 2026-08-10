@@ -12,4 +12,7 @@ pyjwt>=2.10
 pyotp>=2.9
 cryptography>=44.0
 psycopg2-binary>=2.9
+# SQL Server import source. pymssql over pyodbc because its wheels bundle
+# FreeTDS, so the deploy needs no system ODBC driver.
+pymssql>=2.3
 qrcode[pil]>=8.0

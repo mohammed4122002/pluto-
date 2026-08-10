@@ -1,7 +1,7 @@
 import { api } from "./client";
 
 export type ImportDataType = "patients" | "services" | "staff" | "appointments";
-export type ImportSourceType = "file" | "google_sheets" | "postgres";
+export type ImportSourceType = "file" | "google_sheets" | "postgres" | "sqlserver";
 
 export type ImportFieldInfo = { name: string; label: string; required: boolean; kind: string };
 
@@ -87,6 +87,12 @@ export const testPostgres = (connectionString: string) =>
 
 export const previewPostgres = (dataType: string, connectionString: string, tableName: string) =>
   api.post<SourcePreviewResult>("/imports/preview-source/postgres", { data_type: dataType, source_type: "postgres", connection_string: connectionString, table_name: tableName }).then((r) => r.data);
+
+export const testSqlServer = (connectionString: string) =>
+  api.post<{ tables: string[] }>("/imports/test-sqlserver", { source_type: "sqlserver", data_type: "patients", connection_string: connectionString }).then((r) => r.data);
+
+export const previewSqlServer = (dataType: string, connectionString: string, tableName: string) =>
+  api.post<SourcePreviewResult>("/imports/preview-source/sqlserver", { data_type: dataType, source_type: "sqlserver", connection_string: connectionString, table_name: tableName }).then((r) => r.data);
 
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
