@@ -217,7 +217,17 @@ def apply_coupon(db: Client, payment_id: str, code: str) -> dict:
     appt = payment.get("appointments") or {}
     if coupon.get("branch_id") and appt.get("branch_id") and coupon["branch_id"] != appt["branch_id"]:
         raise HTTPException(status_code=400, detail="هذا الكوبون غير صالح لهذا الفرع")
-    if coupon.get("service_id") and appt.get("service_id") and coupon["service_id"] != appt["service_id"]:
+    # coupon_services holds the group of services a coupon is limited to; no
+    # rows means it applies to everything. coupons.service_id is the older
+    # single-service form, kept working for a coupon created before the
+    # migration and never backfilled.
+    allowed_services = {
+        row["service_id"]
+        for row in db.table("coupon_services").select("service_id").eq("coupon_id", coupon["id"]).execute().data
+    }
+    if coupon.get("service_id"):
+        allowed_services.add(coupon["service_id"])
+    if allowed_services and appt.get("service_id") and appt["service_id"] not in allowed_services:
         raise HTTPException(status_code=400, detail="هذا الكوبون غير صالح لهذه الخدمة")
 
     if coupon["customer_scope"] != "all":

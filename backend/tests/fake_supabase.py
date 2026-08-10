@@ -103,8 +103,11 @@ class _Query:
             for row in self._rows:
                 row.update(self._pending_update)
         elif self._pending_delete:
-            for row in self._rows:
-                row["__deleted__"] = True
+            # Actually drop the rows from the table. Stamping a flag instead
+            # made every delete invisible to the next read, so a router that
+            # failed to delete looked identical to one that worked.
+            doomed = {id(row) for row in self._rows}
+            self._backing[:] = [row for row in self._backing if id(row) not in doomed]
         return SimpleNamespace(data=self._rows)
 
 

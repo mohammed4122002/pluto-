@@ -14,7 +14,11 @@ export type Coupon = {
   used_count: number;
   is_active: boolean;
   branch_id: string | null;
+  /** Superseded by service_ids; still returned for coupons created before
+   *  service groups existed. */
   service_id: string | null;
+  /** Services the coupon is limited to. Empty means every service. */
+  service_ids: string[];
   customer_scope: CouponCustomerScope;
   per_customer_limit: number | null;
 };
@@ -27,7 +31,7 @@ export const createCoupon = (payload: {
   discount_value?: number;
   max_uses?: number;
   branch_id?: string;
-  service_id?: string;
+  service_ids?: string[];
   customer_scope?: CouponCustomerScope;
   per_customer_limit?: number;
 }) => api.post<Coupon>("/coupons", payload).then((res) => res.data);

@@ -427,6 +427,24 @@ def active_packages_for_patient(db: Client, patient_id: str, service_id: str | N
     return matching
 
 
+def coupon_services_of(coupon: dict) -> set[str]:
+    """The services a coupon is limited to; empty means every service.
+
+    coupon_services is the group form. coupons.service_id is the older
+    single-service column, folded in so a coupon created before the group
+    table keeps the scope it was created with.
+    """
+    ids = {link["service_id"] for link in (coupon.get("coupon_services") or [])}
+    if coupon.get("service_id"):
+        ids.add(coupon["service_id"])
+    return ids
+
+
+def coupon_covers_service(coupon: dict, service_id: str) -> bool:
+    allowed = coupon_services_of(coupon)
+    return not allowed or service_id in allowed
+
+
 def active_coupons_for_branch(db: Client, branch_id: str, service_id: str | None = None) -> list[dict]:
     """Coupons the AI can proactively mention while booking -- active, within
     date range, not globally exhausted, and not scoped to a different branch
@@ -434,7 +452,7 @@ def active_coupons_for_branch(db: Client, branch_id: str, service_id: str | None
     now = datetime.now(timezone.utc).isoformat()
     rows = (
         db.table("coupons")
-        .select("id, code, discount_type, discount_value, branch_id, service_id, valid_to")
+        .select("id, code, discount_type, discount_value, branch_id, service_id, valid_to, max_uses, used_count, coupon_services(service_id)")
         .eq("is_active", True)
         .execute()
         .data
@@ -443,10 +461,14 @@ def active_coupons_for_branch(db: Client, branch_id: str, service_id: str | None
     for c in rows:
         if c.get("branch_id") and c["branch_id"] != branch_id:
             continue
-        if service_id and c.get("service_id") and c["service_id"] != service_id:
+        if service_id and not coupon_covers_service(c, service_id):
             continue
         valid_to = c.get("valid_to")
         if valid_to and valid_to < now:
+            continue
+        # A code the patient can no longer redeem is worse than saying nothing:
+        # it is offered, then refused at checkout.
+        if c.get("max_uses") is not None and (c.get("used_count") or 0) >= c["max_uses"]:
             continue
         out.append(c)
     return out
@@ -486,8 +508,10 @@ def apply_coupon_code(db: Client, payment_id: str, code: str, patient_id: str) -
     appt = payment.get("appointments") or {}
     if coupon.get("branch_id") and appt.get("branch_id") and coupon["branch_id"] != appt["branch_id"]:
         raise BookingError("هذا الكوبون غير صالح لهذا الفرع.")
-    if coupon.get("service_id") and appt.get("service_id") and coupon["service_id"] != appt["service_id"]:
-        raise BookingError("هذا الكوبون غير صالح لهذه الخدمة.")
+    if appt.get("service_id"):
+        links = db.table("coupon_services").select("service_id").eq("coupon_id", coupon["id"]).execute().data
+        if not coupon_covers_service({**coupon, "coupon_services": links}, appt["service_id"]):
+            raise BookingError("هذا الكوبون غير صالح لهذه الخدمة.")
 
     if coupon["customer_scope"] != "all":
         prior_visit = (
