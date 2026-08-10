@@ -97,7 +97,19 @@ endpoint that is never wired is simply work that never happens.
 | `POST /recalls/process-due` | daily | sends recalls that have come due |
 | `POST /imports/sheets-sync/process-due` | as configured | runs due Google Sheets syncs |
 
-`/queues/process-stale` is the newest and is not wired yet. Without it, a
-patient who checks in and is never called stays `waiting` forever: they drop
-off the queue screen (which reads today's queue) but keep skewing every
-wait-time and throughput figure drawn from `queue_tickets`.
+All of these are wired in n8n. Each one is a Schedule Trigger into a single
+HTTP Request node carrying the "PLUTO Service Token" header credential, with a
+sticky note on the canvas explaining what breaks without it. The workflows set
+`timezone: Asia/Amman` explicitly — a cron expression alone would fire in the
+n8n instance's own timezone, which is not the clinic's.
+
+| Workflow | Endpoint |
+| --- | --- |
+| PLUTO — Appointment Reminders | `/notifications/process-due` |
+| PLUTO — Waitlist: expire offers | `/waitlist/process-expired` |
+| PLUTO — Appointments: expire past unconfirmed | `/appointments/process-expired` |
+| PLUTO — Queue: close out yesterday | `/queues/process-stale` |
+| PLUTO — Packages: expiry reminders + renewal | `/patient-packages/process-expiring` |
+| PLUTO — Recalls: invitations + escalation | recalls endpoints |
+| PLUTO — Weekly Report | `/reports/send-weekly` |
+| PLUTO — Reclaim Stale Conversations | ai-services `/chat/reclaim-stale` |
