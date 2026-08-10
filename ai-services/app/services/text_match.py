@@ -28,3 +28,20 @@ def fuzzy_contains(haystack: str | None, needle: str) -> bool:
     if not haystack:
         return False
     return normalize_arabic(needle) in normalize_arabic(haystack)
+
+
+# Arabic-Indic (٠-٩) and Eastern Arabic-Indic (۰-۹) digits, which patients type
+# as readily as ASCII ones.
+_DIGIT_MAP = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+
+def digits_only(text: str | None) -> str:
+    """Every digit in the text, in order, with separators dropped.
+
+    A phone is the same phone whether it was typed "0791234567",
+    "079 123 4567", "٠٧٩١٢٣٤٥٦٧" or "+962 79 123 4567", so comparing what the
+    patient wrote against what the assistant is trying to save has to happen
+    on digits alone."""
+    if not text:
+        return ""
+    return "".join(ch for ch in text.translate(_DIGIT_MAP) if ch.isdigit())
