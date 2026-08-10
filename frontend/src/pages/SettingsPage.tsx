@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getClinicSettings, updateClinicSettings } from "../api/settings";
 import type { ClinicSettings } from "../api/settings";
+import { formatDateTime } from "../format";
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
@@ -144,7 +145,7 @@ export function SettingsPage() {
         {saved && <span className="settings-saved">✓ انحفظ</span>}
       </form>
       {settings && (
-        <p className="settings-updated">آخر تحديث: {new Date(settings.updated_at).toLocaleString("ar-JO")}</p>
+        <p className="settings-updated">آخر تحديث: {formatDateTime(settings.updated_at)}</p>
       )}
     </div>
   );

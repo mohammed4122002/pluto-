@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { applyCoupon, listPayments, refundPayment, rejectPayment, verifyPayment } from "../api/payments";
 import type { Payment, PaymentStatus } from "../api/payments";
 import { createInvoice } from "../api/invoices";
+import { formatDateTimeShort } from "../format";
 
 const tabs: { key: PaymentStatus; label: string }[] = [
   { key: "receipt_submitted", label: "بانتظار المراجعة" },
@@ -182,7 +183,7 @@ export function PaymentsPage() {
                     <div className="import-hint">{p.patient_phone}</div>
                   </td>
                   <td>{p.appointment_number ?? (p.patient_package_id ? "باقة" : "—")}</td>
-                  <td>{p.scheduled_at ? new Date(p.scheduled_at).toLocaleString("ar") : "—"}</td>
+                  <td>{p.scheduled_at ? formatDateTimeShort(p.scheduled_at) : "—"}</td>
                   <td>{paymentTypeLabel[p.payment_type] ?? p.payment_type}</td>
                   <td>
                     {p.amount} {p.currency}

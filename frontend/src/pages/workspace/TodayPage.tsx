@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { actOnMyTicket, getMyToday } from "../../api/me";
 import type { MyToday } from "../../api/me";
 import { errorMessage } from "../../api/errors";
+import { formatFullDate, formatTime } from "../../format";
 
 const channelLabel: Record<string, string> = {
   whatsapp: "واتساب",
@@ -28,7 +29,7 @@ const FINISHED = new Set(["completed", "checked_out", "no_show", "cancelled"]);
 
 function clockTime(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+  return formatTime(iso);
 }
 
 function greeting() {
@@ -68,11 +69,7 @@ export function TodayPage({ staffName, onGoTo }: { staffName: string; onGoTo: (t
       .finally(() => setBusy(false));
   };
 
-  const dateLabel = new Date().toLocaleDateString("ar", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  const dateLabel = formatFullDate(new Date());
 
   const focus = today?.now_serving ?? today?.up_next ?? null;
   const isServing = Boolean(today?.now_serving);

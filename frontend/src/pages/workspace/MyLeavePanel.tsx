@@ -3,14 +3,10 @@ import type { FormEvent } from "react";
 import { cancelMyLeave, createMyLeave, getMyLeaves } from "../../api/me";
 import type { MyLeave } from "../../api/me";
 import { errorMessage } from "../../api/errors";
+import { formatDateTime } from "../../format";
 
 function shortDateTime(iso: string) {
-  return new Date(iso).toLocaleString("ar", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTime(iso);
 }
 
 function todayIso() {

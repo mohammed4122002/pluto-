@@ -3,6 +3,7 @@ import { getDashboardReport } from "../api/reports";
 import type { DashboardReport } from "../api/reports";
 import { BarChart, Donut, Meter } from "../components/Charts";
 import type { BarDatum, DonutSlice } from "../components/Charts";
+import { formatDayMonth } from "../format";
 
 function daysAgoIso(days: number) {
   return new Date(Date.now() - days * 86400000).toISOString();
@@ -46,7 +47,6 @@ export function WeeklyReportPage() {
 
   useEffect(load, []);
 
-  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("ar-JO", { day: "numeric", month: "long" });
   const money = (amount: number) => `${amount} ${report?.financial.currency ?? ""}`;
 
   // The three outcomes a week's appointments actually land in. "Everything
@@ -89,7 +89,7 @@ export function WeeklyReportPage() {
       {report && (
         <>
           <p className="settings-hint">
-            الفترة: {fmtDate(report.period.date_from)} — {fmtDate(report.period.date_to)}
+            الفترة: {formatDayMonth(report.period.date_from)} — {formatDayMonth(report.period.date_to)}
           </p>
 
           {/* Twelve numbers in three unlabelled rows read as one undifferentiated

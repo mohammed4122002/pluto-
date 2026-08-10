@@ -16,6 +16,7 @@ import type { PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 
 import { slotStatusLabel as statusLabel } from "../statusLabels";
+import { formatTime } from "../format";
 
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
 
@@ -286,8 +287,8 @@ export function CalendarPage() {
                   }}
                 >
                   <td>
-                    {new Date(s.start_at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })} -{" "}
-                    {new Date(s.end_at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}
+                    {formatTime(s.start_at)} -{" "}
+                    {formatTime(s.end_at)}
                   </td>
                   <td>{doctorName(s.doctor_id)}</td>
                   <td>

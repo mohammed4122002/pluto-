@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { search } from "../api/search";
 import type { SearchResults } from "../api/search";
 import { SearchIcon } from "../icons";
+import { formatDateTimeShort } from "../format";
 
 type GlobalSearchBarProps = {
   onNavigate: (key: string) => void;
@@ -96,7 +97,7 @@ export function GlobalSearchBar({ onNavigate, isSelfScoped }: GlobalSearchBarPro
                   onClick={() => go(isSelfScoped ? "my-calendar" : "appointments")}
                 >
                   <span>{a.patient_name}</span>
-                  <span className="global-search-result-meta">{new Date(a.scheduled_at).toLocaleString("ar-JO")}</span>
+                  <span className="global-search-result-meta">{formatDateTimeShort(a.scheduled_at)}</span>
                 </button>
               ))}
             </div>

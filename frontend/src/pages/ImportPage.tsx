@@ -37,6 +37,7 @@ const SOURCE_LABELS: Record<ImportSourceType | "sqlserver", string> = {
 
 
 import { importStatusLabel as STATUS_LABELS } from "../statusLabels";
+import { formatDateTimeShort } from "../format";
 
 const UNDO_LABELS: Record<string, string> = {
   not_applicable: "—",
@@ -126,7 +127,7 @@ function ImportHistory({ onStartNew }: { onStartNew: () => void }) {
           <tbody>
             {jobs.map((job) => (
               <tr key={job.id}>
-                <td>{new Date(job.created_at).toLocaleString("ar")}</td>
+                <td>{formatDateTimeShort(job.created_at)}</td>
                 <td>{job.data_type}</td>
                 <td>{job.source_label ?? job.source_type}</td>
                 <td>{job.created_count}</td>

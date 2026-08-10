@@ -7,6 +7,7 @@ import { listPatientPackages } from "../api/packages";
 import type { PatientPackage } from "../api/packages";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
+import { formatDateShort, formatDateTimeShort } from "../format";
 
 const EXPIRING_WITHIN_DAYS = 3;
 
@@ -98,7 +99,7 @@ export function AlertsPage() {
                 <td>
                   {p.amount} {p.currency}
                 </td>
-                <td>{p.submitted_at ? new Date(p.submitted_at).toLocaleString("ar-JO") : "—"}</td>
+                <td>{p.submitted_at ? formatDateTimeShort(p.submitted_at) : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -146,7 +147,7 @@ export function AlertsPage() {
               <tr key={pp.id}>
                 <td>{patientName(pp.patient_id)}</td>
                 <td>{pp.sessions_remaining}</td>
-                <td>{new Date(pp.expires_at).toLocaleDateString("ar-JO")}</td>
+                <td>{formatDateShort(pp.expires_at)}</td>
               </tr>
             ))}
           </tbody>

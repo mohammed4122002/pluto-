@@ -10,6 +10,7 @@ import { createPackage, listPackages, listPatientPackages, sellPackage, usePacka
 import type { Package, PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 import { packageStatusBadgeClass as statusBadgeClass, packageStatusLabel as statusLabel } from "../statusLabels";
+import { formatDateShort } from "../format";
 
 
 
@@ -223,7 +224,7 @@ export function PackagesPage() {
                 <td>
                   <span className={`badge ${statusBadgeClass[pp.status]}`}>{statusLabel[pp.status]}</span>
                 </td>
-                <td>{new Date(pp.expires_at).toLocaleDateString("ar-JO")}</td>
+                <td>{formatDateShort(pp.expires_at)}</td>
                 <td>
                   {pp.status === "active" && pp.sessions_remaining > 0 && (
                     <button onClick={() => handleUseSession(pp.id)}>تسجيل استخدام جلسة</button>
