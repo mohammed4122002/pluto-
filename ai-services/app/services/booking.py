@@ -427,6 +427,39 @@ def active_packages_for_patient(db: Client, patient_id: str, service_id: str | N
     return matching
 
 
+def purchasable_packages(db: Client, service_id: str | None = None) -> list[dict]:
+    """The packages the clinic sells, as opposed to the ones a patient already
+    owns.
+
+    active_packages_for_patient answers "can you book against something you
+    already bought". Nothing answered "we sell a 5-session bundle that would
+    be cheaper than paying per visit", so the assistant could never offer one
+    -- the same gap coupons had.
+
+    A package with no rows in package_services covers any service.
+    """
+    rows = (
+        db.table("packages")
+        .select("id, name, sessions_count, price, validity_days, package_services(service_id)")
+        .eq("is_active", True)
+        .order("price")
+        .execute()
+        .data
+    )
+    if not service_id:
+        return rows
+    return [
+        row
+        for row in rows
+        if not {ps["service_id"] for ps in (row.get("package_services") or [])}
+        or service_id in {ps["service_id"] for ps in (row.get("package_services") or [])}
+    ]
+
+
+def package_services_of(package: dict) -> set[str]:
+    return {ps["service_id"] for ps in (package.get("package_services") or [])}
+
+
 def coupon_services_of(coupon: dict) -> set[str]:
     """The services a coupon is limited to; empty means every service.
 

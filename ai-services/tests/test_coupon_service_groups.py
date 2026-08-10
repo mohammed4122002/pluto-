@@ -66,6 +66,9 @@ class _Rows:
     def eq(self, *_):
         return self
 
+    def order(self, *_, **__):
+        return self
+
     def execute(self):
         from types import SimpleNamespace
 
@@ -130,3 +133,34 @@ def test_an_exhausted_coupon_is_not_offered():
 def test_another_branchs_coupon_is_not_offered():
     rows = [_coupon(code="OTHER", branch_id="branch-2"), _coupon(code="MINE", branch_id=BRANCH)]
     assert _codes(rows) == ["MINE"]
+
+
+# --- Packages the clinic sells -------------------------------------------
+# active_packages_for_patient answers "what did this patient already buy".
+# Nothing answered "what do we sell", so the assistant could never offer one.
+
+
+def _package(**over):
+    base = {"id": "pk1", "name": "باقة", "sessions_count": 5, "price": 90, "validity_days": 365, "package_services": []}
+    base.update(over)
+    return base
+
+
+def _pkg_names(rows, service_id=None):
+    from app.services.booking import purchasable_packages
+
+    return [p["name"] for p in purchasable_packages(_Db(rows), service_id)]
+
+
+def test_a_package_scoped_to_services_is_offered_only_for_them():
+    rows = [
+        _package(name="عامة"),
+        _package(name="أسنان", package_services=[{"service_id": DENTAL_A}, {"service_id": DENTAL_B}]),
+    ]
+    assert _pkg_names(rows, DENTAL_A) == ["عامة", "أسنان"]
+    assert _pkg_names(rows, DERMA) == ["عامة"]
+
+
+def test_without_a_service_the_whole_catalogue_is_offered():
+    rows = [_package(name="عامة"), _package(name="أسنان", package_services=[{"service_id": DENTAL_A}])]
+    assert _pkg_names(rows) == ["عامة", "أسنان"]
