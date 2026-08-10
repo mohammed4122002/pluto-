@@ -35,6 +35,14 @@ def fuzzy_contains(haystack: str | None, needle: str) -> bool:
 _DIGIT_MAP = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
 
 
+def to_ascii_digits(text: str) -> str:
+    """The same text with ٠-٩ / ۰-۹ rewritten as 0-9, everything else as it
+    was. Not a reformatting of the number -- "٠٧٩" and "079" are the same
+    digits written in two scripts, and a record holding the first cannot be
+    dialled, deduped or matched against the second."""
+    return (text or "").translate(_DIGIT_MAP)
+
+
 def digits_only(text: str | None) -> str:
     """Every digit in the text, in order, with separators dropped.
 
