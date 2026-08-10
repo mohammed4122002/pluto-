@@ -84,7 +84,10 @@ function ScheduleCard({
     <form className="settings-form" onSubmit={handleSave} style={{ maxWidth: 640 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <strong>{templateLabels[schedule.template.code] ?? schedule.template.code}</strong>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
+        {/* .settings-form label is flex-direction: column, so an inline
+            display:flex alone still stacked the box above its own word.
+            .settings-check is the existing opt-out. */}
+        <label className="settings-check" style={{ fontWeight: 400 }}>
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           مفعّلة
         </label>
