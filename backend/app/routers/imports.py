@@ -146,6 +146,40 @@ def test_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends
     return {"tables": tables}
 
 
+@router.post("/test-sqlserver")
+def test_sqlserver(payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))):
+    if not payload.connection_string:
+        raise HTTPException(status_code=400, detail="أدخل بيانات الاتصال")
+    try:
+        tables = connectors.sqlserver_list_tables(payload.connection_string)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "تعذر الاتصال بـ SQL Server — تأكد من العنوان والمنفذ (1433 افتراضياً) واسم المستخدم "
+                f"وكلمة المرور، ومن إن الخادم بيسمح باتصال من خارج الشبكة: {exc}"
+            ),
+        )
+    return {"tables": tables}
+
+
+@router.post("/preview-source/sqlserver", response_model=SourcePreviewResult)
+def preview_sqlserver(payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))):
+    if payload.data_type not in FIELD_DEFINITIONS:
+        raise HTTPException(status_code=400, detail="نوع بيانات غير معروف")
+    _require_data_type_access(current, payload.data_type, None)
+    if not payload.connection_string or not payload.table_name:
+        raise HTTPException(status_code=400, detail="أدخل بيانات الاتصال واختر الجدول")
+    try:
+        columns, rows = connectors.sqlserver_read_table(payload.connection_string, payload.table_name)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"تعذر قراءة الجدول: {exc}")
+
+    return SourcePreviewResult(
+        columns=columns, sample_rows=rows[:20], rows=rows, suggested_mapping=suggest_mapping(payload.data_type, columns)
+    )
+
+
 @router.post("/preview-source/postgres", response_model=SourcePreviewResult)
 def preview_postgres(payload: SourcePreviewRequest, current: CurrentStaff = Depends(require_permission("import.execute"))):
     if payload.data_type not in FIELD_DEFINITIONS:

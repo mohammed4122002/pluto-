@@ -27,8 +27,9 @@ import type {
   ImportSourceType,
   SourcePreviewResult,
 } from "../api/imports";
+import { previewSqlServer, testSqlServer } from "../api/imports";
 
-const SOURCE_LABELS: Record<ImportSourceType | "sqlserver", string> = {
+const SOURCE_LABELS: Record<ImportSourceType, string> = {
   file: "ملف (Excel / CSV)",
   google_sheets: "Google Sheets",
   postgres: "قاعدة بيانات (Postgres)",
@@ -37,6 +38,7 @@ const SOURCE_LABELS: Record<ImportSourceType | "sqlserver", string> = {
 
 
 import { importStatusLabel as STATUS_LABELS } from "../statusLabels";
+import { formatDateTimeShort } from "../format";
 
 const UNDO_LABELS: Record<string, string> = {
   not_applicable: "—",
@@ -126,7 +128,7 @@ function ImportHistory({ onStartNew }: { onStartNew: () => void }) {
           <tbody>
             {jobs.map((job) => (
               <tr key={job.id}>
-                <td>{new Date(job.created_at).toLocaleString("ar")}</td>
+                <td>{formatDateTimeShort(job.created_at)}</td>
                 <td>{job.data_type}</td>
                 <td>{job.source_label ?? job.source_type}</td>
                 <td>{job.created_count}</td>
@@ -269,6 +271,32 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
       .then((res) => {
         setPreview(res);
         setSourceLabel(`DB: ${pgTable}`);
+        setMapping(res.suggested_mapping);
+        setStep(3);
+      })
+      .catch((err) => setError(err.response?.data?.detail ?? err.message))
+      .finally(() => setBusy(false));
+  };
+
+  const handleVerifySqlServer = () => {
+    setBusy(true);
+    setError(null);
+    testSqlServer(connectionString)
+      .then((res) => {
+        setPgTables(res.tables);
+        setPgVerified(true);
+      })
+      .catch((err) => setError(err.response?.data?.detail ?? err.message))
+      .finally(() => setBusy(false));
+  };
+
+  const handleReadSqlServer = () => {
+    setBusy(true);
+    setError(null);
+    previewSqlServer(dataType, connectionString, pgTable)
+      .then((res) => {
+        setPreview(res);
+        setSourceLabel(`SQL Server: ${pgTable}`);
         setMapping(res.suggested_mapping);
         setStep(3);
       })
@@ -512,16 +540,47 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
 
       {step === 2 && sourceType === "sqlserver" && (
         <div className="field-group">
-          <h2>٢. SQL Server</h2>
-          <p className="field-hint">
-            خوادم SQL Server المحلية غالباً لا يمكن الوصول إليها من الإنترنت مباشرة. حمّل سكربت تصدير جاهز، شغّله على
-            جهازك ليولّد ملف Excel، ثم ارجع واختر "ملف" كمصدر وارفعه.
+          <h2>٢. الاتصال بـ SQL Server</h2>
+          <div className="field-row">
+            <label>بيانات الاتصال (للقراءة فقط)</label>
+            <input
+              value={connectionString}
+              onChange={(e) => setConnectionString(e.target.value)}
+              placeholder="Server=10.0.0.5,1433;Database=ClinicDB;User Id=sa;Password=..."
+            />
+            <p className="field-hint">
+              بيمشي الحال كمان بصيغة mssql://user:password@host:1433/dbname. استخدم مستخدم صلاحياته قراءة فقط.
+            </p>
+          </div>
+          <div className="verify-row">
+            <button className="btn-secondary" type="button" disabled={busy || !connectionString} onClick={handleVerifySqlServer}>
+              {busy ? "جاري التحقق..." : "تحقق"}
+            </button>
+            {pgVerified && <span className="verify-result ok">✓ تم الاتصال — اختر الجدول أدناه</span>}
+          </div>
+          {pgVerified && (
+            <div className="field-row">
+              <label>الجدول أو الـ View</label>
+              <select value={pgTable} onChange={(e) => setPgTable(e.target.value)}>
+                <option value="">اختر جدولاً</option>
+                {pgTables.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <button className="btn-primary" disabled={!pgTable || busy} onClick={handleReadSqlServer} style={{ marginTop: 10 }}>
+                قراءة البيانات
+              </button>
+            </div>
+          )}
+
+          {/* A clinic server sitting on a local network usually cannot be
+              reached from the internet at all, so the offline route stays. */}
+          <p className="field-hint" style={{ marginTop: 18 }}>
+            إذا كان الخادم داخل شبكة العيادة وما بينفتح من برّا: حمّل سكربت التصدير، شغّله على جهاز داخل الشبكة ليطلّع
+            ملف Excel، وبعدها ارجع واختر "ملف" وارفعه.
           </p>
           <button className="btn-secondary" onClick={() => downloadSqlServerExportScript(dataType)}>
             تنزيل سكربت التصدير
-          </button>
-          <button className="btn-primary" style={{ marginTop: 10 }} onClick={() => setSourceType("file")}>
-            الآن اختر "ملف" لرفع نتيجة التصدير
           </button>
         </div>
       )}

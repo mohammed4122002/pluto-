@@ -1,9 +1,9 @@
 /** Small SVG charts, written by hand.
  *
  * A charting library would be several hundred kilobytes and would have to be
- * re-themed to match the palette anyway. These three shapes are all the
- * dashboard needs, they inherit the CSS custom properties directly, and they
- * lay out right-to-left to match the rest of the Arabic UI. */
+ * re-themed to match the palette anyway. These few shapes are all the dashboard
+ * and the weekly report need, they inherit the CSS custom properties directly,
+ * and they lay out right-to-left to match the rest of the Arabic UI. */
 
 type SparklineProps = {
   /** Oldest value first. Rendered right-to-left, so the newest point sits at
@@ -150,6 +150,35 @@ export function Donut({ slices, centerValue, centerLabel }: DonutProps) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+type MeterProps = {
+  label: string;
+  /** 0-100. */
+  percent: number;
+  color?: string;
+  /** Shown next to the percentage, e.g. "9 من 60". */
+  note?: string;
+  /** For rates where high is bad (no-show, escalation), so the bar reads as a
+   *  warning rather than an achievement. */
+  invert?: boolean;
+};
+
+export function Meter({ label, percent, color, note, invert = false }: MeterProps) {
+  const clamped = Math.max(0, Math.min(100, percent));
+  const fill = color ?? (invert ? "var(--tone-rose)" : "var(--tone-teal)");
+  return (
+    <div className="meter">
+      <div className="meter-head">
+        <span className="meter-label">{label}</span>
+        <span className="meter-value">{percent}%</span>
+      </div>
+      <div className="meter-track" role="img" aria-label={`${label}: ${percent}%`}>
+        <div className="meter-fill" style={{ width: `${clamped}%`, background: fill }} />
+      </div>
+      {note && <span className="meter-note">{note}</span>}
     </div>
   );
 }

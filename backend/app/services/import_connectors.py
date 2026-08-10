@@ -197,3 +197,106 @@ def postgres_read_table(connection_string: str, table_name: str, limit: int = 20
             return columns, rows
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# SQL Server external source — the shape most existing clinic systems ship
+# with. Same contract as the Postgres connector above: read-only, and the only
+# identifier ever interpolated is one the caller first read back out of
+# INFORMATION_SCHEMA, so no free-text SQL from the user reaches the server.
+#
+# pymssql rather than pyodbc on purpose: its wheels bundle FreeTDS, so the
+# deploy needs no system ODBC driver installed alongside it.
+
+_MSSQL_DEFAULT_PORT = 1433
+
+
+def _mssql_connect(connection_string: str):
+    """Accepts host:port/database style, or a keyword string
+    (server=...;database=...;user id=...;password=...)."""
+    import pymssql
+
+    parts = _parse_mssql_connection(connection_string)
+    return pymssql.connect(
+        server=parts["server"],
+        port=parts["port"],
+        user=parts["user"],
+        password=parts["password"],
+        database=parts["database"],
+        timeout=15,
+        login_timeout=10,
+    )
+
+
+def _parse_mssql_connection(connection_string: str) -> dict:
+    raw = (connection_string or "").strip()
+    if not raw:
+        raise ValueError("سلسلة الاتصال فاضية")
+
+    # Keyword form: server=host,1433;database=db;user id=sa;password=***
+    if "=" in raw and ";" in raw or raw.lower().startswith(("server=", "data source=")):
+        fields: dict[str, str] = {}
+        for chunk in raw.split(";"):
+            if "=" not in chunk:
+                continue
+            key, _, value = chunk.partition("=")
+            fields[key.strip().lower()] = value.strip()
+        server = fields.get("server") or fields.get("data source") or fields.get("address") or ""
+        port = _MSSQL_DEFAULT_PORT
+        if "," in server:
+            server, _, port_text = server.partition(",")
+            port = int(port_text or _MSSQL_DEFAULT_PORT)
+        return {
+            "server": server.strip(),
+            "port": port,
+            "database": fields.get("database") or fields.get("initial catalog") or "",
+            "user": fields.get("user id") or fields.get("uid") or fields.get("user") or "",
+            "password": fields.get("password") or fields.get("pwd") or "",
+        }
+
+    # URL form: mssql://user:pass@host:1433/database
+    from urllib.parse import unquote, urlparse
+
+    parsed = urlparse(raw if "://" in raw else f"mssql://{raw}")
+    if not parsed.hostname:
+        raise ValueError("ما قدرنا نقرأ عنوان الخادم من سلسلة الاتصال")
+    return {
+        "server": parsed.hostname,
+        "port": parsed.port or _MSSQL_DEFAULT_PORT,
+        "database": (parsed.path or "").lstrip("/"),
+        "user": unquote(parsed.username or ""),
+        "password": unquote(parsed.password or ""),
+    }
+
+
+def sqlserver_list_tables(connection_string: str) -> list[str]:
+    conn = _mssql_connect(connection_string)
+    try:
+        cur = conn.cursor()
+        # Views included: clinic systems commonly expose their reporting data
+        # as views rather than base tables.
+        cur.execute(
+            "select table_schema + '.' + table_name from INFORMATION_SCHEMA.TABLES "
+            "where table_type in ('BASE TABLE', 'VIEW') order by table_schema, table_name"
+        )
+        return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def sqlserver_read_table(connection_string: str, table_name: str, limit: int = 20000) -> tuple[list[str], list[dict]]:
+    valid_tables = set(sqlserver_list_tables(connection_string))
+    if table_name not in valid_tables:
+        raise ValueError("الجدول غير موجود أو غير مسموح بالوصول إليه")
+    schema, _, bare = table_name.partition(".")
+    conn = _mssql_connect(connection_string)
+    try:
+        cur = conn.cursor()
+        # TOP takes a literal, not a parameter, so the value is forced to int
+        # rather than interpolated as text.
+        cur.execute(f'select top {int(limit)} * from [{schema}].[{bare}]')
+        columns = [d[0] for d in cur.description]
+        rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+        return columns, rows
+    finally:
+        conn.close()

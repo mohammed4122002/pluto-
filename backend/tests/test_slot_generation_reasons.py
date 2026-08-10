@@ -73,7 +73,12 @@ def test_a_range_with_no_working_day_in_it_is_reported_separately():
 
 
 def test_a_successful_run_reports_no_reason():
+    # Deliberately a future day, derived from the real clock rather than the
+    # fixed TODAY above: generation skips slots whose start time has already
+    # passed, so asking for a 09:00-12:00 schedule on the current day produced
+    # zero slots -- and this test passed in the morning and failed after noon.
+    future = date.today() + timedelta(days=7)
     db = _db(availability=[_availability(d) for d in range(0, 7)])
-    created, reason = generate_slots_for_doctor(db, DOCTOR, BRANCH, TODAY, TODAY)
+    created, reason = generate_slots_for_doctor(db, DOCTOR, BRANCH, future, future)
     assert created > 0
     assert reason is None

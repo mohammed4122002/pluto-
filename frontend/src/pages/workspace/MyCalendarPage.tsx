@@ -3,6 +3,7 @@ import { getMyCalendar } from "../../api/me";
 import type { MyCalendarAppointment, MyCalendarDay, MyCalendarSlot } from "../../api/me";
 import { errorMessage } from "../../api/errors";
 import { MyLeavePanel } from "./MyLeavePanel";
+import { formatTime } from "../../format";
 
 const slotStatusLabel: Record<string, string> = {
   available: "متاح",
@@ -31,7 +32,7 @@ const appointmentStatusLabel: Record<string, string> = {
 };
 
 function clockTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+  return formatTime(iso);
 }
 
 function todayIso() {

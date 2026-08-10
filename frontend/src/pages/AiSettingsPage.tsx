@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getAiProviderSettings, updateAiProviderSettings } from "../api/aiSettings";
 import type { AiProviderSettings } from "../api/aiSettings";
+import { formatDateTime } from "../format";
 
 export function AiSettingsPage() {
   const [settings, setSettings] = useState<AiProviderSettings | null>(null);
@@ -118,7 +119,7 @@ export function AiSettingsPage() {
         </button>
         {saved && <span className="settings-saved">✓ انحفظ</span>}
       </form>
-      {settings && <p className="settings-updated">آخر تحديث: {new Date(settings.updated_at).toLocaleString("ar-JO")}</p>}
+      {settings && <p className="settings-updated">آخر تحديث: {formatDateTime(settings.updated_at)}</p>}
     </div>
   );
 }

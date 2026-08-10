@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getMyPatients } from "../../api/me";
 import type { MyPatient } from "../../api/me";
 import { errorMessage } from "../../api/errors";
+import { formatDateShort } from "../../format";
 
 const tagLabel: Record<string, string> = {
   vip: "VIP",
@@ -20,7 +21,7 @@ function avatarColor(name: string) {
 
 function shortDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("ar", { year: "numeric", month: "short", day: "numeric" });
+  return formatDateShort(iso);
 }
 
 export function MyPatientsPage() {

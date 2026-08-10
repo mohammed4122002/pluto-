@@ -19,6 +19,7 @@ import {
   updateChannelSettings,
   verifyChannelCredentials,
 } from "../api/channels";
+import { formatDate, formatDateTimeShort } from "../format";
 import type {
   Channel,
   ChannelHealthCheck,
@@ -930,7 +931,7 @@ function ConnectionTab({
         )}
         {channel.token_expires_at && (
           <p className="settings-hint" style={{ margin: 0 }}>
-            تاريخ انتهاء التوكن: {new Date(channel.token_expires_at).toLocaleDateString("ar")}
+            تاريخ انتهاء التوكن: {formatDate(channel.token_expires_at)}
           </p>
         )}
       </div>
@@ -1015,7 +1016,7 @@ function HealthTab({ health, messages }: { health: ChannelHealthCheck | null; me
             <div key={m.id} className="message-log-row">
               <span className="message-log-dir">{m.direction === "inbound" ? "وارد" : "صادر"}</span>
               <span className="message-log-content">{m.content}</span>
-              <span className="message-log-time">{new Date(m.created_at).toLocaleString("ar")}</span>
+              <span className="message-log-time">{formatDateTimeShort(m.created_at)}</span>
             </div>
           ))}
         </div>

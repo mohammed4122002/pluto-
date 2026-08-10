@@ -310,33 +310,58 @@
 
 /* Stat cards — quick counts at the top of a list page */
 
+/* auto-fill, not auto-fit: with only two stats the spare tracks stay empty
+   instead of stretching two cards across the whole page, which is what made
+   a "2" sit alone in a 350px-wide box. */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
   gap: 12px;
   margin-bottom: 22px;
-  max-width: 720px;
 }
 
 .stat-card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 13px 15px;
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
   box-shadow: var(--shadow-xs);
+  overflow: hidden;
 }
 
+/* Same hairline the dashboard's KPI cards carry, so a stat reads as the same
+   kind of object everywhere in the product. */
+.stat-card::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--card-tone, var(--accent));
+  opacity: 0.55;
+}
+
+/* Opt-in tones, so a report can colour-code revenue against refunds. Left
+   unset, a stat keeps the neutral accent. */
+.stat-card.tone-violet { --card-tone: var(--tone-violet); }
+.stat-card.tone-teal { --card-tone: var(--tone-teal); }
+.stat-card.tone-amber { --card-tone: var(--tone-amber); }
+.stat-card.tone-rose { --card-tone: var(--tone-rose); }
+
 .stat-card-value {
-  font-size: 21px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-h);
-  line-height: 1.2;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card-label {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text);
-  margin-top: 3px;
+  margin-top: 4px;
+  line-height: 1.45;
 }
 
 /* Table toolbar — search + filters above a .data-table */
@@ -1582,19 +1607,50 @@ button.btn-secondary:hover:not(:disabled) {
 
 /* Checkbox group */
 
+/* Fifteen doctors as bare checkboxes wrapping mid-name directly on the page
+   background is what this looked like before. A grid keeps the columns
+   aligned however many there are, and the inset panel gives the run an edge
+   -- it reads the same whether it sits on the page or inside an expanded
+   table row. */
 .checkbox-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 7px 14px;
   margin-bottom: 20px;
-  font-size: 14px;
+  padding: 13px 15px;
+  font-size: 13.5px;
   color: var(--text-h);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.checkbox-group-title {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
 }
 
 .checkbox-group label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* Long doctor names truncate rather than shoving the column out of line. */
+.checkbox-group label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkbox-group input[type="checkbox"] {
+  flex-shrink: 0;
 }
 
 /* Modal */
@@ -2962,6 +3018,130 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   .bar,
   .donut circle {
     animation: none;
+    transition: none;
+  }
+}
+
+/* --- Shared page furniture ------------------------------------------------
+   These rules finish the job the dashboard started: a section heading, an
+   empty state and a form panel should look the same on every screen, not
+   only on the one that was rebuilt most recently. */
+
+/* Section headings sat at the browser default (~22px, bold) directly on the
+   page background, which made them louder than the page title itself. */
+.page > h2 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: -0.005em;
+  margin: 26px 0 11px;
+}
+
+.page > h2:first-of-type {
+  margin-top: 0;
+}
+
+/* "Nothing here" is a normal state, not a gap in the layout. The inbox's own
+   empty style is flex:1 with 40px padding -- correct inside a full-height
+   pane, and a large dead hole when reused between two tables on a page. */
+.section-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 26px 20px;
+  margin: 0 0 8px;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* A create/filter form is supporting furniture, not the point of the page --
+   drop it back a level so the data below stays the loudest thing on screen. */
+.data-form {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.data-form input,
+.data-form select,
+.data-form textarea {
+  background: var(--surface);
+}
+
+/* A form's own heading, so a wall of inputs says what it creates. */
+.data-form-title {
+  flex-basis: 100%;
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+
+/* Row actions -- four buttons in a 180px cell each claimed their own line,
+   which pushed the appointments table to a 177px row height. Tightening the
+   dense variant lets them pair up two per line. */
+.data-table td button {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.data-table td button + button {
+  margin-inline-start: 4px;
+}
+
+/* Meter — a rate reads as a proportion far better than a bare "82%". */
+
+.meter + .meter {
+  margin-top: 14px;
+}
+
+.meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.meter-label {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.meter-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.meter-note {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill {
     transition: none;
   }
 }

@@ -76,6 +76,7 @@ export function EscalationStaffPage() {
       {error && <p className="error">{error}</p>}
 
       <form className="data-form" onSubmit={handleAdd}>
+        <p className="data-form-title">إضافة موظف لفريق التصعيد</p>
         <select value={staffId} onChange={(e) => setStaffId(e.target.value)}>
           {staff.map((s) => (
             <option key={s.id} value={s.id}>
@@ -102,7 +103,7 @@ export function EscalationStaffPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : pool.length === 0 ? (
-        <p className="inbox-empty">ما في موظفين بفريق التصعيد بعد — التحويل التلقائي ما رح يشتغل لحد ما تضيفي واحد على الأقل.</p>
+        <p className="section-empty">ما في موظفين بفريق التصعيد بعد — التحويل التلقائي ما رح يشتغل لحد ما تضيفي واحد على الأقل.</p>
       ) : (
         <table className="data-table">
           <thead>

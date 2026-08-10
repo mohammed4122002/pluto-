@@ -3,6 +3,7 @@ import { actOnMyTicket, getMyQueue } from "../../api/me";
 import type { MyQueueDay } from "../../api/me";
 import { errorMessage } from "../../api/errors";
 import { queueStatusLabel as statusLabel } from "../../statusLabels";
+import { formatTime } from "../../format";
 
 
 const priorityLabel: Record<string, string> = {
@@ -16,7 +17,7 @@ const priorityLabel: Record<string, string> = {
 
 function clockTime(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+  return formatTime(iso);
 }
 
 function todayIso() {

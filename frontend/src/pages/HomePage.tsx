@@ -12,6 +12,7 @@ import type { StaffDirectoryEntry } from "../api/staff";
 import { BarChart, Donut, Sparkline } from "../components/Charts";
 import type { DonutSlice } from "../components/Charts";
 import { bucketLabel, statusBadgeClass, statusBucket, statusLabel } from "../statusLabels";
+import { formatDayMonth, formatFullDate, formatTime } from "../format";
 
 type HomePageProps = {
   staffName: string;
@@ -37,7 +38,7 @@ function dayKey(d: Date) {
 }
 
 function clockTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("ar-JO", { hour: "2-digit", minute: "2-digit" });
+  return formatTime(iso);
 }
 
 /** Icons are inline so the dashboard adds no network requests and the strokes
@@ -145,7 +146,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
       days.push({
         label: i === 0 ? "اليوم" : WEEKDAY[d.getDay()],
         value: count,
-        title: `${d.toLocaleDateString("ar-JO", { day: "numeric", month: "long" })}: ${count} موعد`,
+        title: `${formatDayMonth(d)}: ${count} موعد`,
       });
     }
 
@@ -181,7 +182,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
             {greeting}، {staffName}
           </p>
           <p className="page-header-subtitle">
-            {new Date().toLocaleDateString("ar-JO", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {formatFullDate(new Date())}
           </p>
         </div>
       </div>

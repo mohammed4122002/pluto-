@@ -29,10 +29,18 @@ const emptyForm = {
   discount_value: 0,
   max_uses: "",
   branch_id: "",
-  service_id: "",
+  service_ids: [] as string[],
   customer_scope: "all" as CouponCustomerScope,
   per_customer_limit: "",
 };
+
+/** What a coupon actually covers, in words: every service, one, or a named
+ *  group. service_id is folded in for coupons predating service groups. */
+function serviceScopeNames(coupon: Coupon, services: Service[]): string[] {
+  const ids = new Set(coupon.service_ids ?? []);
+  if (coupon.service_id) ids.add(coupon.service_id);
+  return [...ids].map((id) => services.find((s) => s.id === id)?.name ?? "—");
+}
 
 export function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -57,8 +65,13 @@ export function CouponsPage() {
 
   useEffect(load, []);
 
-  const nameOf = (list: { id: string; full_name?: string; name?: string }[], id: string | null) =>
-    id ? list.find((x) => x.id === id)?.full_name ?? list.find((x) => x.id === id)?.name ?? "—" : "كل الفروع/الخدمات";
+  const serviceScope = (c: Coupon) => {
+    const names = serviceScopeNames(c, services);
+    return names.length === 0 ? "كل الخدمات" : names.join("، ");
+  };
+
+  // Only branches go through this now that services have their own renderer.
+  const branchName = (id: string | null) => (id ? branches.find((b) => b.id === id)?.name ?? "—" : "كل الفروع");
 
   const handleCreate = (e: FormEvent) => {
     e.preventDefault();
@@ -70,7 +83,7 @@ export function CouponsPage() {
       discount_value: needsValue(form.discount_type) ? form.discount_value : undefined,
       max_uses: form.max_uses ? Number(form.max_uses) : undefined,
       branch_id: form.branch_id || undefined,
-      service_id: form.service_id || undefined,
+      service_ids: form.service_ids,
       customer_scope: form.customer_scope,
       per_customer_limit: form.per_customer_limit ? Number(form.per_customer_limit) : undefined,
     })
@@ -114,6 +127,7 @@ export function CouponsPage() {
       )}
 
       <form className="data-form" onSubmit={handleCreate}>
+        <p className="data-form-title">كوبون جديد</p>
         <input
           placeholder="كود الكوبون"
           value={form.code}
@@ -147,14 +161,6 @@ export function CouponsPage() {
             </option>
           ))}
         </select>
-        <select value={form.service_id} onChange={(e) => setForm({ ...form, service_id: e.target.value })}>
-          <option value="">كل الخدمات</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
         <select
           value={form.customer_scope}
           onChange={(e) => setForm({ ...form, customer_scope: e.target.value as CouponCustomerScope })}
@@ -180,10 +186,37 @@ export function CouponsPage() {
         <button type="submit">إنشاء كوبون</button>
       </form>
 
+      {/* Three kinds of coupon: leave every box unticked for one that works on
+          anything, tick one service, or tick a group of them. */}
+      {services.length > 0 && (
+        <div className="checkbox-group">
+          <p className="checkbox-group-title">
+            الخدمات اللي بينفع عليها الكوبون — اتركيها كلها فاضية ليشمل كل الخدمات
+          </p>
+          {services.map((sv) => (
+            <label key={sv.id}>
+              <input
+                type="checkbox"
+                checked={form.service_ids.includes(sv.id)}
+                onChange={() =>
+                  setForm({
+                    ...form,
+                    service_ids: form.service_ids.includes(sv.id)
+                      ? form.service_ids.filter((id) => id !== sv.id)
+                      : [...form.service_ids, sv.id],
+                  })
+                }
+              />
+              {sv.name}
+            </label>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <p>جاري التحميل...</p>
       ) : coupons.length === 0 ? (
-        <p className="inbox-empty">لا يوجد كوبونات بعد.</p>
+        <p className="section-empty">لا يوجد كوبونات بعد.</p>
       ) : (
         <table className="data-table">
           <thead>
@@ -205,8 +238,8 @@ export function CouponsPage() {
                 <td>{c.code}</td>
                 <td>{discountTypeLabels[c.discount_type]}</td>
                 <td>{c.discount_value != null ? `${c.discount_value}${c.discount_type === "percentage" ? "%" : ""}` : "—"}</td>
-                <td>{nameOf(branches, c.branch_id)}</td>
-                <td>{nameOf(services, c.service_id)}</td>
+                <td>{branchName(c.branch_id)}</td>
+                <td>{serviceScope(c)}</td>
                 <td>{scopeLabels[c.customer_scope]}</td>
                 <td>
                   {c.used_count} / {c.max_uses ?? "∞"}

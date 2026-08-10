@@ -180,6 +180,7 @@ export function PatientsPage() {
       )}
 
       <form className="data-form" onSubmit={handleSearch}>
+        <p className="data-form-title">بحث بالهاتف عبر كل الفروع</p>
         <input
           placeholder="ابحث برقم الهاتف — يشمل مرضى الفروع الأخرى (لزيارة أول مرة مثلاً)"
           value={phoneSearch}
@@ -201,6 +202,7 @@ export function PatientsPage() {
       </form>
 
     <form className="data-form" onSubmit={handleCreate}>
+      <p className="data-form-title">مريض جديد</p>
       <input
         placeholder="الاسم الكامل"
         value={form.full_name}

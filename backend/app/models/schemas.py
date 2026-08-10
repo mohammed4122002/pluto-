@@ -1039,6 +1039,10 @@ class Coupon(BaseModel):
     is_active: bool = True
     branch_id: UUID | None = None
     service_id: UUID | None = None
+    # Services this coupon is limited to. Empty means every service. Replaces
+    # the single service_id above, which stays only for coupons created before
+    # the group table existed.
+    service_ids: list[UUID] = []
     customer_scope: CouponCustomerScope = "all"
     per_customer_limit: int | None = None
 
@@ -1051,13 +1055,14 @@ class CouponCreate(BaseModel):
     valid_to: datetime | None = None
     max_uses: int | None = None
     branch_id: UUID | None = None
-    service_id: UUID | None = None
+    service_ids: list[UUID] = []
     customer_scope: CouponCustomerScope = "all"
     per_customer_limit: int | None = None
 
 
 class CouponUpdate(BaseModel):
     is_active: bool | None = None
+    service_ids: list[UUID] | None = None
 
 
 class Invoice(BaseModel):
@@ -1198,7 +1203,7 @@ class SetupResult(BaseModel):
 
 
 ImportDataType = Literal["patients", "services", "staff", "appointments"]
-ImportSourceType = Literal["file", "google_sheets", "postgres"]
+ImportSourceType = Literal["file", "google_sheets", "postgres", "sqlserver"]
 
 
 class ImportFieldInfo(BaseModel):

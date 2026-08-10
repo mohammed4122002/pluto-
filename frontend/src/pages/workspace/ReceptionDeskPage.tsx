@@ -4,6 +4,7 @@ import type { DeskArrival, ReceptionDesk } from "../../api/reception";
 import { checkInAppointment, checkInByCode } from "../../api/appointments";
 import { errorMessage } from "../../api/errors";
 import { labelFor, queueStatusLabel, statusLabel } from "../../statusLabels";
+import { formatTime } from "../../format";
 
 
 const SETTLED = new Set([
@@ -12,7 +13,7 @@ const SETTLED = new Set([
 ]);
 
 function clockTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+  return formatTime(iso);
 }
 
 function todayIso() {

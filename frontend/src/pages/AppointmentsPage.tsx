@@ -24,6 +24,7 @@ import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
 import { PatientPicker } from "../components/PatientPicker";
 import { QUEUE_OWNED_STATUSES, statusBadgeClass, statusLabel } from "../statusLabels";
+import { formatDateTimeShort } from "../format";
 
 // Every status status_transitions can actually produce (confirmed against
 // the live table) -- not just the handful this UI creates directly, since
@@ -335,6 +336,7 @@ export function AppointmentsPage() {
 
       {form && (
         <form className="data-form" onSubmit={handleCreate}>
+          <p className="data-form-title">حجز موعد جديد</p>
           <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
@@ -471,7 +473,7 @@ export function AppointmentsPage() {
                     )}
                     <td>{nameOf(staff, appt.staff_id)}</td>
                     <td>{nameOf(services, appt.service_id)}</td>
-                    <td>{new Date(appt.scheduled_at).toLocaleString("ar-JO")}</td>
+                    <td>{formatDateTimeShort(appt.scheduled_at)}</td>
                     <td>
                       <span className={`badge ${statusBadgeClass[appt.status]}`}>
                         {statusLabel[appt.status]}
@@ -519,7 +521,7 @@ export function AppointmentsPage() {
                             <option value="">اختر الموعد الجديد</option>
                             {rescheduleSlots.map((s) => (
                               <option key={s.id} value={s.id}>
-                                {new Date(s.start_at).toLocaleString("ar-JO")}
+                                {formatDateTimeShort(s.start_at)}
                               </option>
                             ))}
                           </select>

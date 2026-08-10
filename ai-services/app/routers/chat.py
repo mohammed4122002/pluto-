@@ -22,6 +22,9 @@ from app.services.appointments import (
 from app.services.booking import (
     BookingError,
     active_coupons_for_branch,
+    coupon_services_of,
+    package_services_of,
+    purchasable_packages,
     active_packages_for_patient,
     apply_coupon_code,
     book_by_doctor_and_time,
@@ -81,6 +84,16 @@ BASE_INSTRUCTIONS = (
     "بدّلها بواحدة من هاي (أو شبيهة فيها بنفس الروح العامية) ونوّعي بينهم، ما تستخدمي نفس وحدة مرتين "
     "متتاليتين بنفس المحادثة: 'أهلين، تفضلي شو بقدر أساعدك فيه؟' / 'هاي! تحت أمرك؟' / 'أهلاً، خير "
     "إن شاء الله؟' / 'يا هلا، شو أخبارك؟'.\n"
+    "- خلّي ردك بطول رسالة واتساب حقيقية: جملة لفكرة، وسطرين-ثلاثة كحد أقصى قبل السؤال. الردّ "
+    "الطويل المتلاصق بيحسّ آلي حتى لو محتواه صح.\n"
+    "- لما تعرضي قائمة طويلة (خدمات، أطباء، أوقات)، ما ترصّيها بجملة وحدة متواصلة مفصولة بفواصل — "
+    "هيك بتطلع متل نشرة أسعار مش متل حدا بيحكي. رتّبيها بأسطر، وجمّعي الخدمات حسب القسم "
+    "(specialty) واذكري القسم كعنوان صغير وتحته خدماته. اعرضي الكل، بس مرتّب.\n"
+    "- لو الخدمات كتير (أكثر من ست)، ابدأي بالأقسام اللي عندنا واسألي المريض أي قسم بيهمه، "
+    "وبعدها فصّلي خدمات القسم بأسعارها — هيك بتعمل موظفة استقبال حقيقية بدل ما تقرأ الكتالوج كله "
+    "بنفس واحد. بس إذا طلب المريض صراحة 'كل الخدمات'، اعرضيها كلها مرتّبة بالأقسام.\n"
+    "- ما تعيدي كلام المريض عليه ('فهمت إنك بدك تحجز موعد') ولا تشرحي شو رح تعملي قبل ما تعمليه "
+    "('رح أشوفلك الأوقات المتاحة') — اعملي الإشي واعطي النتيجة مباشرة.\n"
     "- افهمي قصد المريض حتى لو الرسالة مختصرة أو فيها خطأ إملائي أو مكتوبة بعامية/اختصارات (متل 'بدي احجز'، "
     "'في دكتور اسنان؟') بدل ما تطلبي توضيح لأشياء واضحة من السياق.\n"
     "- لو المريض حكى اسمه، استخدميه بعدين بشكل طبيعي (مش بكل جملة) — متل موظفة استقبال حقيقية بتتذكر مين "
@@ -159,6 +172,23 @@ BASE_INSTRUCTIONS = (
     "- إذا رجعت coupons فيها كوبون فعّال لهذه الخدمة أو عام، اذكريه للمريض بشكل طبيعي واسأليه إذا حابب "
     "يستخدمه (مثلاً 'عندك كوبون [code] خصم [discount_value]%، حابب تستخدمه؟') — لا تطبقيه تلقائياً "
     "بدون ما يوافق أو يذكر الكود بنفسه.\n"
+    "- كل كوبون راجع فيه applies_to: إما 'كل الخدمات' أو أسماء الخدمات اللي بينفع عليها. اذكري "
+    "النطاق للمريض بصراحة (مثلاً 'الكوبون هذا بينفع على [applies_to]') — ممنوع توحي إنه بينفع على "
+    "كل شي إذا كان محدود بخدمات معينة.\n"
+    "- بادري بذكر العروض بدون ما ينطلب منك: لما تعرضي أسعار أو قائمة خدمات، استدعي "
+    "check_patient_benefits وإذا في كوبون فعّال قوليله عنه بجملة وحدة قصيرة بآخر ردك. مرة وحدة "
+    "بالمحادثة بيكفي — لا تكرري نفس العرض كل رسالة.\n"
+    "- لو سأل المريض عن الكوبونات أو العروض بأي وقت، استدعي check_patient_benefits بدون service_name "
+    "ورُدّي بالكوبونات الفعّالة كلها ونطاق كل واحد. إذا ما في ولا كوبون، قولي بصراحة إنه ما في عروض "
+    "حالياً — ممنوع تخترعي كود.\n"
+    "- packages_for_sale هي الباقات اللي العيادة **بتبيعها** (غير عن packages يلي المريض شاريها "
+    "أصلاً). إذا في باقة بتغطي الخدمة اللي بدو ياها وعدد جلساتها بيوفرله فلوس، اعرضيها عليه "
+    "بجملة وحدة طبيعية (مثلاً 'بالمناسبة، عنا باقة [package_name] [sessions_count] جلسات بـ[price] "
+    "إذا ناوي تكرر الجلسة') — عرض مرة وحدة، وإذا ما اهتم كمّلي الحجز عادي بدون ما تعيديها.\n"
+    "- كل باقة معها applies_to متل الكوبون: اذكري نطاقها بصراحة، وممنوع تخترعي اسم باقة أو سعر "
+    "أو عدد جلسات — كله لازم يجي حرفياً من packages_for_sale.\n"
+    "- لو سأل المريض عن الباقات أو العروض، استدعي check_patient_benefits واعرضي packages_for_sale "
+    "كلها. إذا ما في ولا باقة، قولي إنه ما في باقات حالياً.\n"
     "- لو المريض وافق على كوبون أو ذكر كود كوبون بنفسه بعد ما تم الحجز ورجع deposit_required=true، "
     "استدعي apply_coupon_code بالكود، وبعدها أخبري المريض بالمبلغ الجديد (new_amount) بدل القديم.\n"
     "- ممنوع نهائياً اختراع اسم باقة أو كود كوبون أو نسبة خصم من عندك — كل هذا لازم يجي حرفياً من نتيجة "
@@ -884,11 +914,16 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             ctx["patient_id"] = saved["patient_id"]
             return {"saved": True, "full_name": saved["full_name"], "phone": saved["phone"]}
         if name == "check_patient_benefits":
-            if not ctx.get("patient_id"):
-                return {"packages": [], "coupons": []}
             service_id = resolve_service_id_by_name(db, args.get("service_name") or None)
-            packages = active_packages_for_patient(db, ctx["patient_id"], service_id)
+            # Packages belong to a patient, so an unlinked conversation has
+            # none. Coupons are the clinic's public offers -- withholding them
+            # until someone is identified is what stopped the assistant from
+            # ever telling a new patient a discount existed.
+            packages = (
+                active_packages_for_patient(db, ctx["patient_id"], service_id) if ctx.get("patient_id") else []
+            )
             coupons = active_coupons_for_branch(db, ctx["branch_id"], service_id)
+            service_names = _service_names_by_id(db)
             return {
                 "packages": [
                     {
@@ -899,11 +934,34 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     }
                     for p in packages
                 ],
+                # Packages the clinic sells, distinct from the ones above that
+                # the patient already owns. Without these the assistant could
+                # never say "there is a bundle that works out cheaper".
+                "packages_for_sale": [
+                    {
+                        "package_name": p["name"],
+                        "sessions_count": p["sessions_count"],
+                        "price": p.get("price"),
+                        "validity_days": p.get("validity_days"),
+                        "applies_to": sorted(
+                            service_names[sid] for sid in package_services_of(p) if sid in service_names
+                        )
+                        or "كل الخدمات",
+                    }
+                    for p in purchasable_packages(db, service_id)
+                ],
                 "coupons": [
                     {
                         "code": c["code"],
                         "discount_type": c["discount_type"],
                         "discount_value": c.get("discount_value"),
+                        # Which services the code covers, by name, so the
+                        # assistant can say so instead of implying it is
+                        # valid on everything.
+                        "applies_to": sorted(
+                            service_names[sid] for sid in coupon_services_of(c) if sid in service_names
+                        )
+                        or "كل الخدمات",
                     }
                     for c in coupons
                 ],
@@ -1049,6 +1107,13 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
 # got a handoff message instead of a booking, so keep real headroom above the
 # common path.
 _MAX_TOOL_ROUNDS = 10
+
+
+def _service_names_by_id(db) -> dict[str, str]:
+    """id -> name for active services, so a coupon's scope can be stated in
+    words the patient recognises rather than as a list of uuids."""
+    rows = db.table("services").select("id, name").eq("is_active", True).is_("deleted_at", "null").execute().data
+    return {r["id"]: r["name"] for r in rows}
 
 
 def _run_conversation_turn(
