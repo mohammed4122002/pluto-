@@ -236,3 +236,26 @@ def test_a_branch_with_no_currency_set_reports_an_empty_one():
         }
     )
     assert list_services(db, "branch-1")[0]["currency"] == ""
+
+
+def test_a_whole_price_is_not_quoted_with_a_decimal():
+    # Postgres numeric arrives as a float, so 25 was read out as "25.0 JOD".
+    from app.services.directory import list_services
+
+    db = _ServiceRows(
+        {
+            "services": [
+                {"id": "s1", "name": "كشفية", "description": None, "price": 25.0,
+                 "duration_minutes": 20, "specialty_id": None, "specialties": None},
+                {"id": "s2", "name": "نصف", "description": None, "price": 25.5,
+                 "duration_minutes": 20, "specialty_id": None, "specialties": None},
+                {"id": "s3", "name": "مجاني", "description": None, "price": None,
+                 "duration_minutes": 20, "specialty_id": None, "specialties": None},
+            ],
+            "branches": [{"currency": "JOD"}],
+            "staff_branches": [],
+            "service_doctors": [],
+        }
+    )
+    prices = [s["price"] for s in list_services(db, "branch-1")]
+    assert prices == [25, 25.5, None]

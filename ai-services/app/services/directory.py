@@ -51,6 +51,16 @@ def find_doctors(db: Client, branch_id: str, specialty_query: str | None = None)
     return results
 
 
+def _tidy_price(value):
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return value
+    return int(number) if number.is_integer() else number
+
+
 def list_services(db: Client, branch_id: str, query: str | None = None) -> list[dict]:
     """The clinic's real service catalogue, optionally narrowed to what the
     patient asked about.
@@ -99,7 +109,10 @@ def list_services(db: Client, branch_id: str, query: str | None = None) -> list[
         results.append(
             {
                 "name": row["name"],
-                "price": row.get("price"),
+                # Postgres numeric arrives as a float, so a 25 JOD consultation
+                # was quoted to patients as "25.0 JOD". Whole prices lose the
+                # decimal; a genuine 25.5 keeps it.
+                "price": _tidy_price(row.get("price")),
                 # A bare number left the assistant to supply a unit, and it
                 # guessed: a Jordanian clinic's prices came back quoted in
                 # "جنيه". The booking path already reads this same column.
