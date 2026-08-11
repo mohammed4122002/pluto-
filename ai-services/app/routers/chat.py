@@ -965,6 +965,27 @@ _BOOKING_CLAIM_PHRASES = (
 )
 
 
+# What the assistant says when it asks the patient to confirm a cancellation.
+# Any of these in an earlier reply means the question has been put to them.
+_CANCEL_CONFIRMATION_ASKS = ("متأكد", "متأكدة", "تأكيد الإلغاء", "بدك تلغي", "بدك ألغي", "بدك الغي")
+
+
+def _cancel_needs_confirmation(ctx: dict) -> bool:
+    """True when the patient has asked *about* cancelling rather than asked
+    for it, and nobody has put the question to them yet.
+
+    A question mark is the signal: "بقدر ألغيه؟" is an enquiry, "الغي موعدي"
+    is an instruction. Once the assistant has asked "متأكدة بدك تلغيه؟", the
+    patient's next message is an answer and this stops applying.
+    """
+    last = (ctx.get("last_patient_message") or "").strip()
+    if not last:
+        return True
+    if "؟" not in last and "?" not in last:
+        return False
+    return not ctx.get("cancel_confirmation_asked")
+
+
 def _remember_quoted_number(ctx: dict, number: str | None) -> None:
     if number:
         ctx.setdefault("_quoted_appointment_numbers", set()).add(str(number).upper())
@@ -1198,6 +1219,18 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {
                     "error": "ممنوع الإلغاء بنفس الدور اللي صار فيه حجز. المريض طلب يحجز مش يلغي — "
                     "أكّدي له الحجز اللي تم، ولا تستدعي cancel_appointment."
+                }
+            if _cancel_needs_confirmation(ctx):
+                # The prompt has always said not to cancel just because the
+                # patient asked whether they could. Asked "بقدر ألغيه؟", the
+                # model cancelled the appointment on the spot -- so the rule
+                # became a check. Cancelling is irreversible and, under an
+                # active policy, charges a fee for something the patient only
+                # enquired about.
+                return {
+                    "error": "المريض سأل سؤال عن الإلغاء، ما أعطى أمر بالإلغاء. اسأليه صراحة إذا متأكد "
+                    "إنه بدّه يلغي (واذكري له الموعد بالضبط)، واستنّي رده بالدور الجاي قبل ما تستدعي "
+                    "cancel_appointment."
                 }
             listed = ctx.get("_listed_appointment_ids") or set()
             if args["appointment_id"] not in listed:
@@ -1472,6 +1505,11 @@ def generate_reply(
         "patient_id": conv.get("patient_id"),
         "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
         "patient_said": _patient_said(history),
+        "last_patient_message": next((m["content"] for m in reversed(history) if m["role"] == "user"), ""),
+        "cancel_confirmation_asked": any(
+            m["role"] == "assistant" and any(p in (m["content"] or "") for p in _CANCEL_CONFIRMATION_ASKS)
+            for m in history
+        ),
     }
     tools = _select_tools(ch_settings)
 
@@ -1590,6 +1628,11 @@ def reclaim_stale_conversations(
                 "patient_id": conv.get("patient_id"),
                 "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
                 "patient_said": _patient_said(history),
+                "last_patient_message": next((m["content"] for m in reversed(history) if m["role"] == "user"), ""),
+                "cancel_confirmation_asked": any(
+                    m["role"] == "assistant" and any(p in (m["content"] or "") for p in _CANCEL_CONFIRMATION_ASKS)
+                    for m in history
+                ),
             }
             tools = _select_tools(ch_settings)
 
