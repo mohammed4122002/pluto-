@@ -967,7 +967,18 @@ _BOOKING_CLAIM_PHRASES = (
 
 # What the assistant says when it asks the patient to confirm a cancellation.
 # Any of these in an earlier reply means the question has been put to them.
-_CANCEL_CONFIRMATION_ASKS = ("متأكد", "متأكدة", "تأكيد الإلغاء", "بدك تلغي", "بدك ألغي", "بدك الغي")
+_CANCEL_CONFIRMATION_ASKS = (
+    "متأكد",
+    "متأكدة",
+    "تأكيد الإلغاء",
+    "بدك تلغي",
+    "بدك ألغي",
+    "بدك الغي",
+    # What it actually said when the check first fired: "أكدلي إني ألغيه".
+    "أكدلي",
+    "أكّدلي",
+    "أكدي لي",
+)
 
 
 def _cancel_needs_confirmation(ctx: dict) -> bool:

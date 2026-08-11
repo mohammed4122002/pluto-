@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.routers.chat import _cancel_needs_confirmation  # noqa: E402
+from app.routers.chat import _CANCEL_CONFIRMATION_ASKS, _cancel_needs_confirmation  # noqa: E402
 
 
 def test_the_question_that_actually_cancelled_an_appointment():
@@ -57,6 +57,21 @@ def test_an_instruction_goes_straight_through(message):
 def test_a_question_after_the_assistant_asked_is_an_answer():
     # "متأكدة بدك تلغي الموعد؟" -> "اي متأكدة، بس في رسوم؟" is a yes.
     ctx = {"last_patient_message": "اي متأكدة، بس في رسوم؟", "cancel_confirmation_asked": True}
+    assert _cancel_needs_confirmation(ctx) is False
+
+
+def test_the_wording_the_assistant_actually_used_counts_as_asking():
+    """It replied "أكدلي إني ألغيه عشان أتمم الإجراء" — not any of the phrasings
+    the first version of this list expected. A confirming answer that happens
+    to end in a question would then have been blocked a second time, and the
+    patient would be asked to confirm forever."""
+    ctx = {
+        "last_patient_message": "اي أكيد، بس بينحسب عليّ شي؟",
+        "cancel_confirmation_asked": any(
+            p in "أهلاً يا لينا، قصدك موعدك بكرة الساعة 10؟ أكدلي إني ألغيه عشان أتمم الإجراء."
+            for p in _CANCEL_CONFIRMATION_ASKS
+        ),
+    }
     assert _cancel_needs_confirmation(ctx) is False
 
 
