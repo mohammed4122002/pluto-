@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -815,7 +816,7 @@ def _patient_said(history: list[dict]) -> str:
     return " ".join(m["content"] or "" for m in history if m["role"] == "user")
 
 
-def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
+def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict, patient_id: str | None = None) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
         db.table("branches")
@@ -876,6 +877,28 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict) -> str:
         "زمنياً بدون أي تحديد."
     )
 
+    # Who the assistant is talking to. Without this it had no way to know the
+    # record was already complete, so it asked a patient whose name and phone
+    # were both on file for her name and phone -- and the turn where she
+    # supplied them again is the one where it announced a booking it never
+    # made. Clinics import their existing patient list on day one, so most
+    # people arriving here are already known.
+    if patient_id:
+        rows = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data
+        missing = missing_contact_fields(db, patient_id)
+        if not missing and rows:
+            parts.append(
+                f"المريض اللي بتحكي معه مسجّل عندنا: الاسم {rows[0]['full_name']} والرقم {rows[0]['phone']}. "
+                "ممنوع تسأليه عن اسمه أو رقمه من جديد وممنوع تستدعي save_contact_info — احجزي مباشرة. "
+                "استثناء وحيد: إذا هو نفسه قال إنه بده يعدّل اسمه أو رقمه، أو إذا كان الحجز لشخص تاني."
+            )
+        else:
+            parts.append(
+                "المريض اللي بتحكي معه لسا ما تعرّفنا عليه: ناقص عنا "
+                + ("، ".join("الاسم الثلاثي" if m == "name" else "رقم الجوال" for m in missing))
+                + ". لازم تاخذيهم منه وتحفظيهم بـ save_contact_info قبل أي حجز."
+            )
+
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
     about_text = settings_row[0]["about_text"] if settings_row else ""
     if clinic_name:
@@ -916,6 +939,62 @@ def _select_tools(ch_settings: dict) -> list[dict]:
             not in ("book_appointment", "cancel_appointment", "save_contact_info", "apply_coupon_code")
         ]
     return TOOLS
+
+
+# Only two tools ever hand the model a real booking number: book_appointment
+# and cancel_appointment. find_my_appointments deliberately doesn't return one,
+# so any APT-… in a reply that didn't come from those two was written by the
+# model itself.
+_APPOINTMENT_NUMBER_RE = re.compile(r"APT[-\s]?[0-9A-Za-z-]{4,}", re.IGNORECASE)
+
+# Past-tense confirmations only. A reply promising to book ("بثبتلك الموعد لما
+# تبعتلي رقمك") is fine and must not trip this.
+_BOOKING_CLAIM_PHRASES = (
+    "تم الحجز",
+    "تم تثبيت",
+    "تم تأكيد الموعد",
+    "حجزتلك",
+    "حجزتلِك",
+    "سجلتك الموعد",
+    "سجّلتك الموعد",
+    "انحجز الموعد",
+    "موعدك مثبت",
+    "موعدك محجوز",
+)
+
+
+def _remember_quoted_number(ctx: dict, number: str | None) -> None:
+    if number:
+        ctx.setdefault("_quoted_appointment_numbers", set()).add(str(number).upper())
+
+
+def _false_booking_claim(reply: str, ctx: dict) -> str | None:
+    """Why this reply must not be sent to the patient, or None if it's honest.
+
+    Observed live, and the worst failure this system can produce: asked to
+    book, the assistant answered "تمام يا لينا، سجّلتك الموعد بكرة الساعة 10
+    … رقم حجزك APT-2026-8911" — in 2.5 seconds, having called no tool at all.
+    No appointment existed. The patient would have arrived to a clinic with no
+    record of her, holding a booking number that was never issued.
+
+    The opposite case has been guarded since a booking that the model failed to
+    announce; nothing guarded a booking the model announced without making it.
+    """
+    quoted = ctx.get("_quoted_appointment_numbers") or set()
+    invented = [m.group(0) for m in _APPOINTMENT_NUMBER_RE.finditer(reply) if m.group(0).upper() not in quoted]
+    if invented:
+        return (
+            "ردّك فيه رقم حجز (" + "، ".join(invented) + ") ما رجع من أي أداة بهذا الدور — يعني إنتِ كتبتيه "
+            "من عندك، والمريض رح ييجي للعيادة بموعد مش موجود. ممنوع تذكري رقم حجز إلا إذا رجع حرفياً من "
+            "book_appointment. إذا المريض فعلاً بدّه يحجز، استدعي book_appointment هلق وأعطيه الرقم الحقيقي؛ "
+            "وإذا ناقصك معلومة، اسأليه عنها وما تدّعي إنه الحجز تم."
+        )
+    if not ctx.get("_booked_appointment_id") and any(p in reply for p in _BOOKING_CLAIM_PHRASES):
+        return (
+            "ردّك بيقول للمريض إنه الحجز تم، بس ما استدعيتي book_appointment بهذا الدور فما في ولا حجز "
+            "بالنظام. إما تستدعيها هلق فعلاً، أو تعيدي صياغة ردّك بدون ما توحي إنه الموعد انثبت."
+        )
+    return None
 
 
 def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
@@ -1086,6 +1165,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # writes its reply, we can still tell the patient their booking is
             # real instead of a generic failure — see _run_conversation_turn.
             ctx["_booked_appointment_number"] = appointment["appointment_number"]
+            _remember_quoted_number(ctx, appointment["appointment_number"])
             if payment_info:
                 result["deposit_amount"] = tidy_amount(payment_info["amount"])
                 result["deposit_currency"] = payment_info["currency"]
@@ -1132,6 +1212,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 patient_id=ctx["patient_id"],
                 reason=args.get("reason") or None,
             )
+            _remember_quoted_number(ctx, result.get("appointment_number"))
             return {
                 "cancelled": True,
                 "fee_charged": tidy_amount(result["fee"]),
@@ -1220,6 +1301,22 @@ def _run_conversation_turn(
             continue
 
         parsed = json.loads(message.content)
+        problem = _false_booking_claim(parsed["reply"], ctx)
+        if problem:
+            # One chance to correct itself, in the same turn: usually it goes
+            # and actually books, which is what the patient asked for anyway.
+            if not ctx.get("_booking_claim_challenged"):
+                ctx["_booking_claim_challenged"] = True
+                messages.append({"role": "assistant", "content": message.content})
+                messages.append({"role": "system", "content": problem})
+                continue
+            logger.error("model kept claiming a booking it never made: %s", parsed["reply"])
+            return (
+                "معلش، ما قدرت أثبّت الحجز هلق. رح يتواصل معك حدا من العيادة يأكدلك الموعد — "
+                "وما بدك تعتبر الموعد مثبت لحد ما يوصلك التأكيد.",
+                True,
+                ADMINISTRATIVE,
+            )
         # .get: the Gemini fallback path does not always honour the same
         # structured-output schema, and a missing category must not crash a
         # reply that is otherwise fine.
@@ -1318,7 +1415,7 @@ def generate_reply(
         return ReplyResponse(reply=reply, needs_human=True)
 
     history = _load_history(db, payload.conversation_id)
-    system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings)
+    system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"))
     ctx = {
         "branch_id": conv["branch_id"],
         "patient_id": conv.get("patient_id"),
@@ -1433,7 +1530,7 @@ def reclaim_stale_conversations(
         try:
             conv = _load_conversation(db, row["id"])
             history = _load_history(db, row["id"])
-            system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings)
+            system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"))
             ctx = {
                 "branch_id": conv["branch_id"],
                 "patient_id": conv.get("patient_id"),
