@@ -1230,6 +1230,44 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
         return {"error": "صار خطأ تقني بسيط، جرب طلب تاني أو اطلب التحويل لموظف."}
 
 
+def _for_gemini(messages: list[dict]) -> list[dict]:
+    """The same conversation in a shape Gemini's OpenAI-compatible endpoint
+    accepts.
+
+    Every fallback turn that had reached a tool call was failing with
+    "Requests ending with a model turn are not supported." — recorded in
+    audit_log from 2026-08-06 onwards. Gemini treats an assistant message and
+    the tool results that follow it as one model turn, so the moment any tool
+    ran, the request ended on the model's side and was rejected. The fallback
+    only exists for the turns where OpenAI is down, and those are exactly the
+    turns that involve tools, so in practice it never worked: the patient got
+    the handoff message instead of an answer.
+
+    Tool results become user-visible text, which is what Gemini's own function
+    calling does under the hood anyway, and the assistant's request to call a
+    tool becomes plain text. Fidelity is lower than OpenAI's native shape —
+    but this path only runs when the alternative is no reply at all.
+    """
+    out: list[dict] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "tool":
+            out.append({"role": "user", "content": f"نتيجة الأداة: {m.get('content') or ''}"})
+        elif role == "assistant" and m.get("tool_calls"):
+            calls = ", ".join(
+                f"{c['function']['name']}({c['function'].get('arguments') or ''})" for c in m["tool_calls"]
+            )
+            out.append({"role": "assistant", "content": (m.get("content") or "") + f"[استدعاء أدوات: {calls}]"})
+        else:
+            # content=None is legal for OpenAI and rejected here.
+            out.append({**m, "content": m.get("content") or ""})
+
+    # Two user messages in a row are fine; ending on the model is not.
+    if out and out[-1]["role"] == "assistant":
+        out.append({"role": "user", "content": "كمّلي من هون."})
+    return out
+
+
 # A booking routinely costs 3-4 rounds (find_doctors -> find_available_slots ->
 # book_appointment -> reply), and models spend extra rounds on redundant
 # lookups or on retrying after a slot was taken. At 5 a perfectly ordinary
@@ -1263,7 +1301,12 @@ def _run_conversation_turn(
         # call we already know fails.
         active_client, active_model = fallback
     for _ in range(_MAX_TOOL_ROUNDS):
-        kwargs = {"model": active_model, "messages": messages, "response_format": REPLY_SCHEMA}
+        on_fallback = fallback is not None and active_client is fallback[0]
+        kwargs = {
+            "model": active_model,
+            "messages": _for_gemini(messages) if on_fallback else messages,
+            "response_format": REPLY_SCHEMA,
+        }
         if tools:
             kwargs["tools"] = tools
         try:
@@ -1276,9 +1319,15 @@ def _run_conversation_turn(
             if active_client is not client or fallback is None:
                 raise
             _note_openai_failure(exc)
+            # Kept on ctx so that if the fallback fails too, the audit_log row
+            # says why OpenAI went down rather than only reporting Gemini's
+            # complaint — "quota exhausted" and "bad request" need different
+            # people to do different things, and the first one was invisible.
+            ctx["_openai_failure"] = f"{type(exc).__name__}: {str(exc)[:200]}"
             logger.warning("OpenAI call failed, switching to Gemini fallback for this turn", exc_info=True)
             active_client, active_model = fallback
             kwargs["model"] = active_model
+            kwargs["messages"] = _for_gemini(messages)
             completion = active_client.chat.completions.create(**kwargs)
         message = completion.choices[0].message
 
@@ -1458,7 +1507,10 @@ def generate_reply(
                     "entity_type": "ai_chat_turn",
                     "entity_id": payload.conversation_id,
                     "action": "chat_turn_failed",
-                    "reason": f"{type(exc).__name__}: {str(exc)[:500]}",
+                    "reason": (
+                        (f"openai: {ctx['_openai_failure']} | " if ctx.get("_openai_failure") else "")
+                        + f"{type(exc).__name__}: {str(exc)[:400]}"
+                    ),
                     "channel": "ai-services",
                 }
             ).execute()
