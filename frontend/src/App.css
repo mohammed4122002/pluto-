@@ -166,7 +166,7 @@
   align-items: center;
   padding: 0 32px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--surface-translucent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -191,7 +191,7 @@
   transform: translateY(-50%);
   width: 16px;
   height: 16px;
-  color: var(--text-muted, #8a8a99);
+  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -232,7 +232,7 @@
 .global-search-empty {
   padding: 12px;
   font-size: 13px;
-  color: var(--text-muted, #8a8a99);
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -246,7 +246,7 @@
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted, #8a8a99);
+  color: var(--text-muted);
 }
 
 .global-search-result {
@@ -272,7 +272,7 @@
 
 .global-search-result-meta {
   font-size: 12px;
-  color: var(--text-muted, #8a8a99);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -2705,23 +2705,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* --- Dashboard ------------------------------------------------------------
-   The data-viz tones extend the existing palette rather than replacing it:
-   same violet accent, plus three muted companions picked to stay legible
-   side by side without competing with it. */
-
-:root {
-  --tone-violet: #7c5cff;
-  --tone-teal: #3d9f8e;
-  --tone-amber: #d0913f;
-  --tone-rose: #c26b7e;
-
-  --tone-violet-bg: rgba(124, 92, 255, 0.1);
-  --tone-teal-bg: rgba(61, 159, 142, 0.12);
-  --tone-amber-bg: rgba(208, 145, 63, 0.13);
-  --tone-rose-bg: rgba(194, 107, 126, 0.12);
-
-  --chart-1: var(--tone-violet);
-}
+   The data-viz tones (--tone-violet etc.) are defined once, in index.css,
+   alongside the rest of the theme tokens -- they need the same light/dark
+   swap every other color gets, and a second unconditional :root definition
+   here would win the cascade and silently pin them to light-mode values. */
 
 /* The dashboard packs in far more side-by-side cards than a settings form or
    a data table ever does -- the shared .page width starves it. */

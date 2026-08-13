@@ -65,6 +65,8 @@ import {
   MenuIcon,
   UserIcon,
   ReportIcon,
+  SunIcon,
+  MoonIcon,
 } from "./icons";
 import "./App.css";
 
@@ -254,6 +256,32 @@ function firstName(fullName: string) {
   return stripped.split(/\s+/)[0] || fullName;
 }
 
+type Theme = "light" | "dark";
+
+/** The active theme, explicit-choice-or-system. An inline script in
+ * index.html already stamped data-theme on <html> before paint if a choice
+ * was stored, so reading it back here (rather than re-reading localStorage)
+ * is what keeps this in sync with what's actually on screen. No stamped
+ * attribute means "following the OS", which is read from the media query
+ * once, on mount -- it does not need to react to the OS changing later,
+ * since toggleTheme immediately makes the choice explicit anyway. */
+function useTheme(): [Theme, () => void] {
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stamped = document.documentElement.getAttribute("data-theme");
+    if (stamped === "light" || stamped === "dark") return stamped;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("pluto_theme", next);
+    setTheme(next);
+  };
+
+  return [theme, toggle];
+}
+
 function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }) {
   const isSelfScoped = SELF_SCOPED_ROLES.has(staff.role);
   const isReception = staff.role === "receptionist";
@@ -274,6 +302,7 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
   const [tab, setTab] = useState<string>(isSelfScoped ? "today" : isReception ? "desk" : "home");
   const active = visible.find((t) => t.key === tab) ?? visible[0];
 
+  const [theme, toggleTheme] = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const selectTab = (key: string) => {
@@ -343,6 +372,10 @@ function Dashboard({ staff, onLogout }: { staff: StaffMe; onLogout: () => void }
               <button className="nav-item" onClick={() => selectTab("account")}>
                 <UserIcon className="nav-icon" />
                 حسابي
+              </button>
+              <button className="nav-item" onClick={toggleTheme}>
+                {theme === "dark" ? <SunIcon className="nav-icon" /> : <MoonIcon className="nav-icon" />}
+                {theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
               </button>
               <button className="nav-item" onClick={onLogout}>
                 تسجيل الخروج

@@ -1,40 +1,55 @@
 :root {
-  --bg: #f7f7fb;
+  /* Light palette. Every surface/text/border color in the app reads from
+     these tokens rather than a hardcoded hex, which is what makes the dark
+     theme below possible without touching component CSS. */
+  --bg: #f8f7fc;
   --surface: #ffffff;
-  --surface-2: #f6f6fa;
-  --surface-hover: #f1f1f6;
-  --border: #e6e6ec;
-  --border-strong: #d9d9e2;
-  --text: #6b6b76;
-  --text-h: #16161d;
-  --text-faint: #a8a8b3;
+  --surface-2: #f3f1f9;
+  --surface-hover: #ecebf5;
+  --surface-translucent: rgba(255, 255, 255, 0.82);
+  --border: #e6e4f0;
+  --border-strong: #d6d3e6;
+  --text: #625f72;
+  --text-h: #18161f;
+  --text-faint: #a19eb2;
+  --text-muted: #8d8a9e;
 
-  --accent: #7c5cff;
-  --accent-hover: #6c47ff;
-  --accent-active: #5d38e6;
-  --accent-bg: rgba(124, 92, 255, 0.1);
-  --accent-border: rgba(124, 92, 255, 0.35);
-  --accent-gradient: linear-gradient(135deg, #9078ff 0%, #6c47ff 100%);
+  --accent: #6d4aff;
+  --accent-hover: #5c37f5;
+  --accent-active: #4e2be0;
+  --accent-bg: rgba(109, 74, 255, 0.1);
+  --accent-border: rgba(109, 74, 255, 0.32);
+  --accent-gradient: linear-gradient(135deg, #8f6bff 0%, #5c37f5 100%);
 
-  --success: #18794e;
-  --success-bg: rgba(24, 121, 78, 0.1);
+  --success: #147a52;
+  --success-bg: rgba(20, 122, 82, 0.1);
   --danger: #e5484d;
   --danger-bg: rgba(229, 72, 77, 0.1);
   --danger-hover: #d33338;
   --warning: #b45309;
   --warning-bg: rgba(180, 83, 9, 0.1);
 
-  --shadow-xs: 0 1px 2px rgba(20, 20, 30, 0.05);
-  --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.04), 0 6px 16px rgba(20, 20, 30, 0.05);
-  --shadow-md: 0 2px 6px rgba(20, 20, 30, 0.05), 0 14px 32px rgba(20, 20, 30, 0.08);
-  --shadow-lg: 0 8px 16px rgba(20, 20, 30, 0.08), 0 28px 56px rgba(20, 20, 30, 0.14);
-  --shadow-btn: 0 1px 2px rgba(124, 92, 255, 0.16);
-  --shadow-btn-hover: 0 6px 14px rgba(124, 92, 255, 0.28);
+  --tone-violet: #6d4aff;
+  --tone-teal: #2f9686;
+  --tone-amber: #c98332;
+  --tone-rose: #c05876;
+  --tone-violet-bg: rgba(109, 74, 255, 0.1);
+  --tone-teal-bg: rgba(47, 150, 134, 0.12);
+  --tone-amber-bg: rgba(201, 131, 50, 0.13);
+  --tone-rose-bg: rgba(192, 88, 118, 0.12);
+  --chart-1: var(--tone-violet);
 
-  --radius-sm: 7px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --shadow-xs: 0 1px 2px rgba(24, 20, 40, 0.05);
+  --shadow-sm: 0 1px 2px rgba(24, 20, 40, 0.04), 0 8px 20px rgba(24, 20, 40, 0.06);
+  --shadow-md: 0 2px 8px rgba(24, 20, 40, 0.06), 0 16px 36px rgba(24, 20, 40, 0.09);
+  --shadow-lg: 0 10px 20px rgba(24, 20, 40, 0.1), 0 30px 60px rgba(24, 20, 40, 0.16);
+  --shadow-btn: 0 1px 2px rgba(109, 74, 255, 0.18);
+  --shadow-btn-hover: 0 8px 18px rgba(109, 74, 255, 0.3);
+
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 15px;
+  --radius-xl: 22px;
 
   --sans: "Cairo", "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
 
@@ -48,12 +63,121 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Dark theme. Same token names, different values -- nothing in App.css
+   needs to know which theme is active. Applied two ways: automatically when
+   the OS is in dark mode and the user hasn't chosen explicitly (the
+   `:not([data-theme="light"])` guard), and explicitly via the toggle, which
+   stamps data-theme on <html> and wins either direction. A near-black
+   background (not pure black) with surfaces a step lighter than it, the
+   accent brightened so it still has enough contrast to read on dark, and
+   shadows swapped for a subtle light-based lift since a black drop-shadow on
+   a black background is invisible. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e0d16;
+    --surface: #17151f;
+    --surface-translucent: rgba(20, 18, 27, 0.82);
+    --surface-2: #1e1c2a;
+    --surface-hover: #262432;
+    --border: #2a2836;
+    --border-strong: #3a3749;
+    --text: #a6a3b8;
+    --text-h: #f1f0f7;
+    --text-faint: #6f6c80;
+    --text-muted: #85829a;
+
+    --accent: #9c85ff;
+    --accent-hover: #ab97ff;
+    --accent-active: #b7a5ff;
+    --accent-bg: rgba(156, 133, 255, 0.16);
+    --accent-border: rgba(156, 133, 255, 0.4);
+    --accent-gradient: linear-gradient(135deg, #a98cff 0%, #7c5cff 100%);
+
+    --success: #3ecf95;
+    --success-bg: rgba(62, 207, 149, 0.14);
+    --danger: #f3707a;
+    --danger-bg: rgba(243, 112, 122, 0.14);
+    --danger-hover: #f68990;
+    --warning: #e4a24e;
+    --warning-bg: rgba(228, 162, 78, 0.14);
+
+    --tone-violet: #9c85ff;
+    --tone-teal: #3ecf95;
+    --tone-amber: #e4a24e;
+    --tone-rose: #f3708f;
+    --tone-violet-bg: rgba(156, 133, 255, 0.16);
+    --tone-teal-bg: rgba(62, 207, 149, 0.14);
+    --tone-amber-bg: rgba(228, 162, 78, 0.15);
+    --tone-rose-bg: rgba(243, 112, 143, 0.14);
+
+    --shadow-xs: 0 0 0 1px rgba(255, 255, 255, 0.03);
+    --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 36px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 30px 60px rgba(0, 0, 0, 0.55);
+    --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-btn-hover: 0 8px 18px rgba(156, 133, 255, 0.28);
+
+    color-scheme: dark;
+  }
+}
+
+/* The explicit toggle, either direction -- takes precedence over the OS
+   preference above regardless of which way it's set. */
+:root[data-theme="dark"] {
+  --bg: #0e0d16;
+  --surface: #17151f;
+  --surface-translucent: rgba(20, 18, 27, 0.82);
+  --surface-2: #1e1c2a;
+  --surface-hover: #262432;
+  --border: #2a2836;
+  --border-strong: #3a3749;
+  --text: #a6a3b8;
+  --text-h: #f1f0f7;
+  --text-faint: #6f6c80;
+  --text-muted: #85829a;
+
+  --accent: #9c85ff;
+  --accent-hover: #ab97ff;
+  --accent-active: #b7a5ff;
+  --accent-bg: rgba(156, 133, 255, 0.16);
+  --accent-border: rgba(156, 133, 255, 0.4);
+  --accent-gradient: linear-gradient(135deg, #a98cff 0%, #7c5cff 100%);
+
+  --success: #3ecf95;
+  --success-bg: rgba(62, 207, 149, 0.14);
+  --danger: #f3707a;
+  --danger-bg: rgba(243, 112, 122, 0.14);
+  --danger-hover: #f68990;
+  --warning: #e4a24e;
+  --warning-bg: rgba(228, 162, 78, 0.14);
+
+  --tone-violet: #9c85ff;
+  --tone-teal: #3ecf95;
+  --tone-amber: #e4a24e;
+  --tone-rose: #f3708f;
+  --tone-violet-bg: rgba(156, 133, 255, 0.16);
+  --tone-teal-bg: rgba(62, 207, 149, 0.14);
+  --tone-amber-bg: rgba(228, 162, 78, 0.15);
+  --tone-rose-bg: rgba(243, 112, 143, 0.14);
+
+  --shadow-xs: 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 36px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 30px 60px rgba(0, 0, 0, 0.55);
+  --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-btn-hover: 0 8px 18px rgba(156, 133, 255, 0.28);
+
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background: var(--bg);
+  transition: background-color 0.2s ease;
 }
 
 #root {
