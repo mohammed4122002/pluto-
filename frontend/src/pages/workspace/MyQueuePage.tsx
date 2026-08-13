@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { actOnMyTicket, getMyQueue } from "../../api/me";
 import type { MyQueueDay } from "../../api/me";
 import { errorMessage } from "../../api/errors";
-import { queueStatusLabel as statusLabel } from "../../statusLabels";
+import { queueStatusBadgeClass, queueStatusLabel as statusLabel } from "../../statusLabels";
 import { formatTime } from "../../format";
 
 
@@ -13,6 +13,14 @@ const priorityLabel: Record<string, string> = {
   special_needs: "احتياجات خاصة",
   child: "طفل",
   vip: "VIP",
+};
+
+const ticketTone: Record<string, string> = {
+  waiting: "tone-amber",
+  called: "tone-violet",
+  in_progress: "tone-teal",
+  done: "",
+  skipped: "tone-rose",
 };
 
 function clockTime(iso: string | null) {
@@ -143,49 +151,36 @@ export function MyQueuePage() {
             : "ما كان في طابور إلك بهاد اليوم."}
         </p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>المريض</th>
-              <th>الحالة</th>
-              <th>وقت الحضور</th>
-              <th>الفرع</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {day!.queues.flatMap((q) =>
-              q.tickets.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.ticket_number}</td>
-                  <td>
-                    {t.patient_name}
-                    {priorityLabel[t.priority_level] && (
-                      <span className="badge inactive" style={{ marginInlineStart: 8 }}>
-                        {priorityLabel[t.priority_level]}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={t.status === "in_progress" ? "badge active" : "badge inactive"}>
-                      {statusLabel[t.status]}
-                    </span>
-                  </td>
-                  <td>{clockTime(t.checked_in_at)}</td>
-                  <td>{q.branch_name}</td>
-                  <td>
-                    {t.status !== "done" && t.status !== "skipped" && (
-                      <button disabled={busyTicket === t.id} onClick={() => act(t.id, t.status === "in_progress" ? "complete" : "start")}>
-                        {t.status === "in_progress" ? "خلّصت" : "بلّش"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
+        <div className="queue-board">
+          {day!.queues.flatMap((q) =>
+            q.tickets.map((t) => (
+              <div key={t.id} className={`ticket-card ${ticketTone[t.status] ?? ""}`}>
+                <div className="ticket-card-top">
+                  <span className="ticket-number">{t.ticket_number}</span>
+                  <span className={`badge ${queueStatusBadgeClass[t.status] ?? "inactive"}`}>{statusLabel[t.status]}</span>
+                </div>
+                <div className="ticket-patient">{t.patient_name}</div>
+                <div className="ticket-meta">
+                  {priorityLabel[t.priority_level] && <span>{priorityLabel[t.priority_level]}</span>}
+                  <span>حضر {clockTime(t.checked_in_at)}</span>
+                  <span>{q.branch_name}</span>
+                </div>
+                {t.status !== "done" && t.status !== "skipped" && (
+                  <div className="ticket-actions">
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      disabled={busyTicket === t.id}
+                      onClick={() => act(t.id, t.status === "in_progress" ? "complete" : "start")}
+                    >
+                      {t.status === "in_progress" ? "خلّصت" : "بلّش"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )),
+          )}
+        </div>
       )}
     </div>
   );

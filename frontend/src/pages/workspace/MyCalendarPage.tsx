@@ -31,6 +31,16 @@ const appointmentStatusLabel: Record<string, string> = {
   rescheduled: "معاد جدولته",
 };
 
+const avatarColors = ["#7c5cff", "#ff8a3d", "#22b07d", "#e5484d", "#0ea5b0", "#c026d3", "#f59e0b"];
+function avatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+function initial(name: string) {
+  return name.trim()[0] ?? "";
+}
+
 function clockTime(iso: string) {
   return formatTime(iso);
 }
@@ -93,15 +103,17 @@ export function MyCalendarPage() {
           <div className="page-header-subtitle">مواعيدك وأوقاتك المتاحة بهاد اليوم.</div>
         </div>
         <div className="table-toolbar" style={{ margin: 0 }}>
-          <button className="btn-secondary" onClick={() => setDate(shiftDay(date, -1))}>
-            اليوم السابق
-          </button>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button className="btn-secondary" onClick={() => setDate(shiftDay(date, 1))}>
-            اليوم التالي
-          </button>
+          <div className="day-nav">
+            <button type="button" aria-label="اليوم السابق" onClick={() => setDate(shiftDay(date, -1))}>
+              ›
+            </button>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <button type="button" aria-label="اليوم التالي" onClick={() => setDate(shiftDay(date, 1))}>
+              ‹
+            </button>
+          </div>
           {date !== todayIso() && (
-            <button className="btn-secondary" onClick={() => setDate(todayIso())}>
+            <button type="button" className="btn-secondary" onClick={() => setDate(todayIso())}>
               اليوم
             </button>
           )}
@@ -140,48 +152,45 @@ export function MyCalendarPage() {
           ما في أوقات ولا مواعيد إلك بهاد اليوم. إذا المفروض تكون دوام، الإدارة لازم تولّد أوقاتك من شاشة التقويم.
         </p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>الوقت</th>
-              <th>المريض / الحالة</th>
-              <th>الخدمة</th>
-              <th>المدة</th>
-              <th>الفرع</th>
-            </tr>
-          </thead>
-          <tbody>
-            {timeline.map((entry) =>
-              entry.kind === "appointment" ? (
-                <tr key={`a-${entry.appointment.id}`}>
-                  <td>{clockTime(entry.appointment.scheduled_at)}</td>
-                  <td>
-                    <strong>{entry.appointment.patient_name}</strong>
-                    <span className="badge active" style={{ marginInlineStart: 8 }}>
-                      {appointmentStatusLabel[entry.appointment.status] ?? entry.appointment.status}
+        <div className="cal-timeline">
+          {timeline.map((entry) =>
+            entry.kind === "appointment" ? (
+              <div key={`a-${entry.appointment.id}`} className="cal-slot booked">
+                <span className="cal-slot-time">{clockTime(entry.appointment.scheduled_at)}</span>
+                <span className="cal-slot-doctor">{entry.appointment.branch_name}</span>
+                <span className="badge active">
+                  {appointmentStatusLabel[entry.appointment.status] ?? entry.appointment.status}
+                </span>
+                <div className="cal-slot-body">
+                  <span className="cal-slot-patient">
+                    <span
+                      className="avatar"
+                      style={{ background: avatarColor(entry.appointment.patient_name), width: 24, height: 24, fontSize: 11 }}
+                    >
+                      {initial(entry.appointment.patient_name)}
                     </span>
-                    {entry.appointment.reason_for_visit && (
-                      <div className="page-header-subtitle">{entry.appointment.reason_for_visit}</div>
-                    )}
-                  </td>
-                  <td>{entry.appointment.service_name ?? "—"}</td>
-                  <td>{entry.appointment.duration_minutes} د</td>
-                  <td>{entry.appointment.branch_name}</td>
-                </tr>
-              ) : (
-                <tr key={`s-${entry.slot.id}`} className="row-muted">
-                  <td>{clockTime(entry.slot.start_at)}</td>
-                  <td>
-                    <span className="badge inactive">{slotStatusLabel[entry.slot.status] ?? entry.slot.status}</span>
-                  </td>
-                  <td>{entry.slot.service_name ?? "—"}</td>
-                  <td>{entry.slot.duration_minutes} د</td>
-                  <td>{entry.slot.branch_name}</td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
+                    {entry.appointment.patient_name}
+                  </span>
+                  <span>
+                    {entry.appointment.service_name ?? "—"} · {entry.appointment.duration_minutes} د
+                  </span>
+                  {entry.appointment.reason_for_visit && <span>{entry.appointment.reason_for_visit}</span>}
+                </div>
+              </div>
+            ) : (
+              <div key={`s-${entry.slot.id}`} className={`cal-slot ${entry.slot.status === "available" ? "available" : ""}`}>
+                <span className="cal-slot-time">{clockTime(entry.slot.start_at)}</span>
+                <span className="cal-slot-doctor">{entry.slot.branch_name}</span>
+                <span className="badge inactive">{slotStatusLabel[entry.slot.status] ?? entry.slot.status}</span>
+                <div className="cal-slot-body">
+                  <span>
+                    {entry.slot.service_name ?? "—"} · {entry.slot.duration_minutes} د
+                  </span>
+                </div>
+              </div>
+            ),
+          )}
+        </div>
       )}
 
       <MyLeavePanel onChanged={load} />
