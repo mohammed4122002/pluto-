@@ -159,6 +159,26 @@ function ImportHistory({ onStartNew }: { onStartNew: () => void }) {
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
+const WIZARD_STEP_LABELS = ["المصدر", "الاتصال", "مطابقة الأعمدة", "الخيارات", "معاينة", "التنفيذ"];
+
+function WizardSteps({ current }: { current: WizardStep }) {
+  return (
+    <ol className="wizard-steps">
+      {WIZARD_STEP_LABELS.map((label, i) => {
+        const n = i + 1;
+        const state = n < current ? "done" : n === current ? "active" : "";
+        return (
+          <li key={label} className={`wizard-step ${state}`}>
+            <span className="wizard-step-num">{n < current ? "✓" : n}</span>
+            <span className="wizard-step-label">{label}</span>
+            {n < WIZARD_STEP_LABELS.length && <span className="wizard-step-sep" />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function ImportWizard({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<WizardStep>(1);
   const [dataType, setDataType] = useState<ImportDataType>("patients");
@@ -394,6 +414,7 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
       <button className="panel-back" onClick={onDone}>
         → رجوع لسجل الاستيراد
       </button>
+      <WizardSteps current={step} />
       {error && <p className="error">{error}</p>}
 
       {datePrompt && (
