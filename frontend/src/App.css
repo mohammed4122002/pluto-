@@ -846,7 +846,7 @@ button.btn-secondary:hover:not(:disabled) {
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -973,7 +973,7 @@ button.btn-secondary:hover:not(:disabled) {
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -1129,7 +1129,7 @@ button.btn-secondary:hover:not(:disabled) {
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 24px 28px;
   box-shadow: var(--shadow-sm);
   max-width: 720px;
@@ -1330,7 +1330,7 @@ button.btn-secondary:hover:not(:disabled) {
 .channel-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   padding: 18px;
   display: flex;
@@ -2381,7 +2381,7 @@ button.btn-danger:hover:not(:disabled) {
 .account-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 20px;
   box-shadow: var(--shadow-xs);
 }
@@ -2663,7 +2663,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   margin-top: 24px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 18px 20px;
   box-shadow: var(--shadow-xs);
 }
@@ -3051,7 +3051,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   padding: 16px 18px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xs);
   font: inherit;
   text-align: start;
@@ -3465,7 +3465,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .dash-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 16px 18px;
   box-shadow: var(--shadow-xs);
   margin-bottom: 14px;
