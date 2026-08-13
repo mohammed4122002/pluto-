@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getDashboardReport } from "../api/reports";
 import type { DashboardReport } from "../api/reports";
+import { Funnel, Meter } from "../components/Charts";
 
 function daysAgoIso(days: number) {
   return new Date(Date.now() - days * 86400000).toISOString();
@@ -27,7 +28,7 @@ export function BotPerformancePage() {
   const aiChannelCount = report?.breakdown?.by_channel?.find((c) => c.channel === "ai_chat")?.count ?? 0;
 
   return (
-    <div className="page">
+    <div className="page dashboard">
       <div className="page-header">
         <div>
           <p className="page-header-title">أداء المساعد الذكي</p>
@@ -75,6 +76,38 @@ export function BotPerformancePage() {
               <div className="stat-card-value">{report.ai_chat.provider_failures}</div>
               <div className="stat-card-label">فشل مزوّد الذكاء الاصطناعي</div>
             </div>
+          </div>
+
+          <div className="dash-split">
+            <section className="dash-card" style={{ animationDelay: "0ms" }}>
+              <header className="dash-card-header">
+                <h2>قمع الحجز عبر البوت</h2>
+                <span className="dash-card-note">من أول رسالة حتى الحجز</span>
+              </header>
+              <Funnel
+                stages={[
+                  { label: "محادثات", value: report.ai_chat.total_conversations },
+                  { label: "حجوزات عبر البوت", value: aiChannelCount || report.ai_chat.bookings },
+                ]}
+              />
+            </section>
+
+            <section className="dash-card" style={{ animationDelay: "60ms" }}>
+              <header className="dash-card-header">
+                <h2>التصعيد لموظف بشري</h2>
+              </header>
+              <Meter
+                label="معدل التحويل"
+                percent={report.ai_chat.escalation_rate}
+                invert
+                note={`${report.ai_chat.escalated_to_human} محادثة من ${report.ai_chat.total_conversations}`}
+              />
+              {report.ai_chat.provider_failures > 0 && (
+                <p className="settings-hint" style={{ marginTop: 12 }}>
+                  {report.ai_chat.provider_failures} مرة فشل فيها مزوّد الذكاء الاصطناعي خلال الفترة.
+                </p>
+              )}
+            </section>
           </div>
 
           <p className="settings-hint">
