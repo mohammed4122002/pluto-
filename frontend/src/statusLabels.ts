@@ -149,6 +149,23 @@ export const queueStatusBadgeClass: Record<QueueTicket["status"], string> = {
   skipped: "inactive",
 };
 
+export const priorityLabel: Record<QueueTicket["priority_level"], string> = {
+  normal: "عادية",
+  emergency: "طارئة",
+  elderly: "كبار السن",
+  special_needs: "احتياجات خاصة",
+  child: "طفل",
+  critical: "حرجة",
+  vip: "VIP",
+};
+
+export const arrivalStatusLabel: Record<NonNullable<QueueTicket["arrival_status"]>, string> = {
+  early: "وصل مبكراً",
+  on_time: "في الموعد",
+  late: "متأخر",
+  very_late: "متأخر جداً",
+};
+
 /* --- Slots --- */
 
 export const slotStatusLabel: Record<string, string> = {
@@ -160,6 +177,17 @@ export const slotStatusLabel: Record<string, string> = {
   reserved: "محجوز إدارياً",
   overbooked: "حجز إضافي",
   waitlist_only: "قائمة انتظار فقط",
+};
+
+export const slotStatusBadgeClass: Record<string, string> = {
+  available: "active",
+  temporarily_held: "warning",
+  booked: "inactive",
+  blocked: "danger",
+  unavailable: "danger",
+  reserved: "warning",
+  overbooked: "warning",
+  waitlist_only: "warning",
 };
 
 /* --- Waitlist --- */

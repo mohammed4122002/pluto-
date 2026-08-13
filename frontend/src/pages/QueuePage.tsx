@@ -7,8 +7,18 @@ import { listStaffDirectory } from "../api/staff";
 import type { StaffDirectoryEntry } from "../api/staff";
 import { callTicket, completeTicket, listQueues, listQueueTickets, skipTicket, startTicket } from "../api/queue";
 import type { Queue, QueueTicket } from "../api/queue";
-import { queueStatusLabel as statusLabel } from "../statusLabels";
+import { arrivalStatusLabel, priorityLabel, queueStatusBadgeClass, queueStatusLabel as statusLabel } from "../statusLabels";
 
+// Tone per ticket status, so the board reads at a glance the way a real
+// clinic queue display does -- waiting patients warm/amber, someone actually
+// being seen violet/teal, and closed-out tickets fading to neutral.
+const ticketTone: Record<QueueTicket["status"], string> = {
+  waiting: "tone-amber",
+  called: "tone-violet",
+  in_progress: "tone-teal",
+  done: "",
+  skipped: "tone-rose",
+};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -106,49 +116,39 @@ export function QueuePage() {
           {tickets.length === 0 ? (
             <p className="section-empty">لا يوجد أحد بالطابور حالياً.</p>
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>الدور</th>
-                  <th>المريض</th>
-                  <th>الأولوية</th>
-                  <th>حالة الوصول</th>
-                  <th>الحالة</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.ticket_number}</td>
-                    <td>{nameOf(patients, t.patient_id)}</td>
-                    <td>{t.priority_level}</td>
-                    <td>{t.arrival_status ?? "—"}</td>
-                    <td>
-                      <span className="badge active">{statusLabel[t.status]}</span>
-                    </td>
-                    <td>
-                      {t.status === "waiting" && (
-                        <>
-                          <button onClick={() => act(callTicket, t.id)}>نداء</button>
-                          <button onClick={() => act(startTicket, t.id)}>بدء الكشف</button>
-                          <button onClick={() => act(skipTicket, t.id)}>تخطي</button>
-                        </>
-                      )}
-                      {t.status === "called" && (
-                        <>
-                          <button onClick={() => act(startTicket, t.id)}>بدء الكشف</button>
-                          <button onClick={() => act(skipTicket, t.id)}>تخطي</button>
-                        </>
-                      )}
-                      {t.status === "in_progress" && (
-                        <button onClick={() => act(completeTicket, t.id)}>إنهاء الكشف</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="queue-board">
+              {tickets.map((t) => (
+                <div key={t.id} className={`ticket-card ${ticketTone[t.status]}`}>
+                  <div className="ticket-card-top">
+                    <span className="ticket-number">{t.ticket_number}</span>
+                    <span className={`badge ${queueStatusBadgeClass[t.status]}`}>{statusLabel[t.status]}</span>
+                  </div>
+                  <div className="ticket-patient">{nameOf(patients, t.patient_id)}</div>
+                  <div className="ticket-meta">
+                    <span>الأولوية: {priorityLabel[t.priority_level]}</span>
+                    <span>الوصول: {t.arrival_status ? arrivalStatusLabel[t.arrival_status] : "—"}</span>
+                  </div>
+                  <div className="ticket-actions">
+                    {t.status === "waiting" && (
+                      <>
+                        <button type="button" onClick={() => act(callTicket, t.id)}>نداء</button>
+                        <button type="button" className="btn-primary" onClick={() => act(startTicket, t.id)}>بدء الكشف</button>
+                        <button type="button" onClick={() => act(skipTicket, t.id)}>تخطي</button>
+                      </>
+                    )}
+                    {t.status === "called" && (
+                      <>
+                        <button type="button" className="btn-primary" onClick={() => act(startTicket, t.id)}>بدء الكشف</button>
+                        <button type="button" onClick={() => act(skipTicket, t.id)}>تخطي</button>
+                      </>
+                    )}
+                    {t.status === "in_progress" && (
+                      <button type="button" className="btn-primary" onClick={() => act(completeTicket, t.id)}>إنهاء الكشف</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </>
       )}
