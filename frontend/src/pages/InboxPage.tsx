@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { listConversations, getConversation, updateConversation, sendStaffReply } from "../api/conversations";
 import type { ConversationSummary, ConversationDetail } from "../api/conversations";
 import { listEscalationStaff } from "../api/escalationStaff";
 import type { EscalationStaffMember } from "../api/escalationStaff";
+import { formatDayMonth, formatTime } from "../format";
 
 const channelLabel: Record<string, string> = {
   whatsapp: "واتساب",
@@ -18,6 +19,26 @@ type InboxPageProps = {
   currentStaffId?: string;
 };
 
+/** Arabic names don't shrink to a two-letter monogram the way Latin ones do,
+ *  so one letter is the whole avatar -- same call App.tsx already made for
+ *  the account menu. */
+function initial(name: string) {
+  return name.trim()[0] ?? "؟";
+}
+
+function dayKey(d: Date) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/** A compact "when" for the conversation list: just the time for anything
+ *  from today (the common case), a day+month once it's older, so a
+ *  months-old thread doesn't crowd the row with a full date. */
+function listStamp(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return dayKey(d) === dayKey(new Date()) ? formatTime(d) : formatDayMonth(d);
+}
+
 export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [pool, setPool] = useState<EscalationStaffMember[]>([]);
@@ -28,6 +49,7 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [onlyNeedsAttention, setOnlyNeedsAttention] = useState(false);
   const [onlyMine, setOnlyMine] = useState(false);
+  const [search, setSearch] = useState("");
 
   const loadList = () => {
     setError(null);
@@ -83,6 +105,17 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
       .catch((err) => setError(err.message));
   };
 
+  // Needing attention first regardless of recency -- that's the queue a
+  // reception shift actually works from -- then most-recent within each
+  // group, same order the backend already returns.
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q ? conversations.filter((c) => c.patient_name.toLowerCase().includes(q)) : conversations;
+    return [...filtered].sort((a, b) => Number(b.needs_attention) - Number(a.needs_attention));
+  }, [conversations, search]);
+
+  const attentionCount = conversations.filter((c) => c.needs_attention).length;
+
   return (
     <div className="page inbox-page">
       <div className="page-header">
@@ -94,43 +127,55 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      <label className="inbox-filter">
-        <input
-          type="checkbox"
-          checked={onlyNeedsAttention}
-          onChange={(e) => setOnlyNeedsAttention(e.target.checked)}
-        />
-        بس المحادثات المحتاجة متابعة
-      </label>
-      {currentStaffId && (
-        <label className="inbox-filter">
-          <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
-          بس المحوّلة إلي
-        </label>
-      )}
+
+      <div className="inbox-toolbar">
+        <div className="search-input inbox-search">
+          <input placeholder="بحث باسم المريض..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <button
+          type="button"
+          className={onlyNeedsAttention ? "filter-chip active" : "filter-chip"}
+          onClick={() => setOnlyNeedsAttention((v) => !v)}
+        >
+          محتاجة متابعة{attentionCount > 0 && ` (${attentionCount})`}
+        </button>
+        {currentStaffId && (
+          <button type="button" className={onlyMine ? "filter-chip active" : "filter-chip"} onClick={() => setOnlyMine((v) => !v)}>
+            المحوّلة إلي
+          </button>
+        )}
+      </div>
 
       <div className="inbox-layout">
         <div className="inbox-list">
-          {conversations.map((c) => (
+          {visible.map((c) => (
             <button
               key={c.id}
               className={c.id === selectedId ? "inbox-item active" : "inbox-item"}
               onClick={() => setSelectedId(c.id)}
             >
-              <div className="inbox-item-top">
-                <span className="inbox-item-name">{c.patient_name}</span>
-                {c.needs_attention && <span className="dot-alert" />}
-              </div>
-              <div className="inbox-item-preview">{c.last_message_preview ?? "—"}</div>
-              <div className="inbox-item-meta">
-                <span className="badge inactive">{channelLabel[c.channel_type] ?? c.channel_type}</span>
-                <span className={c.mode === "ai" ? "badge active" : "badge inactive"}>
-                  {c.mode === "ai" ? "AI" : "موظف"}
+              <span className="inbox-item-avatar" aria-hidden>
+                {initial(c.patient_name)}
+              </span>
+              <span className="inbox-item-body">
+                <span className="inbox-item-top">
+                  <span className="inbox-item-name">{c.patient_name}</span>
+                  <span className="inbox-item-time">{listStamp(c.last_message_at)}</span>
                 </span>
-              </div>
+                <span className="inbox-item-preview">{c.last_message_preview ?? "—"}</span>
+                <span className="inbox-item-meta">
+                  <span className="badge inactive">{channelLabel[c.channel_type] ?? c.channel_type}</span>
+                  <span className={c.mode === "ai" ? "badge active" : "badge inactive"}>
+                    {c.mode === "ai" ? "AI" : "موظف"}
+                  </span>
+                </span>
+              </span>
+              {c.needs_attention && <span className="dot-alert" />}
             </button>
           ))}
-          {conversations.length === 0 && <p className="inbox-empty">ما في محادثات.</p>}
+          {visible.length === 0 && (
+            <p className="inbox-empty">{search ? "ما في نتائج مطابقة." : "ما في محادثات."}</p>
+          )}
         </div>
 
         <div className="inbox-thread">
@@ -139,9 +184,16 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
           ) : (
             <>
               <div className="inbox-thread-header">
-                <div>
-                  <strong>{detail.patient_name}</strong>
-                  <span className="inbox-thread-phone"> — {detail.patient_phone}</span>
+                <div className="inbox-thread-who">
+                  <span className="inbox-item-avatar" aria-hidden>
+                    {initial(detail.patient_name)}
+                  </span>
+                  <div>
+                    <strong>{detail.patient_name}</strong>
+                    <span className="inbox-thread-phone" dir="ltr">
+                      {detail.patient_phone}
+                    </span>
+                  </div>
                 </div>
                 <div className="inbox-thread-controls">
                   <button onClick={toggleMode}>
@@ -167,9 +219,12 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
                     }
                   >
                     <div className="bubble-content">{m.content}</div>
-                    {m.direction === "outbound" && (
-                      <div className="bubble-sender">{m.sender_type === "ai" ? "AI" : "موظف"}</div>
-                    )}
+                    <div className="bubble-foot">
+                      {m.direction === "outbound" && (
+                        <span className="bubble-sender">{m.sender_type === "ai" ? "AI" : "موظف"}</span>
+                      )}
+                      <span className="bubble-time">{formatTime(m.created_at)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -180,7 +235,7 @@ export function InboxPage({ currentStaffId }: InboxPageProps = {}) {
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                 />
-                <button type="submit" disabled={sending}>
+                <button type="submit" disabled={sending || !replyText.trim()}>
                   {sending ? "..." : "إرسال"}
                 </button>
               </form>
