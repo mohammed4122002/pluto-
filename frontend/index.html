@@ -11,6 +11,19 @@
       rel="stylesheet"
     />
     <title>لوحة تحكم العيادة</title>
+    <script>
+      // Applied before first paint so a stored preference doesn't flash the
+      // wrong theme for a frame -- an inline <script> in <head> blocks
+      // rendering until it runs, same trick every dark-mode-capable site
+      // uses. No preference stored means no attribute set, which leaves
+      // index.css's prefers-color-scheme media query to decide.
+      (function () {
+        var saved = localStorage.getItem("pluto_theme");
+        if (saved === "light" || saved === "dark") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
