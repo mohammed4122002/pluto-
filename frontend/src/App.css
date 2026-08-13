@@ -107,7 +107,7 @@
 }
 
 .nav-item.active {
-  background: var(--accent-bg);
+  background: linear-gradient(90deg, var(--accent-bg), transparent);
   color: var(--accent);
   font-weight: 600;
 }
@@ -324,10 +324,17 @@
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
+  border-radius: var(--radius-xl);
+  padding: 16px 18px;
   box-shadow: var(--shadow-xs);
   overflow: hidden;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
 }
 
 /* Same hairline the dashboard's KPI cards carry, so a stat reads as the same
@@ -339,18 +346,25 @@
   inset-inline-start: 0;
   width: 3px;
   background: var(--card-tone, var(--accent));
-  opacity: 0.55;
+  opacity: 0.7;
 }
 
-/* Opt-in tones, so a report can colour-code revenue against refunds. Left
-   unset, a stat keeps the neutral accent. */
+/* Opt-in tones, so a report can colour-code revenue against refunds. */
 .stat-card.tone-violet { --card-tone: var(--tone-violet); }
 .stat-card.tone-teal { --card-tone: var(--tone-teal); }
 .stat-card.tone-amber { --card-tone: var(--tone-amber); }
 .stat-card.tone-rose { --card-tone: var(--tone-rose); }
 
+/* Cards that don't opt into a tone cycle through the palette automatically,
+   so a plain stat row reads as colourful as the dashboard's KPI row without
+   every page having to pick tones by hand. */
+.stat-grid > .stat-card:not([class*="tone-"]):nth-child(4n+1) { --card-tone: var(--tone-violet); }
+.stat-grid > .stat-card:not([class*="tone-"]):nth-child(4n+2) { --card-tone: var(--tone-teal); }
+.stat-grid > .stat-card:not([class*="tone-"]):nth-child(4n+3) { --card-tone: var(--tone-amber); }
+.stat-grid > .stat-card:not([class*="tone-"]):nth-child(4n+4) { --card-tone: var(--tone-rose); }
+
 .stat-card-value {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--text-h);
   line-height: 1.15;
@@ -524,7 +538,7 @@
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 16px;
   margin-bottom: 22px;
   box-shadow: var(--shadow-sm);
@@ -583,19 +597,21 @@ button:focus-visible {
 .btn-primary {
   padding: 9px 18px;
   border: 1px solid transparent;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   box-shadow: var(--shadow-btn);
 }
 
+/* filter, not a background swap, so the gradient itself stays intact through
+   hover/active instead of flattening to a solid colour. */
 .data-form button[type="submit"]:hover:not(:disabled),
 .settings-form button:hover:not(:disabled),
 .inbox-reply-form button:hover:not(:disabled),
 .setup-card > button[type="submit"]:hover:not(:disabled),
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  filter: brightness(1.08);
   box-shadow: var(--shadow-btn-hover);
   transform: translateY(-1px);
 }
@@ -605,7 +621,7 @@ button:focus-visible {
 .inbox-reply-form button:active:not(:disabled),
 .setup-card > button[type="submit"]:active:not(:disabled),
 .btn-primary:active:not(:disabled) {
-  background: var(--accent-active);
+  filter: brightness(0.94);
   box-shadow: var(--shadow-btn);
   transform: translateY(0);
 }
@@ -669,7 +685,7 @@ button.btn-secondary:hover:not(:disabled) {
   border-collapse: collapse;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
@@ -713,7 +729,7 @@ button.btn-secondary:hover:not(:disabled) {
 }
 
 .data-table tbody tr:hover {
-  background: var(--surface-2);
+  background: var(--accent-bg);
 }
 
 .data-table input {
@@ -1748,7 +1764,9 @@ button.btn-secondary:hover:not(:disabled) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 20, 30, 0.45);
+  background: rgba(14, 13, 22, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1759,7 +1777,7 @@ button.btn-secondary:hover:not(:disabled) {
 .modal-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 520px;
@@ -1780,7 +1798,7 @@ button.btn-secondary:hover:not(:disabled) {
   position: sticky;
   top: 0;
   background: var(--surface);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .modal-header h2 {
