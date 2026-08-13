@@ -2223,11 +2223,11 @@ button.btn-danger:hover:not(:disabled) {
 .focus-card {
   border: 1px solid var(--accent);
   background: var(--accent-bg);
-  border-radius: var(--radius-md);
-  padding: 16px 18px;
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
   margin-bottom: 20px;
   max-width: 720px;
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-sm);
 }
 
 .focus-card-label {
@@ -2542,7 +2542,7 @@ button.btn-danger:hover:not(:disabled) {
 .today-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 18px 20px;
   box-shadow: var(--shadow-xs);
 }
@@ -2796,7 +2796,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   margin-bottom: 18px;
   padding: 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   background: var(--surface);
   box-shadow: var(--shadow-xs);
 }
