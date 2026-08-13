@@ -1510,6 +1510,143 @@ button.btn-secondary:hover:not(:disabled) {
   font-size: 21px;
 }
 
+/* Linked booking -- a scannable mode picker instead of a <select> whose
+   options are full sentences, and a card per patient row instead of one
+   unstructured flex-wrap line. */
+
+.linked-booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 24px 28px;
+  box-shadow: var(--shadow-sm);
+  max-width: 720px;
+}
+
+.linked-booking-form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.linked-booking-form > input,
+.linked-booking-form > select,
+.linked-booking-form > label input {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+}
+
+.linked-booking-form > input:focus,
+.linked-booking-form > select:focus,
+.linked-booking-form > label input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.mode-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.mode-option:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-xs);
+}
+
+.mode-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.mode-option-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.mode-option.selected .mode-option-title {
+  color: var(--accent);
+}
+
+.mode-option-desc {
+  font-size: 11.5px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.booking-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.booking-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.booking-row select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+}
+
+.booking-row button {
+  margin-inline-start: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.booking-row button:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
 /* Wizard / settings panel */
 
 .panel-back {
