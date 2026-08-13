@@ -14,13 +14,13 @@ import { PatientPicker } from "../components/PatientPicker";
 // services in one visit, plain sequential appointments, recurring visits, and
 // screening campaigns all reduce to the same action -- several bookings
 // created together, laid out one of three ways. One screen instead of six.
-const modeLabels: Record<BulkBookingLinkMode, string> = {
-  sequential: "متتابع (كل مريض بعد الي قبله — عائلة أو عدة خدمات لنفس الزيارة)",
-  same_time: "نفس الوقت (جلسة جماعية)",
-  recurring_weekly: "متكرر أسبوعياً",
-  recurring_biweekly: "متكرر كل أسبوعين",
-  recurring_monthly: "متكرر شهرياً",
-};
+const modeOptions: { code: BulkBookingLinkMode; title: string; desc: string }[] = [
+  { code: "sequential", title: "متتابع", desc: "كل مريض بعد الي قبله — عائلة أو عدة خدمات لنفس الزيارة" },
+  { code: "same_time", title: "نفس الوقت", desc: "جلسة جماعية — كل المرضى بنفس الموعد" },
+  { code: "recurring_weekly", title: "متكرر أسبوعياً", desc: "نفس المريض بنفس الموعد كل أسبوع" },
+  { code: "recurring_biweekly", title: "متكرر كل أسبوعين", desc: "نفس المريض بنفس الموعد كل أسبوعين" },
+  { code: "recurring_monthly", title: "متكرر شهرياً", desc: "نفس المريض بنفس الموعد كل شهر" },
+];
 
 const emptyItem: BulkBookingItem = { patient_id: "" };
 
@@ -98,7 +98,7 @@ export function LinkedBookingPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : (
-        <form className="data-form" onSubmit={submit} style={{ flexDirection: "column", alignItems: "stretch", maxWidth: 720 }}>
+        <form className="linked-booking-form" onSubmit={submit}>
           <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
@@ -107,13 +107,19 @@ export function LinkedBookingPage() {
             ))}
           </select>
 
-          <select value={linkMode} onChange={(e) => setLinkMode(e.target.value as BulkBookingLinkMode)}>
-            {Object.entries(modeLabels).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
+          <div className="mode-picker">
+            {modeOptions.map((m) => (
+              <button
+                type="button"
+                key={m.code}
+                className={`mode-option ${linkMode === m.code ? "selected" : ""}`}
+                onClick={() => setLinkMode(m.code)}
+              >
+                <span className="mode-option-title">{m.title}</span>
+                <span className="mode-option-desc">{m.desc}</span>
+              </button>
             ))}
-          </select>
+          </div>
 
           <label>
             {isRecurring ? "أول موعد" : "وقت البداية"}
@@ -150,9 +156,9 @@ export function LinkedBookingPage() {
             onChange={(e) => setCampaignName(e.target.value)}
           />
 
-          <div className="checkbox-group" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+          <div className="booking-rows">
             {items.map((item, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <div key={i} className="booking-row">
                 <PatientPicker
                   value={item.patient_id}
                   onChange={(id, patient) => {
@@ -184,13 +190,13 @@ export function LinkedBookingPage() {
               </div>
             ))}
             {!isRecurring && (
-              <button type="button" onClick={() => setItems((prev) => [...prev, { ...emptyItem }])}>
+              <button type="button" className="btn-secondary" onClick={() => setItems((prev) => [...prev, { ...emptyItem }])}>
                 + إضافة مريض
               </button>
             )}
           </div>
 
-          <button type="submit" disabled={saving}>
+          <button type="submit" className="btn-primary" disabled={saving}>
             {saving ? "..." : "تنفيذ الحجز"}
           </button>
         </form>
