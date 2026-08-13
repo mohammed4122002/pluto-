@@ -15,10 +15,20 @@ import { listActivePatientPackages } from "../api/packages";
 import type { PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 
-import { slotStatusLabel as statusLabel } from "../statusLabels";
+import { slotStatusBadgeClass, slotStatusLabel as statusLabel } from "../statusLabels";
 import { formatTime } from "../format";
 
 const DRAG_APPOINTMENT_ID = "application/x-pluto-appointment-id";
+
+const avatarColors = ["#7c5cff", "#ff8a3d", "#22b07d", "#e5484d", "#0ea5b0", "#c026d3", "#f59e0b"];
+function avatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+function initial(name: string) {
+  return name.trim()[0] ?? "";
+}
 
 
 function todayIso() {
@@ -197,13 +207,23 @@ export function CalendarPage() {
             </option>
           ))}
         </select>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button type="button" onClick={() => setDate(new Date(new Date(date).getTime() - 86400000).toISOString().slice(0, 10))}>
-          اليوم السابق
-        </button>
-        <button type="button" onClick={() => setDate(new Date(new Date(date).getTime() + 86400000).toISOString().slice(0, 10))}>
-          اليوم التالي
-        </button>
+        <div className="day-nav">
+          <button
+            type="button"
+            aria-label="اليوم السابق"
+            onClick={() => setDate(new Date(new Date(date).getTime() - 86400000).toISOString().slice(0, 10))}
+          >
+            ›
+          </button>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <button
+            type="button"
+            aria-label="اليوم التالي"
+            onClick={() => setDate(new Date(new Date(date).getTime() + 86400000).toISOString().slice(0, 10))}
+          >
+            ‹
+          </button>
+        </div>
       </div>
 
       <div className="data-form">
@@ -237,117 +257,117 @@ export function CalendarPage() {
       ) : slots.length === 0 ? (
         <p className="section-empty">ما في أوقات مولّدة لهذا اليوم. استخدم "توليد" فوق بعد ما تحدد الطبيب.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>الوقت</th>
-              <th>الطبيب</th>
-              <th>الحالة</th>
-              <th>المريض / الحجز</th>
-            </tr>
-          </thead>
-          <tbody>
-            {slots.map((s) => {
-              const appt = s.status === "booked" ? apptForSlot(s.id) : undefined;
-              const isDropTarget = s.status === "available";
-              return (
-                <tr
-                  key={s.id}
-                  draggable={Boolean(appt)}
-                  onDragStart={
-                    appt
-                      ? (e) => {
-                          draggedAppointmentId.current = appt.id;
-                          e.dataTransfer.setData(DRAG_APPOINTMENT_ID, appt.id);
-                          e.dataTransfer.effectAllowed = "move";
-                        }
-                      : undefined
-                  }
-                  onDragOver={
-                    isDropTarget
-                      ? (e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          if (dragOverSlotId !== s.id) setDragOverSlotId(s.id);
-                        }
-                      : undefined
-                  }
-                  onDragLeave={isDropTarget ? () => setDragOverSlotId((cur) => (cur === s.id ? null : cur)) : undefined}
-                  onDrop={
-                    isDropTarget
-                      ? (e) => {
-                          e.preventDefault();
-                          handleDropReschedule(s.id);
-                        }
-                      : undefined
-                  }
-                  style={{
-                    cursor: appt ? "grab" : undefined,
-                    background: dragOverSlotId === s.id ? "var(--highlight, #eef6ff)" : undefined,
-                  }}
-                >
-                  <td>
-                    {formatTime(s.start_at)} -{" "}
-                    {formatTime(s.end_at)}
-                  </td>
-                  <td>{doctorName(s.doctor_id)}</td>
-                  <td>
-                    <span className={s.status === "available" ? "badge active" : "badge inactive"}>
-                      {statusLabel[s.status] ?? s.status}
+        <div className="cal-timeline">
+          {slots.map((s) => {
+            const appt = s.status === "booked" ? apptForSlot(s.id) : undefined;
+            const isDropTarget = s.status === "available";
+            const doctor = doctorName(s.doctor_id);
+            const patient = appt ? patientName(appt.patient_id) : null;
+            return (
+              <div
+                key={s.id}
+                className={`cal-slot ${s.status === "available" ? "available" : ""} ${appt ? "booked" : ""} ${
+                  dragOverSlotId === s.id ? "drop-target" : ""
+                }`}
+                draggable={Boolean(appt)}
+                onDragStart={
+                  appt
+                    ? (e) => {
+                        draggedAppointmentId.current = appt.id;
+                        e.dataTransfer.setData(DRAG_APPOINTMENT_ID, appt.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }
+                    : undefined
+                }
+                onDragOver={
+                  isDropTarget
+                    ? (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (dragOverSlotId !== s.id) setDragOverSlotId(s.id);
+                      }
+                    : undefined
+                }
+                onDragLeave={isDropTarget ? () => setDragOverSlotId((cur) => (cur === s.id ? null : cur)) : undefined}
+                onDrop={
+                  isDropTarget
+                    ? (e) => {
+                        e.preventDefault();
+                        handleDropReschedule(s.id);
+                      }
+                    : undefined
+                }
+              >
+                <span className="cal-slot-time">
+                  {formatTime(s.start_at)} - {formatTime(s.end_at)}
+                </span>
+                <span className="cal-slot-doctor">{doctor}</span>
+                <span className={`badge ${slotStatusBadgeClass[s.status] ?? "inactive"}`}>
+                  {statusLabel[s.status] ?? s.status}
+                </span>
+                <div className="cal-slot-body">
+                  {patient && (
+                    <span className="cal-slot-patient">
+                      <span className="avatar" style={{ background: avatarColor(patient), width: 24, height: 24, fontSize: 11 }}>
+                        {initial(patient)}
+                      </span>
+                      {patient}
                     </span>
-                  </td>
-                  <td>
-                    {appt && patientName(appt.patient_id)}
-                    {s.status === "available" &&
-                      (bookingSlotId === s.id ? (
-                        <span className="setup-row" style={{ display: "inline-flex", gap: 6 }}>
-                          <PatientPicker value={bookingPatientId} onChange={setBookingPatientId} />
-                          <select value={bookingServiceId} onChange={(e) => setBookingServiceId(e.target.value)}>
-                            <option value="">اختر الخدمة</option>
-                            {services
-                              .filter((sv) => sv.doctor_ids.length === 0 || sv.doctor_ids.includes(s.doctor_id ?? ""))
-                              .map((sv) => (
-                                <option key={sv.id} value={sv.id}>
-                                  {sv.name}
-                                  {sv.price ? ` (${sv.price})` : ""}
-                                </option>
-                              ))}
+                  )}
+                  {s.status === "available" &&
+                    (bookingSlotId === s.id ? (
+                      <span className="cal-slot-booking-form">
+                        <PatientPicker value={bookingPatientId} onChange={setBookingPatientId} />
+                        <select value={bookingServiceId} onChange={(e) => setBookingServiceId(e.target.value)}>
+                          <option value="">اختر الخدمة</option>
+                          {services
+                            .filter((sv) => sv.doctor_ids.length === 0 || sv.doctor_ids.includes(s.doctor_id ?? ""))
+                            .map((sv) => (
+                              <option key={sv.id} value={sv.id}>
+                                {sv.name}
+                                {sv.price ? ` (${sv.price})` : ""}
+                              </option>
+                            ))}
+                        </select>
+                        {bookingActivePackages.length > 0 && (
+                          <select value={bookingPatientPackageId} onChange={(e) => setBookingPatientPackageId(e.target.value)}>
+                            <option value="">دفع عادي (بدون باقة)</option>
+                            {bookingActivePackages.map((pp) => (
+                              <option key={pp.id} value={pp.id}>
+                                باقة — {pp.sessions_remaining} جلسات متبقية
+                              </option>
+                            ))}
                           </select>
-                          {bookingActivePackages.length > 0 && (
-                            <select value={bookingPatientPackageId} onChange={(e) => setBookingPatientPackageId(e.target.value)}>
-                              <option value="">دفع عادي (بدون باقة)</option>
-                              {bookingActivePackages.map((pp) => (
-                                <option key={pp.id} value={pp.id}>
-                                  باقة — {pp.sessions_remaining} جلسات متبقية
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                          <button type="button" disabled={booking || !bookingPatientId || !bookingServiceId} onClick={() => handleBook(s.id)}>
-                            {booking ? "..." : "تأكيد الحجز"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setBookingSlotId(null);
-                              setBookingServiceId("");
-                              setBookingPatientPackageId("");
-                            }}
-                          >
-                            إلغاء
-                          </button>
-                        </span>
-                      ) : (
-                        <button type="button" onClick={() => setBookingSlotId(s.id)}>
-                          احجز
+                        )}
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={booking || !bookingPatientId || !bookingServiceId}
+                          onClick={() => handleBook(s.id)}
+                        >
+                          {booking ? "..." : "تأكيد الحجز"}
                         </button>
-                      ))}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookingSlotId(null);
+                            setBookingServiceId("");
+                            setBookingPatientPackageId("");
+                          }}
+                        >
+                          إلغاء
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" onClick={() => setBookingSlotId(s.id)}>
+                        احجز
+                      </button>
+                    ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

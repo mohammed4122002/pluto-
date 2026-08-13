@@ -1631,6 +1631,269 @@ button.btn-secondary:hover:not(:disabled) {
   border-bottom-color: var(--accent);
 }
 
+/* Queue board -- one card per ticket instead of a table row, closer to a
+   real clinic "now serving" display than a spreadsheet. */
+
+.queue-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.ticket-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+
+.ticket-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
+}
+
+.ticket-card::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--card-tone, var(--text-faint));
+  opacity: 0.7;
+}
+
+.ticket-card.tone-violet { --card-tone: var(--tone-violet); --card-tone-bg: var(--tone-violet-bg); }
+.ticket-card.tone-teal { --card-tone: var(--tone-teal); --card-tone-bg: var(--tone-teal-bg); }
+.ticket-card.tone-amber { --card-tone: var(--tone-amber); --card-tone-bg: var(--tone-amber-bg); }
+.ticket-card.tone-rose { --card-tone: var(--tone-rose); --card-tone-bg: var(--tone-rose-bg); }
+
+.ticket-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ticket-number {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 6px;
+  border-radius: var(--radius-md);
+  background: var(--card-tone-bg, var(--surface-2));
+  color: var(--card-tone, var(--text));
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-patient {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.ticket-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.ticket-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.ticket-actions button {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ticket-actions button:hover:not(.btn-primary) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Calendar timeline -- one card per slot instead of a table row, so a day's
+   schedule reads like an actual timeline: available slots dashed and
+   inviting, booked ones solid with the patient's name front and centre. */
+
+.cal-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cal-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.cal-slot-time {
+  flex-shrink: 0;
+  width: 104px;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-slot-doctor {
+  flex-shrink: 0;
+  width: 150px;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-slot-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cal-slot-patient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-h);
+  font-size: 13.5px;
+}
+
+.cal-slot.available {
+  border-style: dashed;
+  background: var(--surface-2);
+}
+
+.cal-slot.available:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.cal-slot.booked {
+  border-inline-start: 3px solid var(--accent);
+}
+
+.cal-slot[draggable="true"] {
+  cursor: grab;
+}
+
+.cal-slot[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.cal-slot.drop-target {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.cal-slot-booking-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-slot-booking-form select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+}
+
+.cal-slot button:not(.btn-primary) {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.cal-slot button:not(.btn-primary):hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.day-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.day-nav button {
+  border: none;
+  background: transparent;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  padding: 0;
+}
+
+.day-nav button:hover {
+  background: var(--surface-hover);
+  color: var(--text-h);
+}
+
+.day-nav input[type="date"] {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text-h);
+  padding: 4px 6px;
+}
+
 /* Health & diagnostics */
 
 .health-summary {
