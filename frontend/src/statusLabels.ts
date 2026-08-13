@@ -196,6 +196,20 @@ export const packageStatusBadgeClass: Record<PatientPackage["status"], string> =
   expired: "inactive",
 };
 
+/* --- Booking source (appointments.source) ---
+   Not the messaging channel (whatsapp/telegram/...) -- appointments only ever
+   carry "dashboard" (staff-created), "ai_chat" (booked by the assistant) or
+   "import" (brought in from the clinic's old system) today. */
+
+export const bookingSourceLabel: Record<string, string> = {
+  dashboard: "لوحة العيادة",
+  ai_chat: "المساعد الذكي",
+  import: "استيراد بيانات",
+  manual: "يدوي",
+  phone: "اتصال هاتفي",
+  walk_in: "حضور مباشر",
+};
+
 /* --- Import jobs --- */
 
 export const importStatusLabel: Record<string, string> = {

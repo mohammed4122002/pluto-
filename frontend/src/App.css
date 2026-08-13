@@ -2633,6 +2633,19 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   --chart-1: var(--tone-violet);
 }
 
+/* The dashboard packs in far more side-by-side cards than a settings form or
+   a data table ever does -- the shared .page width starves it. */
+.page.dashboard {
+  max-width: 1440px;
+}
+
+@media (max-width: 720px) {
+  .page.dashboard .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 /* Cards drift up as they land, staggered by inline animation-delay so the
    dashboard assembles instead of snapping in all at once. */
 @keyframes dash-rise {
@@ -2665,19 +2678,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 14px;
   margin-bottom: 18px;
+  transition: opacity 0.15s;
+}
+
+.kpi-grid.loading {
+  opacity: 0.6;
 }
 
 .kpi-card {
   position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas:
-    "icon value"
-    "icon label"
-    "spark spark"
-    "hint hint";
-  align-items: center;
-  gap: 2px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   padding: 16px 18px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2712,8 +2724,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .kpi-card.tone-amber { --card-tone: var(--tone-amber); --card-tone-bg: var(--tone-amber-bg); }
 .kpi-card.tone-rose { --card-tone: var(--tone-rose); --card-tone-bg: var(--tone-rose-bg); }
 
+.kpi-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .kpi-icon {
-  grid-area: icon;
   display: grid;
   place-items: center;
   width: 38px;
@@ -2721,6 +2740,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   border-radius: var(--radius-md);
   background: var(--card-tone-bg);
   color: var(--card-tone);
+  flex-shrink: 0;
 }
 
 .kpi-icon svg {
@@ -2728,32 +2748,347 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   height: 20px;
 }
 
-.kpi-value {
-  grid-area: value;
-  font-size: 26px;
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.kpi-delta.positive {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.kpi-delta.negative {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.kpi-delta.flat {
+  color: var(--text-faint);
+  background: var(--surface-2);
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
   color: var(--text-h);
+  font-variant-numeric: tabular-nums;
 }
 
 .kpi-label {
-  grid-area: label;
   font-size: 12.5px;
   color: var(--text);
 }
 
 .kpi-card .spark {
-  grid-area: spark;
   width: 100%;
   height: 26px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .kpi-hint {
-  grid-area: hint;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 11.5px;
   color: var(--text-faint);
+}
+
+/* Header filters -- period pills + branch select, next to the greeting */
+
+.dash-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.period-pills {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  gap: 2px;
+}
+
+.period-pill {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.period-pill.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-xs);
+}
+
+.branch-select {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Live-ops strip -- small always-current counts, distinct from the
+   period-scoped KPI cards above them. */
+
+.live-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.live-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.live-item:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.live-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* Three-up row for the funnel + AI donut + booking-source list */
+
+.dash-triple {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 1100px) {
+  .dash-triple {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Funnel */
+
+.funnel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.funnel-bar-track {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.funnel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline-end: 10px;
+  height: 30px;
+  min-width: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-gradient);
+  animation: bar-grow-x 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  transform-origin: right center;
+}
+
+@keyframes bar-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.funnel-value {
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.funnel-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.funnel-drop {
+  color: var(--tone-rose);
+  font-size: 11px;
+}
+
+/* Ranked lists -- top doctors, top services, booking sources */
+
+.ranked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ranked-row {
+  animation: dash-rise 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.ranked-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.ranked-label {
+  font-size: 13px;
+  color: var(--text-h);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranked-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.ranked-sublabel {
+  font-weight: 400;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.ranked-track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.ranked-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.revenue-refund-note {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--tone-rose);
+  text-align: center;
+}
+
+/* Heatmap */
+
+.heatmap {
+  overflow-x: auto;
+}
+
+.heatmap-grid {
+  display: grid;
+  gap: 3px;
+  min-width: 480px;
+}
+
+.heatmap-corner {
+  width: 40px;
+}
+
+.heatmap-hour {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: center;
+  align-self: end;
+  padding-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-day {
+  font-size: 11.5px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  padding-inline-end: 8px;
+  white-space: nowrap;
+}
+
+.heatmap-cell {
+  aspect-ratio: 1;
+  min-height: 18px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+/* Today's agenda -- doctor initial avatar */
+
+.agenda-avatar {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .dash-split {

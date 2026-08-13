@@ -5,6 +5,8 @@
  * and the weekly report need, they inherit the CSS custom properties directly,
  * and they lay out right-to-left to match the rest of the Arabic UI. */
 
+import { Fragment } from "react";
+
 type SparklineProps = {
   /** Oldest value first. Rendered right-to-left, so the newest point sits at
    *  the left edge -- the direction Arabic reads. */
@@ -150,6 +152,140 @@ export function Donut({ slices, centerValue, centerLabel }: DonutProps) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+export type FunnelStage = { label: string; value: number };
+
+type FunnelProps = {
+  /** Widest (first) stage to narrowest, e.g. محادثات -> حجوزات -> مؤكدة -> مكتملة. */
+  stages: FunnelStage[];
+};
+
+/** A booking pipeline, widest stage first. Each bar is scaled against the
+ * first stage so the drop-off at every step is a width you can see, not just
+ * a number you have to read. */
+export function Funnel({ stages }: FunnelProps) {
+  const max = Math.max(...stages.map((s) => s.value), 1);
+  return (
+    <ol className="funnel" dir="rtl">
+      {stages.map((s, i) => {
+        const prev = i > 0 ? stages[i - 1].value : null;
+        const dropped = prev !== null ? Math.max(prev - s.value, 0) : null;
+        const dropRate = prev ? Math.round(((dropped ?? 0) / prev) * 100) : null;
+        return (
+          <li key={s.label} className="funnel-row">
+            <div className="funnel-bar-track">
+              <div
+                className="funnel-bar"
+                style={{ width: `${Math.max((s.value / max) * 100, s.value > 0 ? 4 : 0)}%`, animationDelay: `${i * 70}ms` }}
+              >
+                <span className="funnel-value">{s.value}</span>
+              </div>
+            </div>
+            <div className="funnel-meta">
+              <span className="funnel-label">{s.label}</span>
+              {dropped !== null && dropped > 0 && (
+                <span className="funnel-drop">فقدان {dropped} · {dropRate}%</span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export type RankedItem = { label: string; value: number; sublabel?: string; percent?: number };
+
+type RankedListProps = {
+  items: RankedItem[];
+  color?: string;
+  emptyText?: string;
+};
+
+/** A ranked, horizontal bar-per-row list -- top doctors, top services, that
+ * kind of thing. Bars scale to the largest value in the list, not to 100%,
+ * so a clinic with one dominant service doesn't draw nine flat rows. */
+export function RankedList({ items, color = "var(--tone-violet)", emptyText }: RankedListProps) {
+  if (items.length === 0) return emptyText ? <p className="chart-empty">{emptyText}</p> : null;
+  const max = Math.max(...items.map((i) => i.value), 1);
+  return (
+    <ul className="ranked-list">
+      {items.map((item, i) => (
+        <li key={item.label + i} className="ranked-row" style={{ animationDelay: `${i * 45}ms` }}>
+          <div className="ranked-row-head">
+            <span className="ranked-label">{item.label}</span>
+            <span className="ranked-value">
+              {item.value}
+              {item.sublabel && <span className="ranked-sublabel"> {item.sublabel}</span>}
+            </span>
+          </div>
+          <div className="ranked-track">
+            <div
+              className="ranked-fill"
+              style={{ width: `${Math.max((item.value / max) * 100, 3)}%`, background: color }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export type HeatmapCell = { day: number; hour: number; count: number };
+
+type HeatmapProps = {
+  cells: HeatmapCell[];
+  /** Right-to-left reading order, index 0..6 matching HeatmapCell.day. */
+  dayLabels: string[];
+  emptyText?: string;
+};
+
+/** Booking demand by day and hour -- a GitHub-style intensity grid. Hours are
+ * limited to the range that actually has data (padded by one on each side)
+ * so an all-day clinic doesn't get a grid nine-tenths empty at 3am. */
+export function Heatmap({ cells, dayLabels, emptyText }: HeatmapProps) {
+  if (cells.every((c) => c.count === 0)) {
+    return emptyText ? <p className="chart-empty">{emptyText}</p> : null;
+  }
+  const hoursWithData = cells.filter((c) => c.count > 0).map((c) => c.hour);
+  const hourStart = Math.max(Math.min(...hoursWithData) - 1, 0);
+  const hourEnd = Math.min(Math.max(...hoursWithData) + 1, 23);
+  const hours: number[] = [];
+  for (let h = hourStart; h <= hourEnd; h++) hours.push(h);
+
+  const byKey = new Map(cells.map((c) => [`${c.day}-${c.hour}`, c.count]));
+  const max = Math.max(...cells.map((c) => c.count), 1);
+
+  return (
+    <div className="heatmap" dir="rtl">
+      <div className="heatmap-grid" style={{ gridTemplateColumns: `auto repeat(${hours.length}, 1fr)` }}>
+        <div className="heatmap-corner" />
+        {hours.map((h) => (
+          <div className="heatmap-hour" key={h}>
+            {h}
+          </div>
+        ))}
+        {dayLabels.map((label, day) => (
+          <Fragment key={`day-${day}`}>
+            <div className="heatmap-day">{label}</div>
+            {hours.map((h) => {
+              const count = byKey.get(`${day}-${h}`) ?? 0;
+              const intensity = count / max;
+              return (
+                <div
+                  key={`${day}-${h}`}
+                  className="heatmap-cell"
+                  style={count > 0 ? { background: `rgba(124, 92, 255, ${0.12 + intensity * 0.78})` } : undefined}
+                  title={`${label} — ${h}:00: ${count} موعد`}
+                />
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
     </div>
   );
 }
