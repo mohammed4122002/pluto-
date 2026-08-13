@@ -61,17 +61,17 @@ export function StaffBotSettingsPage() {
       {loading ? (
         <p>جاري التحميل...</p>
       ) : settings?.configured ? (
-        <div className="data-form" style={{ flexDirection: "column", alignItems: "stretch", maxWidth: 480 }}>
+        <div className="settings-form" style={{ maxWidth: 480 }}>
           <p>
             البوت مربوط: <strong dir="ltr">@{settings.username}</strong>
           </p>
-          <button onClick={remove} disabled={saving}>
+          <button type="button" className="btn-secondary" onClick={remove} disabled={saving}>
             {saving ? "..." : "فك الربط"}
           </button>
         </div>
       ) : (
-        <form className="data-form" onSubmit={save} style={{ flexDirection: "column", alignItems: "stretch", maxWidth: 520 }}>
-          <ol style={{ paddingInlineStart: 20, lineHeight: 1.9 }}>
+        <form className="settings-form" onSubmit={save} style={{ maxWidth: 520 }}>
+          <ol className="account-steps">
             <li>
               افتحي محادثة مع <strong dir="ltr">@BotFather</strong> بتيليجرام.
             </li>
@@ -87,7 +87,7 @@ export function StaffBotSettingsPage() {
             value={token}
             onChange={(e) => setToken(e.target.value)}
           />
-          <button type="submit" disabled={saving}>
+          <button type="submit" className="btn-primary" disabled={saving}>
             {saving ? "..." : "ربط البوت"}
           </button>
         </form>
