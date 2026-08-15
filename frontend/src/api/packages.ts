@@ -44,5 +44,5 @@ export const listActivePatientPackages = (patientId: string, serviceId?: string)
 export const sellPackage = (payload: { patient_id: string; package_id: string; branch_id: string }) =>
   api.post<PatientPackage>("/patient-packages", payload).then((res) => res.data);
 
-export const usePackageSession = (patientPackageId: string) =>
+export const consumePackageSession = (patientPackageId: string) =>
   api.post<PatientPackage>(`/patient-packages/${patientPackageId}/use-session`).then((res) => res.data);

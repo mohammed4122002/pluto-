@@ -6,7 +6,7 @@ import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
 import { listServices } from "../api/services";
 import type { Service } from "../api/services";
-import { createPackage, listPackages, listPatientPackages, sellPackage, usePackageSession } from "../api/packages";
+import { consumePackageSession, createPackage, listPackages, listPatientPackages, sellPackage } from "../api/packages";
 import type { Package, PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 import { packageStatusBadgeClass as statusBadgeClass, packageStatusLabel as statusLabel } from "../statusLabels";
@@ -88,7 +88,7 @@ export function PackagesPage() {
   };
 
   const handleUseSession = (id: string) => {
-    usePackageSession(id)
+    consumePackageSession(id)
       .then((pp) => {
         setNotice(`تم تسجيل استخدام جلسة — الجلسات المتبقية: ${pp.sessions_remaining}`);
         load();
