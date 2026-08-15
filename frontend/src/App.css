@@ -476,9 +476,32 @@
 
 .table-empty {
   text-align: center;
-  padding: 40px 20px;
+  padding: 44px 20px;
   color: var(--text);
   font-size: 14px;
+}
+
+/* A generic "empty tray" glyph, shared by every empty-state in the app.
+   Drawn as a mask (not a plain background-image) so a single white SVG
+   picks up --text-faint automatically in both themes instead of needing a
+   light and dark copy. */
+.table-empty::before,
+.section-empty::before {
+  content: "";
+  display: block;
+  width: 38px;
+  height: 38px;
+  margin: 0 auto 12px;
+  background-color: var(--text-faint);
+  opacity: 0.55;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5 5.5 4h13l2 4.5'/%3E%3Cpath d='M3.5 8.5v10a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1v-10'/%3E%3Cpath d='M3.5 8.5h17'/%3E%3Cpath d='M9.5 13h5'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5 5.5 4h13l2 4.5'/%3E%3Cpath d='M3.5 8.5v10a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1v-10'/%3E%3Cpath d='M3.5 8.5h17'/%3E%3Cpath d='M9.5 13h5'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 /* Skeleton loading rows */
@@ -3948,16 +3971,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
    pane, and a large dead hole when reused between two tables on a page. */
 .section-empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 26px 20px;
+  padding: 30px 20px;
   margin: 0 0 8px;
   background: var(--surface);
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   color: var(--text-faint);
   font-size: 13px;
+}
+
+.section-empty::before {
+  margin: 0 0 2px;
 }
 
 /* A create/filter form is supporting furniture, not the point of the page --
