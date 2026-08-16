@@ -37,6 +37,7 @@ from app.services.booking import (
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors, list_services
 from app.services.money import tidy_amount
+from app.services.otp import OtpError, generate_booking_otp, has_verified_booking_otp, verify_booking_otp
 from app.services.vision import describe_patient_photo
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -174,6 +175,14 @@ BASE_INSTRUCTIONS = (
     "بنفس رسالته، استدعي find_doctors/find_available_slots واعرضي عليه 2-3 خيارات فعلية بردك واستنّي "
     "يحدد، ولا تستدعي book_appointment إلا بعد ما يذكر صراحة الطبيب أو الوقت يلي يريحه من بين اللي "
     "عرضتيه — مش بس لأنه وافق على أصل فكرة الحجز.\n"
+    "- بعد ما يتحدد كل شي (الخدمة، الطبيب أو بدونه، الوقت) وقبل استدعاء book_appointment مباشرة، لازم "
+    "تأكيد إضافي بكود: استدعي send_confirmation_code (بترجع code)، اذكريه للمريض بجملة طبيعية "
+    "('تمام، بعتلك كود تأكيد 4821 — ابعتيه إلي عشان أثبت حجزك') واستنّي رده. لما يرد برقم، استدعي "
+    "verify_confirmation_code بالكود يلي كتبه بالضبط. لو رجعت verified=true، احجزي مباشرة بنفس الرد. "
+    "لو رجعت verified=false، اعرضي السبب (error) بلطف واطلبي منه المحاولة من جديد أو كود جديد حسب "
+    "السبب — book_appointment أصلاً رح يرفض لو ما في تحقق ناجح حديث، فما تحاولي تتجاوزي هذه الخطوة "
+    "أو تفترضي إنه المريض 'أكّد' لمجرد إنه وافق على فكرة الحجز أو أعطى وقت — الكود شرط منفصل ومطلوب "
+    "دائماً قبل أي book_appointment، حتى لو كان المريض مسجّل عندنا من قبل بالاسم والرقم.\n"
     "- ممنوع نهائياً قول 'تم الحجز' أو تأكيد أي حجز قبل استدعاء أداة book_appointment والتأكد من "
     "نتيجتها. مرري لها doctor_name وstart_at بالضبط متل ما رجعوا من find_available_slots — الأداة "
     "نفسها بتتحقق من التوفر وتحجز، إنتِ مش مسؤولة عن معرفة إذا كان الوقت 'لسا متاح' أو لأ.\n"
@@ -458,6 +467,48 @@ TOOLS = [
                     },
                 },
                 "required": ["full_name", "phone", "age"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_confirmation_code",
+            "description": (
+                "ابعتي كود تأكيد مكوّن من 4 أرقام لهذا المريض بنفس المحادثة — الخطوة الأخيرة قبل "
+                "book_appointment مباشرة، بعد ما يتحدد كل شي (الفرع/الخدمة/الطبيب أو بدونه/الوقت) وقبل "
+                "ما تحجزي فعلياً. استدعيها مرة وحدة، وبعدها اذكري الكود الراجع من نتيجة الأداة للمريض "
+                "بجملة طبيعية (متل 'ok، بعتلك كود تأكيد 4821، ابعتيه إلي عشان أثبت الحجز') واستنّي رده. "
+                "لو المريض قال إنه ما وصله الكود أو طلب كود جديد، استدعيها من جديد — الكود القديم "
+                "بيوقف يشتغل تلقائياً."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "verify_confirmation_code",
+            "description": (
+                "تحققي من كود التأكيد يلي رجّعه المريض بعد send_confirmation_code. استدعيها فور ما "
+                "يكتب رقماً رداً على طلب الكود — لو رجعت verified=true، احجزي مباشرة بنفس الرد "
+                "باستدعاء book_appointment (book_appointment أصلاً رح يرفض لو ما في تحقق ناجح حديث). "
+                "لو رجعت verified=false، اعرضي عليه السبب (error) بلطف واطلبي منه يعيد المحاولة أو "
+                "تستدعي send_confirmation_code من جديد لو قال الأداة إن الكود انتهت صلاحيته أو خلصت "
+                "محاولاته — ممنوع تحجزي بدون verified=true."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "الكود كما كتبه المريض حرفياً بردّه — بالأرقام كما أرسلها.",
+                    },
+                },
+                "required": ["code"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -1162,6 +1213,15 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # against that same real identity, not the abandoned placeholder.
             ctx["patient_id"] = saved["patient_id"]
             return {"saved": True, "full_name": saved["full_name"], "phone": saved["phone"]}
+        if name == "send_confirmation_code":
+            code = generate_booking_otp(db, ctx["conversation_id"])
+            return {"sent": True, "code": code}
+        if name == "verify_confirmation_code":
+            try:
+                verify_booking_otp(db, ctx["conversation_id"], args.get("code") or "")
+            except OtpError as exc:
+                return {"verified": False, "error": str(exc)}
+            return {"verified": True}
         if name == "check_patient_benefits":
             service_id = resolve_service_id_by_name(db, args.get("service_name") or None)
             # Packages belong to a patient, so an unlinked conversation has
@@ -1245,7 +1305,9 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     "error": "الاسم أو الرقم اللي أعطاه المريض انرفض بهذا الدور — اطلبيهم منه من جديد "
                     "واستنّي رده، وما تحجزي بنفس الرسالة."
                 }
-            missing = missing_contact_fields(db, ctx["patient_id"])
+            # Age is collected the same way as name/phone but never blocks a
+            # booking on its own -- see missing_contact_fields' docstring.
+            missing = [f for f in missing_contact_fields(db, ctx["patient_id"]) if f in ("name", "phone")]
             if missing:
                 # A hard gate, not just the prompt asking nicely: the prompt
                 # already told the model to collect the name first, but a
@@ -1259,6 +1321,15 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {
                     "error": f"لسا ناقص {fields_ar} الحقيقي لهذا المريض. اسأليه عنه/عنهم الآن، وبعد ما "
                     "يجاوب استدعي save_contact_info لتحفظيه، وبس بعدها كمّلي الحجز — ممنوع تحجزي قبل هيك.",
+                }
+            if not has_verified_booking_otp(db, ctx["conversation_id"]):
+                # Same enforcement pattern as the name/phone gate right above:
+                # a hard requirement, not just the prompt asking the model to
+                # verify a code first.
+                return {
+                    "error": "ما في تحقق ناجح وحديث من كود تأكيد لهذه المحادثة. استدعي "
+                    "send_confirmation_code، اذكري الكود للمريض، استنّي رده، واستدعي "
+                    "verify_confirmation_code بالكود يلي بعته قبل ما تستدعي هذه الأداة من جديد.",
                 }
             booking_result = book_by_doctor_and_time(
                 db,
@@ -1607,6 +1678,7 @@ def generate_reply(
     photo_description = _photo_description_for_turn(db, payload.conversation_id, fallback)
     system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description)
     ctx = {
+        "conversation_id": payload.conversation_id,
         "branch_id": conv["branch_id"],
         "patient_id": conv.get("patient_id"),
         "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
@@ -1733,6 +1805,7 @@ def reclaim_stale_conversations(
                 db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description
             )
             ctx = {
+                "conversation_id": row["id"],
                 "branch_id": conv["branch_id"],
                 "patient_id": conv.get("patient_id"),
                 "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
