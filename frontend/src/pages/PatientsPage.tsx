@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import {
   addPatientTag,
   createPatient,
+  deletePatient,
   listPatientPage,
   removePatientTag,
 } from "../api/patients";
@@ -134,6 +135,34 @@ export function PatientsPage() {
   const handleRemoveTag = (patientId: string, tag: PatientTagValue) => {
     removePatientTag(patientId, tag)
       .then(() => setTagsByPatient((prev) => ({ ...prev, [patientId]: (prev[patientId] ?? []).filter((t) => t !== tag) })))
+      .catch((err) => setError(err.response?.data?.detail ?? err.message));
+  };
+
+  // Permanent, not the tag/duplicate-merge kind of edit above — erases the
+  // patient's conversations and channel identity too (server-side, see
+  // delete_patient_permanently). Two confirmations on purpose: this is the
+  // one action on this page real patient/financial history can't survive a
+  // misclick on. Requires patient.delete server-side (clinic_manager/
+  // system_administrator by default) — anyone else gets a rejected request
+  // with the same error toast as any other permission failure.
+  const handleDelete = (patient: Patient) => {
+    if (
+      !window.confirm(
+        `سيتم حذف "${patient.full_name}" نهائياً مع كل محادثاته ومواعيده ومدفوعاته — إجراء لا يمكن التراجع عنه إطلاقاً. متابعة؟`,
+      )
+    )
+      return;
+    const typed = window.prompt(`للتأكيد الأخير، اكتب اسم المريض بالضبط كما هو ظاهر: "${patient.full_name}"`);
+    if (typed === null) return;
+    if (typed !== patient.full_name) {
+      window.alert("الاسم غير مطابق — تم إلغاء الحذف.");
+      return;
+    }
+    deletePatient(patient.id)
+      .then(() => {
+        setPatients((prev) => prev.filter((p) => p.id !== patient.id));
+        setTotal((prev) => prev - 1);
+      })
       .catch((err) => setError(err.response?.data?.detail ?? err.message));
   };
 
@@ -280,6 +309,7 @@ export function PatientsPage() {
               <th>الإيميل</th>
               <th>ملاحظات</th>
               <th>التصنيفات</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -321,11 +351,16 @@ export function PatientsPage() {
                       <button onClick={() => setAddingTagFor(patient.id)}>+ تصنيف</button>
                     ))}
                 </td>
+                <td>
+                  <button className="btn-danger" onClick={() => handleDelete(patient)} title="حذف نهائي مع كل المحادثات">
+                    حذف
+                  </button>
+                </td>
               </tr>
             ))}
             {filteredPatients.length === 0 && (
               <tr>
-                <td colSpan={5} className="table-empty">
+                <td colSpan={6} className="table-empty">
                   {search ? "ما في مرضى مطابقين للبحث." : "ما في مرضى بعد."}
                 </td>
               </tr>

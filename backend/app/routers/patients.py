@@ -21,7 +21,13 @@ from app.models.schemas import (
     PatientTagRequest,
     PatientUpdate,
 )
-from app.services.patient_management import dismiss_duplicate, find_duplicates_for, is_minor, merge_patients
+from app.services.patient_management import (
+    delete_patient_permanently,
+    dismiss_duplicate,
+    find_duplicates_for,
+    is_minor,
+    merge_patients,
+)
 
 router = APIRouter(tags=["patients"])
 
@@ -155,6 +161,21 @@ def update_patient(
 ):
     updates = payload.model_dump(exclude_unset=True, mode="json")
     return db.table("patients").update(updates).eq("id", str(patient_id)).execute().data[0]
+
+
+@router.delete("/patients/{patient_id}")
+def delete_patient(
+    patient_id: UUID,
+    current: CurrentStaff = Depends(require_permission("patient.delete")),
+    db: Client = Depends(get_supabase),
+):
+    """Permanent, not the soft delete=hide-from-lists pattern used
+    elsewhere — see delete_patient_permanently's docstring for why a QA
+    reset needs the harder version. Restricted to patient.delete, which
+    only clinic_manager/system_administrator hold by default (0006_rbac.sql)
+    — the same bar as every other irreversible admin action in this API."""
+    delete_patient_permanently(db, str(patient_id), current.id)
+    return {"deleted": True}
 
 
 @router.get("/patients/{patient_id}/guardians", response_model=list[PatientGuardianLink])

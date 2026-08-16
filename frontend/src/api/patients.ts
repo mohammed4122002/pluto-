@@ -109,3 +109,11 @@ export const mergePatientDuplicate = (duplicateId: string, survivorId: string) =
 
 export const dismissPatientDuplicate = (duplicateId: string) =>
   api.post<PatientDuplicate>(`/patient-duplicates/${duplicateId}/dismiss`).then((res) => res.data);
+
+/** Permanent — erases the patient, every conversation they ever had, and
+ * their channel identity, not just deleted_at. Restricted server-side to
+ * patient.delete (clinic_manager/system_administrator by default); meant
+ * for wiping a QA/test patient so the next message from that same
+ * phone/Telegram account looks genuinely first-contact. */
+export const deletePatient = (patientId: string) =>
+  api.delete<{ deleted: boolean }>(`/patients/${patientId}`).then((res) => res.data);

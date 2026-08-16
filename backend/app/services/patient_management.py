@@ -166,3 +166,49 @@ def dismiss_duplicate(db: Client, duplicate_id: str, staff_id: str) -> dict:
     if not rows:
         raise HTTPException(status_code=404, detail="لم يتم العثور على هذا الزوج من السجلات")
     return rows[0]
+
+
+def delete_patient_permanently(db: Client, patient_id: str, staff_id: str) -> None:
+    """Permanently erases a patient and every conversation ever had with
+    them. Built for QA: retesting a chat-bot scenario needs the *next*
+    message from that same phone/Telegram account to look genuinely
+    first-contact, not resume an existing conversation with months of
+    history, an already-saved contact record, or a spent OTP. A soft delete
+    (deleted_at, used elsewhere in this router) can't give that —
+    _load_conversation and resolve_identity would still find the old
+    conversation/identity and the AI would still see the old message
+    history and turn count.
+
+    Everything else already cascades from patients via existing foreign
+    keys (appointments, payments, invoices, patient_packages, waitlist,
+    patient_guardians, patient_tags, patient_duplicates, recalls).
+    conversations.patient_id does not (no ON DELETE clause — a plain
+    patients delete would fail outright with an FK violation without this),
+    so it's cleared explicitly first; messages/chat_booking_otp then cascade
+    from conversations the normal way. patient_channel_identities.patient_id
+    is ON DELETE SET NULL by design elsewhere (keeps a record of who
+    messaged even after their patient record is gone) — deleted explicitly
+    here too, since this is a full reset: a leftover identity row would
+    otherwise carry over its old first_seen_at/display_name to whatever new
+    patient record that same channel account creates next.
+    """
+    rows = db.table("patients").select("id, full_name, phone").eq("id", patient_id).limit(1).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="المريض غير موجود")
+    patient = rows[0]
+
+    db.table("conversations").delete().eq("patient_id", patient_id).execute()
+    db.table("patient_channel_identities").delete().eq("patient_id", patient_id).execute()
+
+    db.table("audit_log").insert(
+        {
+            "entity_type": "patient",
+            "entity_id": patient_id,
+            "action": "delete",
+            "old_value": patient,
+            "user_id": staff_id,
+            "reason": "حذف نهائي للمريض وكل محادثاته",
+        }
+    ).execute()
+
+    db.table("patients").delete().eq("id", patient_id).execute()
