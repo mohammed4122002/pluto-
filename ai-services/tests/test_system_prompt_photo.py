@@ -88,3 +88,34 @@ def test_photo_block_directs_to_service_suggestion_not_diagnosis():
     prompt = _no_patient_prompt(photo_description="صورة وجه فيها احمرار")
     assert "لتقترحي أنسب خدمة" in prompt
     assert "لازم يحجز عشان الطبيب يشوفها عن قرب" in prompt
+
+
+def test_no_receipt_hint_when_nothing_was_sent():
+    prompt = _build_system_prompt(
+        _Db(), "b1", {}, patient_id=None, photo_description=None, image_without_medical_description=False
+    )
+    assert "submit_payment_receipt" not in prompt
+
+
+def test_receipt_hint_appears_when_photo_is_not_medical():
+    prompt = _build_system_prompt(
+        _Db(), "b1", {}, patient_id=None, photo_description=None, image_without_medical_description=True
+    )
+    assert "submit_payment_receipt" in prompt
+    assert "لا تفترضي إنها إيصال دفع من عندك" in prompt
+
+
+def test_receipt_hint_is_suppressed_when_photo_is_medical_even_if_flag_is_set():
+    # image_without_medical_description should never be True alongside a real
+    # photo_description in practice (they come from the same classification),
+    # but the medical block must win if it ever happens -- a photo that IS
+    # medical must never be treated as a receipt candidate.
+    prompt = _build_system_prompt(
+        _Db(),
+        "b1",
+        {},
+        patient_id=None,
+        photo_description="صورة يد فيها انتفاخ خفيف عند المفصل",
+        image_without_medical_description=True,
+    )
+    assert "submit_payment_receipt" not in prompt

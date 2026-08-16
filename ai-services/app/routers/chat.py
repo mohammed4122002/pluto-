@@ -38,6 +38,7 @@ from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors, list_active_branches, list_services, resolve_branch_id_by_name
 from app.services.money import tidy_amount
 from app.services.otp import OtpError, generate_booking_otp, has_verified_booking_otp, verify_booking_otp
+from app.services.receipts import attach_receipt, find_pending_receipt_payment
 from app.services.vision import describe_patient_photo
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -641,6 +642,24 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "submit_payment_receipt",
+            "description": (
+                "استدعيها لما يبعتلك المريض صورة بآخر رسالة ووصفها المرئي المرفق بالبرومبت فاضي/غير "
+                "موجود (يعني مش صورة طبية ولا تجميلية) — هذا يعني الصورة ممكن تكون إيصال دفع. الأداة "
+                "بتتحقق فعلياً إنه في دفعة قيد الانتظار (أو مرفوضة وطلبنا إيصال جديد) اتسألت مؤخراً لهذا "
+                "المريض قبل ما تربط الصورة فيها؛ لو ما في، بترجع error. لو رجعت submitted=true، قولي "
+                "للمريض بجملة طبيعية إن الإيصال وصل وقيد المراجعة. لو رجعت error، معناها الصورة مش "
+                "مرتبطة بأي دفعة تستنى إيصال — لا تفترضي إنها إيصال دفع، وتعاملي مع رسالته عادي (اسأليه "
+                "شو قصده منها لو محتاجة). ممنوع تستدعيها لصورة عندها وصف مرئي (يعني ظهرت طبية/تجميلية) "
+                "مهما كان — هذيك تُعامل حسب قاعدة الصور الطبية، مش كإيصال."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "apply_coupon_code",
             "description": (
                 "طبّقي كود كوبون ذكره المريض على دفعة عربون/سعر تم إنشاؤها للتو بعد نجاح الحجز. استدعيها "
@@ -951,20 +970,29 @@ def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
 
 def _photo_description_for_turn(
     db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
-) -> str | None:
+) -> tuple[str | None, bool]:
     """Gemini-only by design: the vision analysis rides on whichever key is
     already configured as the text fallback, rather than needing a second
     key managed separately. No Gemini configured for this clinic simply
     means photos are skipped and the turn proceeds as a normal text-only
     reply — this must never be the reason a patient waiting on a reply
-    doesn't get one."""
-    if not fallback:
-        return None
+    doesn't get one.
+
+    Returns (description, image_without_medical_description). The second
+    value is only True when vision actually ran and explicitly said the
+    photo isn't medical/cosmetic (describe_patient_photo returns None for
+    that case too, same as a payment receipt or an unrelated photo) — it's
+    what tells _build_system_prompt this turn's photo is a candidate for
+    submit_payment_receipt rather than the medical-photo block. Left False
+    whenever there's no image, or no way to classify one (no Gemini
+    configured): guessing "maybe a receipt" without ever having looked at
+    the photo is exactly the blind matching this was built to replace."""
     image_url = _latest_inbound_image_url(db, conversation_id)
-    if not image_url:
-        return None
+    if not image_url or not fallback:
+        return None, False
     vision_client, vision_model = fallback
-    return describe_patient_photo(vision_client, vision_model, image_url)
+    description = describe_patient_photo(vision_client, vision_model, image_url)
+    return description, description is None
 
 
 def _patient_said(history: list[dict]) -> str:
@@ -981,6 +1009,7 @@ def _build_system_prompt(
     patient_id: str | None = None,
     photo_description: str | None = None,
     branch_selected_explicitly: bool = True,
+    image_without_medical_description: bool = False,
 ) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -1086,6 +1115,15 @@ def _build_system_prompt(
             "نهائياً تسمي أي مرض أو حالة طبية بالاسم أو تقولي للمريض 'عندك كذا' أو 'هذا يبدو متل كذا' "
             "بناءً على الصورة — إنتِ موظفة استقبال مش طبيبة، ولا يحق لك أي تشخيص من صورة ولا من كلام. "
             "لو حابب يعرف شو المشكلة بالضبط، وضحيله إنه لازم يحجز عشان الطبيب يشوفها عن قرب."
+        )
+    elif image_without_medical_description:
+        parts.append(
+            "المريض بعت صورة مع رسالته الأخيرة، وما ظهر إنها صورة طبية أو تجميلية — يعني ممكن تكون "
+            "إيصال دفع، أو صورة مش متعلقة بزيارته إطلاقاً. لا تفترضي إنها إيصال دفع من عندك؛ استدعي "
+            "submit_payment_receipt لتتأكدي فعلياً (الأداة بترفض تلقائياً لو ما في دفعة قيد الانتظار "
+            "تستنى إيصال لهذا المريض). لو رجعت submitted=true، قولي له بجملة طبيعية إن الإيصال وصل "
+            "وقيد المراجعة. لو رجعت error، تعاملي مع الصورة كرسالة عادية بدون أي افتراض عن محتواها، "
+            "واسأليه شو قصده منها لو كان غير واضح من كلامه."
         )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
@@ -1352,6 +1390,17 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     for c in coupons
                 ],
             }
+        if name == "submit_payment_receipt":
+            if not ctx.get("patient_id"):
+                return {"error": "ما في مريض معروف بهذه المحادثة بعد."}
+            image_url = _latest_inbound_image_url(db, ctx["conversation_id"])
+            if not image_url:
+                return {"error": "ما في صورة بالرسالة الأخيرة لهذا المريض."}
+            payment_id = find_pending_receipt_payment(db, ctx["patient_id"])
+            if not payment_id:
+                return {"error": "ما في دفعة قيد الانتظار تستنى إيصال دفع لهذا المريض حالياً."}
+            attach_receipt(db, payment_id, image_url)
+            return {"submitted": True}
         if name == "apply_coupon_code":
             if not ctx.get("_booked_appointment_id") or not ctx.get("patient_id"):
                 return {"error": "لا يوجد دفعة نشطة الآن لتطبيق الكوبون عليها — لازم يكون في حجز تم للتو وطلب دفع."}
@@ -1752,9 +1801,17 @@ def generate_reply(
         return ReplyResponse(reply=reply, needs_human=True)
 
     history = _load_history(db, payload.conversation_id)
-    photo_description = _photo_description_for_turn(db, payload.conversation_id, fallback)
+    photo_description, image_without_medical_description = _photo_description_for_turn(
+        db, payload.conversation_id, fallback
+    )
     system_prompt = _build_system_prompt(
-        db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description, conv["branch_selected_explicitly"]
+        db,
+        conv["branch_id"],
+        ch_settings,
+        conv.get("patient_id"),
+        photo_description,
+        conv["branch_selected_explicitly"],
+        image_without_medical_description,
     )
     ctx = {
         "conversation_id": payload.conversation_id,
@@ -1879,7 +1936,9 @@ def reclaim_stale_conversations(
         try:
             conv = _load_conversation(db, row["id"])
             history = _load_history(db, row["id"])
-            photo_description = _photo_description_for_turn(db, row["id"], fallback)
+            photo_description, image_without_medical_description = _photo_description_for_turn(
+                db, row["id"], fallback
+            )
             system_prompt = _build_system_prompt(
                 db,
                 conv["branch_id"],
@@ -1887,6 +1946,7 @@ def reclaim_stale_conversations(
                 conv.get("patient_id"),
                 photo_description,
                 conv["branch_selected_explicitly"],
+                image_without_medical_description,
             )
             ctx = {
                 "conversation_id": row["id"],
