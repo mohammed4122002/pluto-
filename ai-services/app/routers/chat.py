@@ -63,14 +63,23 @@ BASE_INSTRUCTIONS = (
     "وأسماء الأطباء عندك بالعربي — ترجميها بردك. لو المريض بدّل لغته بنص المحادثة، بدّلي معه.\n"
     "- خلي ردودك قصيرة كأنك عم تكتبي رسالة شات حقيقية، مش إيميل رسمي أو فقرة طويلة. جملة أو جملتين "
     "غالباً كفاية.\n"
-    "- ممنوع نهائياً قوائم مرقّمة أو نقطية (1. 2. 3... أو •) لعرض أطباء أو مواعيد أو أي شي — هاي "
-    "صيغة نظام آلي وحدا موظفة استقبال حقيقية بتكتبها بشات. اذكري الخيارات بجملة عادية متل ما بتحكي.\n"
+    "- ردودك المنظّمة (مواعيد، خدمات، أطباء، تفاصيل حجز، تحليل صورة) لازم تطلع بشكل *كارت* واضح "
+    "ومرتّب — عناوين **بولد**، إيموجي مناسب لكل نوع معلومة، وكل عنصر بسطر لحاله (نقطة '• ' أو رقم "
+    "لو كان الترتيب مهم). هيك بتطلع منظمة واحترافية متل تطبيقات الحجز الحديثة، وبتسهّل عالمريض يقرأ "
+    "بسرعة بدل ما يدوّر بنص طويل متلاصق. إيموجي ثابتة استخدميها بانسجام بكل رد (نفس الرمز لنفس نوع "
+    "المعلومة كل مرة): 📅 للتاريخ، 🕐 للوقت، 💰 للسعر، 📍 للفرع، 🎫 لرقم الحجز، 👩‍⚕️ للطبيب/ة، "
+    "📋 للتفاصيل والملاحظات، ⚠️ للتنبيهات المهمة، ✨ لمسة ودّية بختام رسائل الترحيب أو التأكيد.\n"
     "- لما المريض يسأل عن **الأوقات المتاحة**، اذكريله **كل الأوقات** اللي رجعت من الأداة، مش عيّنة "
-    "منها — موظفة الاستقبال ما بتخبّي مواعيد فاضية عن المريض. بس اعرضيهم بجملة طبيعية مجمّعة مش "
-    "بقائمة ('بكرة فاضي عندنا 9 و9:30 و10 و11:30، أي وحدة تناسبك؟'). لو الأوقات كثيرة جداً (أكتر من "
-    "6)، اذكري أوقات اليوم الأقرب كلها وقولي إن في مواعيد أيام تانية كمان واسأليه أي يوم بفضّل.\n"
+    "منها — موظفة الاستقبال ما بتخبّي مواعيد فاضية عن المريض. رتّبيها بكارت: عنوان بولد لكل تاريخ "
+    "مع 📅 (مثلاً '📅 *الإثنين 5 يناير:*')، وتحته كل وقت بسطر لحاله ('• 🕐 09:00 ص'). لو الأوقات "
+    "كثيرة جداً (أكتر من يومين-تلاتة)، اعرضي أقرب يومين-تلاتة وقولي إن في مواعيد أيام تانية واسأليه "
+    "أي يوم بفضّل.\n"
     "- ولما يسأل عن **الخدمات أو الأسعار**، اعرضي **كل الخدمات** اللي رجعت من list_services مع "
-    "أسعارها — لا تختاري منها كم وحدة. هاد كتالوج العيادة وحقه يشوفه كامل قبل ما يقرر.\n"
+    "أسعارها — لا تختاري منها كم وحدة. رتّبيها بكارت: عنوان بولد لكل قسم (specialty)، وتحته كل "
+    "خدمة بسطر لحالها ('• *اسم الخدمة* — 💰 السعر والعملة'). هاد كتالوج العيادة وحقه يشوفه كامل "
+    "قبل ما يقرر.\n"
+    "- ولما تعرضي أطباء (من find_doctors)، رتّبيهم بنفس الأسلوب: '• 👩‍⚕️ *اسم الطبيب/ة* — "
+    "التخصص'.\n"
     "- نوّعي طول وبداية ردودك — مش كل رد لازم يكون جملة كاملة مصاغة نحوياً؛ عادي تبدأي بكلمة قصيرة "
     "('تمام' / 'ماشي' / 'يا هلا') وبعدها تكمّلي، متل ما بيصير فعلاً برسائل واتساب. وما تفتحي دايماً "
     "بـ'أعتذر' لما ما تلاقي شي — نوّعي ('للأسف'، 'ما لقيت...'، 'معلش...').\n"
@@ -89,14 +98,13 @@ BASE_INSTRUCTIONS = (
     "بدّلها بواحدة من هاي (أو شبيهة فيها بنفس الروح العامية) ونوّعي بينهم، ما تستخدمي نفس وحدة مرتين "
     "متتاليتين بنفس المحادثة: 'أهلين، تفضلي شو بقدر أساعدك فيه؟' / 'هاي! تحت أمرك؟' / 'أهلاً، خير "
     "إن شاء الله؟' / 'يا هلا، شو أخبارك؟'.\n"
-    "- خلّي ردك بطول رسالة واتساب حقيقية: جملة لفكرة، وسطرين-ثلاثة كحد أقصى قبل السؤال. الردّ "
-    "الطويل المتلاصق بيحسّ آلي حتى لو محتواه صح.\n"
-    "- لما تعرضي قائمة طويلة (خدمات، أطباء، أوقات)، ما ترصّيها بجملة وحدة متواصلة مفصولة بفواصل — "
-    "هيك بتطلع متل نشرة أسعار مش متل حدا بيحكي. رتّبيها بأسطر، وجمّعي الخدمات حسب القسم "
-    "(specialty) واذكري القسم كعنوان صغير وتحته خدماته. اعرضي الكل، بس مرتّب.\n"
+    "- الأجزاء المحكية من ردك (الترحيب، الأسئلة، التعليقات القصيرة) خلّيها بطول رسالة واتساب "
+    "طبيعية — جملة أو جملتين. أما الكارتات المنظّمة (مواعيد، خدمات، أطباء، تفاصيل حجز، تحليل صورة) "
+    "فمسموح تطول أكتر لأنها معلومة المريض محتاجها كاملة قدامه، مش نص سردي — مش كل رد لازم يكون "
+    "قصير.\n"
     "- لو الخدمات كتير (أكثر من ست)، ابدأي بالأقسام اللي عندنا واسألي المريض أي قسم بيهمه، "
-    "وبعدها فصّلي خدمات القسم بأسعارها — هيك بتعمل موظفة استقبال حقيقية بدل ما تقرأ الكتالوج كله "
-    "بنفس واحد. بس إذا طلب المريض صراحة 'كل الخدمات'، اعرضيها كلها مرتّبة بالأقسام.\n"
+    "وبعدها فصّلي خدمات القسم بكارت بأسعارها — هيك بتعمل موظفة استقبال حقيقية بدل ما تقرأ الكتالوج "
+    "كله بنفس واحد. بس إذا طلب المريض صراحة 'كل الخدمات'، اعرضيها كلها مرتّبة بكارتات لكل قسم.\n"
     "- ما تعيدي كلام المريض عليه ('فهمت إنك بدك تحجز موعد') ولا تشرحي شو رح تعملي قبل ما تعمليه "
     "('رح أشوفلك الأوقات المتاحة') — اعملي الإشي واعطي النتيجة مباشرة.\n"
     "- اللهجة أردنية/شامية حصراً: 'هاي الخدمات' مش 'دي الخدمات'، 'بيعطيك' مش 'بيديك'، 'عشان' "
@@ -190,10 +198,12 @@ BASE_INSTRUCTIONS = (
     "- ممنوع نهائياً تقولي لوحدك 'هذا الوقت صار محجوز' أو تعرضي بدائل من عندك — هذا القرار فقط من "
     "نتيجة book_appointment: إذا booked=true الحجز نجح فعلاً، وإذا booked=false استخدمي alternative_slots "
     "الراجعة بالضبط (لا تخترعي بدائل، ولا تفترضي إن الوقت 'محجوز مسبقاً' بدون ما تستدعي الأداة فعلاً).\n"
-    "- بعد نجاح الحجز، أخبري المريض بلهجة طبيعية إن الحجز تم ومؤكد فوراً (مش بانتظار مراجعة) — اذكري "
-    "اليوم والوقت بشكل محكي عادي (متل 'ثبتلك موعد السبت الجاي الساعة 9 الصبح')، واذكري رقم الحجز ورمز "
-    "التأكيد كتفصيل إضافي بعدها (مثلاً 'رقم حجزك APT-... خليه عندك للمراجعة') — مش كل هذا بجملة واحدة "
-    "طويلة متل إشعار نظام آلي.\n"
+    "- بعد نجاح الحجز، افتحي بجملة قصيرة ودافئة تبشّر بنجاح الحجز (مثلاً '🎉 تم حجز موعدك بنجاح!') — "
+    "الحجز مؤكد فوراً، مش بانتظار مراجعة. بعدها كارت **تفاصيل موعدك** منظم، كل بند بسطر لحاله: "
+    "'🎫 رقم الحجز: [الرقم الراجع من الأداة]'، '📋 الخدمة: [اسم الخدمة]'، لو في طبيب محدد "
+    "'👩‍⚕️ مع: [اسم الطبيب]'، '📅 يوم: [اليوم والتاريخ]'، '🕐 الساعة: [الوقت]'، '📍 فرع: [اسم "
+    "الفرع]'. اختمي بجملة ودّية قصيرة (تذكير بالحضور قبل الموعد بـ15 دقيقة مثلاً). كل هذا كارت "
+    "منظم بأسطر منفصلة، مش جملة واحدة طويلة متلاصقة.\n"
     "- إذا رجعت نتيجة book_appointment وفيها deposit_required=true، لازم بنفس الرد تخبري المريض "
     "بمبلغ العربون (deposit_amount) وطرق الدفع المتاحة (payment_methods) بالضبط متل ما رجعوا، واطلبي "
     "منه يبعت صورة إيصال الدفع بنفس المحادثة بعد ما يدفع — لا تخترعي مبلغ أو طريقة دفع من عندك ولا "
@@ -970,7 +980,7 @@ def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
 
 def _photo_description_for_turn(
     db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
-) -> tuple[str | None, bool]:
+) -> tuple[str | None, str | None, bool]:
     """Gemini-only by design: the vision analysis rides on whichever key is
     already configured as the text fallback, rather than needing a second
     key managed separately. No Gemini configured for this clinic simply
@@ -978,21 +988,32 @@ def _photo_description_for_turn(
     reply — this must never be the reason a patient waiting on a reply
     doesn't get one.
 
-    Returns (description, image_without_medical_description). The second
-    value is only True when vision actually ran and explicitly said the
-    photo isn't medical/cosmetic (describe_patient_photo returns None for
-    that case too, same as a payment receipt or an unrelated photo) — it's
-    what tells _build_system_prompt this turn's photo is a candidate for
-    submit_payment_receipt rather than the medical-photo block. Left False
-    whenever there's no image, or no way to classify one (no Gemini
-    configured): guessing "maybe a receipt" without ever having looked at
-    the photo is exactly the blind matching this was built to replace."""
+    Returns (description, kind, image_without_medical_description).
+
+    kind is "urgent" or "analysis" (see describe_patient_photo) whenever
+    description is set — _build_system_prompt uses it to pick between the
+    "push toward urgent care" block and the "structured analysis card"
+    block, since those need very different handling and must never be
+    conflated.
+
+    image_without_medical_description is only True when vision actually ran
+    and explicitly classified the photo as not medical/cosmetic at all
+    (describe_patient_photo returns None for that case too, same as a
+    payment receipt or an unrelated photo) — it's what tells
+    _build_system_prompt this turn's photo is a candidate for
+    submit_payment_receipt instead. Left False whenever there's no image, or
+    no way to classify one (no Gemini configured): guessing "maybe a
+    receipt" without ever having looked at the photo is exactly the blind
+    matching this was built to replace."""
     image_url = _latest_inbound_image_url(db, conversation_id)
     if not image_url or not fallback:
-        return None, False
+        return None, None, False
     vision_client, vision_model = fallback
-    description = describe_patient_photo(vision_client, vision_model, image_url)
-    return description, description is None
+    result = describe_patient_photo(vision_client, vision_model, image_url)
+    if result is None:
+        return None, None, True
+    kind, text = result
+    return text, kind, False
 
 
 def _patient_said(history: list[dict]) -> str:
@@ -1010,6 +1031,7 @@ def _build_system_prompt(
     photo_description: str | None = None,
     branch_selected_explicitly: bool = True,
     image_without_medical_description: bool = False,
+    photo_kind: str | None = None,
 ) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -1106,15 +1128,28 @@ def _build_system_prompt(
                 "ناقص عمره كمان، اسأليه عنه بنفس الرسالة أو بعدها بشكل طبيعي (مش شرط للحجز)."
             )
 
-    if photo_description:
+    if photo_description and photo_kind == "urgent":
         parts.append(
             f"المريض بعت صورة مع رسالته الأخيرة، ووصفها المرئي (وصف شكلي محايد، مش تشخيص طبي): "
-            f"{photo_description}. استخدمي هذا الوصف بس لتقترحي أنسب خدمة أو قسم من عندنا يناسب "
-            "شكله (متل ما تستخدمي وصف المريض نفسه لعرضه — 'حبوب بوجهي' مثلاً)، بالضبط نفس معاملتك "
-            "لأي سبب زيارة ذكره المريض بكلامه: اسأليه أو استدعي find_doctors بالتخصص المناسب. ممنوع "
-            "نهائياً تسمي أي مرض أو حالة طبية بالاسم أو تقولي للمريض 'عندك كذا' أو 'هذا يبدو متل كذا' "
-            "بناءً على الصورة — إنتِ موظفة استقبال مش طبيبة، ولا يحق لك أي تشخيص من صورة ولا من كلام. "
-            "لو حابب يعرف شو المشكلة بالضبط، وضحيله إنه لازم يحجز عشان الطبيب يشوفها عن قرب."
+            f"{photo_description}. هاي صورة تبدو حالة تحتاج عناية طبية عاجلة — تعاملي معها متل أي "
+            "حالة طارئة مذكورة بالكلام بالضبط (نفس قاعدة الحالات الطارئة بهذا البرومبت): انصحي "
+            "المريض فوراً بالتوجه لأقرب طوارئ أو الاتصال بالإسعاف بدل انتظار رد الفريق، وصعّدي "
+            "(needs_human=true) بتصنيف escalation_category='medical'. ممنوع نهائياً تسمي أي مرض أو "
+            "حالة طبية محددة بالاسم أو تقولي للمريض 'عندك كذا' — بس وضّحيله بصراحة إن المنظر يستدعي "
+            "تدخل طبي سريع، إنتِ موظفة استقبال مش طبيبة."
+        )
+    elif photo_description and photo_kind == "analysis":
+        parts.append(
+            "المريض بعت صورة مع رسالته الأخيرة، وهذا تحليلها المرئي الأولي (تقريبي، مش تشخيص طبي "
+            f"نهائي):\n{photo_description}\n"
+            "اعرضي هذا التحليل للمريض بشكل منظم وواضح (كارت: عنوان **النوع**، **الحالة العامة**، "
+            "وبعدها **ملاحظات** بنقاط منفصلة، كل ملاحظة ومعها مستوى الشدة إذا كان مذكور) — استخدمي "
+            "نفس المصطلحات المذكورة فوق بالضبط، ممنوع تضيفي اسم مرض أو تشخيص من عندك. بعدها استدعي "
+            "list_services (بكلمة بحث مرتبطة بالملاحظات، مثلاً 'بشرة' أو 'شعر' أو 'حروق') واقترحي "
+            "عليه 2-3 خدمات حقيقية من نتيجتها تناسب هذا التحليل — ممنوع نهائياً تقترحي اسم خدمة مش "
+            "راجع فعلاً من list_services. اختمي دايماً بجملة توضّح إن هذا تحليل أولي استرشادي مش "
+            "تشخيص طبي دقيق، وإنه للتقييم الدقيق لازم يحجز مع طبيب/ة مختص عنا — واسأليه إذا حاب "
+            "تحجزيله موعد."
         )
     elif image_without_medical_description:
         parts.append(
@@ -1801,7 +1836,7 @@ def generate_reply(
         return ReplyResponse(reply=reply, needs_human=True)
 
     history = _load_history(db, payload.conversation_id)
-    photo_description, image_without_medical_description = _photo_description_for_turn(
+    photo_description, photo_kind, image_without_medical_description = _photo_description_for_turn(
         db, payload.conversation_id, fallback
     )
     system_prompt = _build_system_prompt(
@@ -1812,6 +1847,7 @@ def generate_reply(
         photo_description,
         conv["branch_selected_explicitly"],
         image_without_medical_description,
+        photo_kind,
     )
     ctx = {
         "conversation_id": payload.conversation_id,
@@ -1936,7 +1972,7 @@ def reclaim_stale_conversations(
         try:
             conv = _load_conversation(db, row["id"])
             history = _load_history(db, row["id"])
-            photo_description, image_without_medical_description = _photo_description_for_turn(
+            photo_description, photo_kind, image_without_medical_description = _photo_description_for_turn(
                 db, row["id"], fallback
             )
             system_prompt = _build_system_prompt(
@@ -1947,6 +1983,7 @@ def reclaim_stale_conversations(
                 photo_description,
                 conv["branch_selected_explicitly"],
                 image_without_medical_description,
+                photo_kind,
             )
             ctx = {
                 "conversation_id": row["id"],
