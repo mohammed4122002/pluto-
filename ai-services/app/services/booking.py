@@ -54,6 +54,17 @@ _REQUIRED_NAME_PARTS = 3
 _MIN_PHONE_DIGITS = 9
 _MAX_PHONE_DIGITS = 15
 
+# Bounds wide enough to admit a real patient of any age without admitting
+# "999" typed by mistake. Age arrives from chat as a whole number of years,
+# not a birth date, so it can only ever produce an *approximate*
+# date_of_birth -- accurate enough for the min_age gate in
+# backend/app/routers/slots.py (which silently skips that check entirely
+# when date_of_birth is null, the state every patient registered through
+# this chatbot was left in before this existed), not precise enough for
+# anything that needs an exact birthday.
+_MIN_PLAUSIBLE_AGE = 1
+_MAX_PLAUSIBLE_AGE = 120
+
 
 def validate_full_name(full_name: str, patient_said: str | None = None) -> str:
     """A triple name the patient actually gave, or a clear reason why not.
@@ -129,21 +140,65 @@ def validate_phone(phone: str, patient_said: str | None = None) -> str:
     return raw
 
 
+def validate_age(age: int, patient_said: str | None = None) -> int:
+    """A plausible age the patient actually gave, or a clear reason why not.
+
+    Checked against patient_said for the same reason the name and phone are:
+    a model that invents "٢٥" to satisfy a required field is exactly the
+    failure mode this whole module exists to block. The check is weaker here
+    than for the phone (a one- or two-digit number is far more likely to
+    coincidentally appear elsewhere in the conversation than a full phone
+    number is), so it catches an invented age only on the same terms the
+    phone check does — not a guarantee, the same tradeoff already accepted
+    there.
+    """
+    if not isinstance(age, int) or isinstance(age, bool):
+        raise BookingError("العمر لازم يكون رقم صحيح — اطلبي من المريض عمره بالأرقام.")
+    if age < _MIN_PLAUSIBLE_AGE or age > _MAX_PLAUSIBLE_AGE:
+        raise BookingError("هذا العمر غير منطقي — اطلبي من المريض عمره الحقيقي.")
+    if patient_said is not None and str(age) not in digits_only(patient_said):
+        raise BookingError(
+            "ما حفظنا العمر: هذا الرقم المريض ما كتبه أبداً كعمر. ممنوع تحطي عمر من عندك — "
+            "اطلبي منه يكتب عمره بنفسه واستنّي رده."
+        )
+    return age
+
+
+def _date_of_birth_from_age(age: int) -> str:
+    """An approximate date_of_birth from a whole number of years -- exact day
+    and month are never knowable from age alone, so "age years before today"
+    is as precise as this can be. Good enough for the min_age gate it feeds
+    (backend/app/routers/slots.py), which itself only computes age in whole
+    years."""
+    today = datetime.now(timezone.utc).date()
+    try:
+        return today.replace(year=today.year - age).isoformat()
+    except ValueError:
+        # Feb 29, and this many years back isn't a leap year.
+        return today.replace(year=today.year - age, day=28).isoformat()
+
+
 def missing_contact_fields(db: Client, patient_id: str) -> list[str]:
-    """Which of "name"/"phone" are still placeholders for this patient —
-    booking must not proceed until both are real, since without a real name
-    the confirmation is unattributed and without a real phone the clinic has
-    no way to reach the patient about this appointment (reminders, changes,
-    payment follow-up)."""
-    rows = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data
+    """Which of "name"/"phone"/"age" are still placeholders for this patient —
+    booking must not proceed until name and phone are real, since without a
+    real name the confirmation is unattributed and without a real phone the
+    clinic has no way to reach the patient about this appointment (reminders,
+    changes, payment follow-up). Age is collected the same way but doesn't
+    block booking on its own (see _build_system_prompt) — a service's
+    min_age gate silently no-ops without a date_of_birth on file (backend/
+    app/routers/slots.py), so every patient registered through chat before
+    this existed left that gate meaningless for them."""
+    rows = db.table("patients").select("full_name, phone, date_of_birth").eq("id", patient_id).limit(1).execute().data
     if not rows:
-        return ["name", "phone"]
+        return ["name", "phone", "age"]
     patient = rows[0]
     missing = []
     if _is_placeholder_name(patient.get("full_name"), patient.get("phone")):
         missing.append("name")
     if _is_placeholder_phone(patient.get("phone")):
         missing.append("phone")
+    if not patient.get("date_of_birth"):
+        missing.append("age")
     return missing
 
 
@@ -162,40 +217,67 @@ def _resolve_patient(db: Client, patient_id: str) -> str:
     return current_id
 
 
-def save_contact_info(db: Client, patient_id: str, full_name: str, phone: str, patient_said: str | None = None) -> dict:
-    """Persists the name/phone the patient just gave in chat, so
-    missing_contact_fields stops blocking book_appointment. A phone that
-    already belongs to a different patient record means this contact IS that
-    other (real, already-known) patient — patients.phone is unique, so we
-    physically cannot write the same number onto two rows anyway. Rather
-    than block the booking and escalate to a human over what's almost always
-    the same person reachable from a second channel (confirmed live: this
-    is exactly what happened mid-booking to a real patient, who just wanted
-    an appointment), repoint this conversation/channel identity to the real
-    record and let booking continue under it. The abandoned placeholder
-    patient is tombstoned the same way patient-merge already does it."""
+def save_contact_info(
+    db: Client,
+    patient_id: str,
+    full_name: str | None,
+    phone: str | None,
+    age: int | None = None,
+    patient_said: str | None = None,
+) -> dict:
+    """Persists the name/phone/age the patient just gave in chat, so
+    missing_contact_fields stops blocking book_appointment (name/phone) or
+    asking again (age). A phone that already belongs to a different patient
+    record means this contact IS that other (real, already-known) patient —
+    patients.phone is unique, so we physically cannot write the same number
+    onto two rows anyway. Rather than block the booking and escalate to a
+    human over what's almost always the same person reachable from a second
+    channel (confirmed live: this is exactly what happened mid-booking to a
+    real patient, who just wanted an appointment), repoint this
+    conversation/channel identity to the real record and let booking
+    continue under it. The abandoned placeholder patient is tombstoned the
+    same way patient-merge already does it.
+
+    full_name/phone must arrive together or not at all — same rule as
+    before, just no longer the only two fields this can save. age is
+    independent: a patient already known by name and phone but missing only
+    their age can have it saved on its own, without re-sending the two
+    fields already on file."""
     full_name = (full_name or "").strip()
     phone = (phone or "").strip()
-    if not full_name or not phone:
+    if bool(full_name) != bool(phone):
         raise BookingError("لازم الاسم ورقم الهاتف الاثنين مع بعض، مش وحدة بس.")
-    # Enforced here rather than in the prompt alone: a model that forgets an
-    # instruction still cannot write a one-word name or a junk number into a
-    # medical record.
-    full_name = validate_full_name(full_name, patient_said)
-    phone = validate_phone(phone, patient_said)
+    if not full_name and not phone and age is None:
+        raise BookingError("ما في شي وصلك من المريض تحفظيه فعلاً — اسم ورقم مع بعض، أو عمر.")
 
-    existing = db.table("patients").select("id, full_name").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
-    if existing:
-        real_patient_id = _resolve_patient(db, existing[0]["id"])
-        real = db.table("patients").select("full_name").eq("id", real_patient_id).limit(1).execute().data[0]
-        db.table("conversations").update({"patient_id": real_patient_id}).eq("patient_id", patient_id).execute()
-        db.table("patient_channel_identities").update({"patient_id": real_patient_id}).eq("patient_id", patient_id).execute()
-        if patient_id != real_patient_id:
-            db.table("patients").update({"is_merged_into": real_patient_id}).eq("id", patient_id).execute()
-        return {"full_name": real["full_name"], "phone": phone, "patient_id": real_patient_id}
+    updates: dict = {}
+    if full_name:
+        # Enforced here rather than in the prompt alone: a model that forgets
+        # an instruction still cannot write a one-word name or a junk number
+        # into a medical record.
+        full_name = validate_full_name(full_name, patient_said)
+        phone = validate_phone(phone, patient_said)
+        updates["full_name"] = full_name
+        updates["phone"] = phone
+    if age is not None:
+        updates["date_of_birth"] = _date_of_birth_from_age(validate_age(age, patient_said))
 
-    db.table("patients").update({"full_name": full_name, "phone": phone}).eq("id", patient_id).execute()
-    return {"full_name": full_name, "phone": phone, "patient_id": patient_id}
+    if "phone" in updates:
+        existing = db.table("patients").select("id, full_name").eq("phone", phone).neq("id", patient_id).limit(1).execute().data
+        if existing:
+            real_patient_id = _resolve_patient(db, existing[0]["id"])
+            if "date_of_birth" in updates:
+                db.table("patients").update({"date_of_birth": updates["date_of_birth"]}).eq("id", real_patient_id).execute()
+            real = db.table("patients").select("full_name").eq("id", real_patient_id).limit(1).execute().data[0]
+            db.table("conversations").update({"patient_id": real_patient_id}).eq("patient_id", patient_id).execute()
+            db.table("patient_channel_identities").update({"patient_id": real_patient_id}).eq("patient_id", patient_id).execute()
+            if patient_id != real_patient_id:
+                db.table("patients").update({"is_merged_into": real_patient_id}).eq("id", patient_id).execute()
+            return {"full_name": real["full_name"], "phone": phone, "patient_id": real_patient_id}
+
+    db.table("patients").update(updates).eq("id", patient_id).execute()
+    current = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data[0]
+    return {"full_name": current["full_name"], "phone": current["phone"], "patient_id": patient_id}
 
 
 def _resolve_doctor_id(db: Client, branch_id: str, doctor_name: str) -> str | None:
