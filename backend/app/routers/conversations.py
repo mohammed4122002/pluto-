@@ -144,9 +144,16 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
         db.table("conversations").update({"needs_attention": True}).eq("id", conversation_id).execute()
         relay_patient_message_to_assignee(db, conversation_id, payload.message)
 
-    if payload.media_type == "image" and payload.media_url and patient_id:
-        # A photo sent right after being asked for a receipt — best-effort:
-        # never let a receipt-matching hiccup break inbound message recording.
+    if mode == "human" and payload.media_type == "image" and payload.media_url and patient_id:
+        # Only auto-attach here when no AI turn is ever going to run for this
+        # message (mode=human). For mode=ai, this used to fire unconditionally
+        # and blindly guess "receipt" for ANY photo — confirmed live, a
+        # patient photographing an injured hand got "we received your payment
+        # receipt, reviewing it now." ai-services already classifies the
+        # photo with Gemini vision (describe_patient_photo explicitly returns
+        # nothing for a payment receipt) before it ever replies, so AI-mode
+        # conversations defer to that judgment via the submit_payment_receipt
+        # tool instead of this blind, content-blind match.
         try:
             attach_receipt_from_inbound_media(db, patient_id, payload.media_url)
         except Exception:

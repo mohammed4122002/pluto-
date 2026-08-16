@@ -35,8 +35,11 @@ from app.services.booking import (
     search_available_slots,
 )
 from app.services.delivery import deliver_outbound_message
-from app.services.directory import find_doctors, list_services
+from app.services.directory import find_doctors, list_active_branches, list_services, resolve_branch_id_by_name
 from app.services.money import tidy_amount
+from app.services.otp import OtpError, generate_booking_otp, has_verified_booking_otp, verify_booking_otp
+from app.services.receipts import attach_receipt, find_pending_receipt_payment
+from app.services.vision import describe_patient_photo
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger("chat")
@@ -111,6 +114,9 @@ BASE_INSTRUCTIONS = (
     "الموعد') واستنّي رده قبل ما تكمّلي — موظفة الاستقبال الحقيقية دايماً بتاخذ الاسم والرقم قبل ما "
     "تثبّت أي حجز، مش بعده. وفور ما يجاوب، استدعي save_contact_info لتحفظي المعلومتين قبل ما تستدعي "
     "book_appointment.\n"
+    "- العمر مختلف: بيتسأل مرة وحدة بشكل طبيعي غير ملحّ (اطلعي على السطر المخصص له بهذا البرومبت "
+    "لمعرفة إذا هو ناقص عن هذا المريض)، بس ما يمنع الحجز إطلاقاً — لا تأخّري أو ترفضي حجز بسبب عمر "
+    "غير معروف.\n"
     "- بأي حال من الأحوال، إذا ما قدرتي تحجزي لأي سبب، ممنوع تقولي للمريض إنه الحجز تم. إما تحجزي "
     "فعلاً وتعطيه الرقم اللي رجع من الأداة، أو تقوليله بصراحة شو الناقص.\n\n"
     "حدود شغلك — إنتِ موظفة استقبال، مش مساعد عام:\n"
@@ -170,6 +176,14 @@ BASE_INSTRUCTIONS = (
     "بنفس رسالته، استدعي find_doctors/find_available_slots واعرضي عليه 2-3 خيارات فعلية بردك واستنّي "
     "يحدد، ولا تستدعي book_appointment إلا بعد ما يذكر صراحة الطبيب أو الوقت يلي يريحه من بين اللي "
     "عرضتيه — مش بس لأنه وافق على أصل فكرة الحجز.\n"
+    "- بعد ما يتحدد كل شي (الخدمة، الطبيب أو بدونه، الوقت) وقبل استدعاء book_appointment مباشرة، لازم "
+    "تأكيد إضافي بكود: استدعي send_confirmation_code (بترجع code)، اذكريه للمريض بجملة طبيعية "
+    "('تمام، بعتلك كود تأكيد 4821 — ابعتيه إلي عشان أثبت حجزك') واستنّي رده. لما يرد برقم، استدعي "
+    "verify_confirmation_code بالكود يلي كتبه بالضبط. لو رجعت verified=true، احجزي مباشرة بنفس الرد. "
+    "لو رجعت verified=false، اعرضي السبب (error) بلطف واطلبي منه المحاولة من جديد أو كود جديد حسب "
+    "السبب — book_appointment أصلاً رح يرفض لو ما في تحقق ناجح حديث، فما تحاولي تتجاوزي هذه الخطوة "
+    "أو تفترضي إنه المريض 'أكّد' لمجرد إنه وافق على فكرة الحجز أو أعطى وقت — الكود شرط منفصل ومطلوب "
+    "دائماً قبل أي book_appointment، حتى لو كان المريض مسجّل عندنا من قبل بالاسم والرقم.\n"
     "- ممنوع نهائياً قول 'تم الحجز' أو تأكيد أي حجز قبل استدعاء أداة book_appointment والتأكد من "
     "نتيجتها. مرري لها doctor_name وstart_at بالضبط متل ما رجعوا من find_available_slots — الأداة "
     "نفسها بتتحقق من التوفر وتحجز، إنتِ مش مسؤولة عن معرفة إذا كان الوقت 'لسا متاح' أو لأ.\n"
@@ -303,6 +317,42 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_branches",
+            "description": (
+                "قائمة فروع العيادة النشطة كلها. استدعيها فقط إذا طلب منك البرومبت صراحة تسألي المريض "
+                "أي فرع بيفضّل (هذا بيصير فقط لما العيادة عندها أكثر من فرع واحد ولسا ما تحدد فرع لهذه "
+                "المحادثة) — إذا العيادة فرع واحد بس، ما في داعي تستدعيها أصلاً ولا تسألي عن الفرع."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "select_branch",
+            "description": (
+                "ثبّتي الفرع اللي اختاره المريض لباقي هذه المحادثة، بعد ما تعرضي عليه فروع العيادة من "
+                "list_branches ويحدد واحد صراحة. استدعيها مرة وحدة بعد ما يحدد، وبعدها كمّلي الحجز عادي "
+                "(find_doctors/find_available_slots/book_appointment) — كلهم رح يستخدموا هذا الفرع "
+                "تلقائياً بعد هذا الاستدعاء."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branch_name": {
+                        "type": "string",
+                        "description": "اسم الفرع بالضبط متل ما ظهر بنتيجة list_branches.",
+                    },
+                },
+                "required": ["branch_name"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_services",
             "description": (
                 "قائمة خدمات العيادة الحقيقية بأسعارها ومدتها. استدعيها كل مرة يسأل المريض عن الخدمات "
@@ -416,12 +466,14 @@ TOOLS = [
         "function": {
             "name": "save_contact_info",
             "description": (
-                "احفظي اسم المريض الكامل ورقم هاتفه الحقيقي بعد ما يعطيكِ إياهم بالمحادثة. استدعيها فور "
-                "ما يذكر المريض اسمه ورقمه معاً — لو ذكر واحد منهم بس، لا تستدعيها أبداً، اسأليه عن "
-                "الناقص واستنّي رده الصريح أولاً. ممنوع نهائياً اختراع أو تخمين full_name أو phone بأي "
-                "شكل — لو ما عندك القيمة الحقيقية الاثنين مع بعض من كلام المريض نفسه، لا تستدعي هذه "
-                "الأداة إطلاقاً. book_appointment رح ترفض الحجز وترجع خطأ لو لسا ناقص اسم حقيقي أو رقم "
-                "حقيقي لهذا المريض."
+                "احفظي اسم المريض الكامل ورقم هاتفه الحقيقي و/أو عمره بعد ما يعطيكِ إياهم بالمحادثة. "
+                "full_name وphone لازم يوصلوا مع بعض دائماً — لو ذكر واحد منهم بس، اتركي الاثنين نص "
+                "فاضي بهذا الاستدعاء ولا تستدعيها أصلاً، اسأليه عن الناقص واستنّي رده الصريح أولاً. "
+                "أما age فمستقل عنهم: لو المريض معروف عندك بالاسم والرقم من قبل وقالك عمره بس، مرري "
+                "age لحاله واترك full_name وphone فاضيين. ممنوع نهائياً اختراع أو تخمين أي من الثلاثة "
+                "بأي شكل — لو ما عندك القيمة الحقيقية من كلام المريض نفسه، اتركيها فاضية/0 ولا تستدعي "
+                "هذه الأداة إلا لو عندك قيمة حقيقية واحدة على الأقل لحفظها. book_appointment رح ترفض "
+                "الحجز وترجع خطأ لو لسا ناقص اسم حقيقي أو رقم حقيقي لهذا المريض."
             ),
             "parameters": {
                 "type": "object",
@@ -431,18 +483,69 @@ TOOLS = [
                         "description": (
                             "اسم المريض الثلاثي كما ذكره حرفياً بالمحادثة (الاسم واسم الأب واسم العائلة) — "
                             "ممنوع اختراعه أو إكماله من عندك. لو أعطاك اسم ثنائي أو مفرد، اطلبي منه الثلاثي "
-                            "ولا تستدعي الأداة قبل ما يعطيكِ إياه."
+                            "ولا تستدعي الأداة قبل ما يعطيكِ إياه. نص فاضي إذا بتحفظي age لحاله فقط."
                         ),
                     },
                     "phone": {
                         "type": "string",
                         "description": (
                             "رقم جوال المريض كما ذكره حرفياً بالمحادثة — ممنوع اختراعه أو تخمينه. لازم يكون "
-                            "رقم جوال كامل (مثال: 0791234567)، مش رقم ناقص ولا أي أرقام عشوائية."
+                            "رقم جوال كامل (مثال: 0791234567)، مش رقم ناقص ولا أي أرقام عشوائية. نص فاضي "
+                            "إذا بتحفظي age لحاله فقط."
+                        ),
+                    },
+                    "age": {
+                        "type": "integer",
+                        "description": (
+                            "عمر المريض بالسنين كما ذكره حرفياً بالمحادثة (مثال: المريض قال 'عمري 25' "
+                            "فترسلي 25) — ممنوع اختراعه أو تخمينه من الاسم أو أي شي ثاني. 0 إذا المريض "
+                            "ما ذكر عمره بهذا الاستدعاء."
                         ),
                     },
                 },
-                "required": ["full_name", "phone"],
+                "required": ["full_name", "phone", "age"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_confirmation_code",
+            "description": (
+                "ابعتي كود تأكيد مكوّن من 4 أرقام لهذا المريض بنفس المحادثة — الخطوة الأخيرة قبل "
+                "book_appointment مباشرة، بعد ما يتحدد كل شي (الفرع/الخدمة/الطبيب أو بدونه/الوقت) وقبل "
+                "ما تحجزي فعلياً. استدعيها مرة وحدة، وبعدها اذكري الكود الراجع من نتيجة الأداة للمريض "
+                "بجملة طبيعية (متل 'ok، بعتلك كود تأكيد 4821، ابعتيه إلي عشان أثبت الحجز') واستنّي رده. "
+                "لو المريض قال إنه ما وصله الكود أو طلب كود جديد، استدعيها من جديد — الكود القديم "
+                "بيوقف يشتغل تلقائياً."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "verify_confirmation_code",
+            "description": (
+                "تحققي من كود التأكيد يلي رجّعه المريض بعد send_confirmation_code. استدعيها فور ما "
+                "يكتب رقماً رداً على طلب الكود — لو رجعت verified=true، احجزي مباشرة بنفس الرد "
+                "باستدعاء book_appointment (book_appointment أصلاً رح يرفض لو ما في تحقق ناجح حديث). "
+                "لو رجعت verified=false، اعرضي عليه السبب (error) بلطف واطلبي منه يعيد المحاولة أو "
+                "تستدعي send_confirmation_code من جديد لو قال الأداة إن الكود انتهت صلاحيته أو خلصت "
+                "محاولاته — ممنوع تحجزي بدون verified=true."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "الكود كما كتبه المريض حرفياً بردّه — بالأرقام كما أرسلها.",
+                    },
+                },
+                "required": ["code"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -533,6 +636,24 @@ TOOLS = [
                 "required": ["service_name"],
                 "additionalProperties": False,
             },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "submit_payment_receipt",
+            "description": (
+                "استدعيها لما يبعتلك المريض صورة بآخر رسالة ووصفها المرئي المرفق بالبرومبت فاضي/غير "
+                "موجود (يعني مش صورة طبية ولا تجميلية) — هذا يعني الصورة ممكن تكون إيصال دفع. الأداة "
+                "بتتحقق فعلياً إنه في دفعة قيد الانتظار (أو مرفوضة وطلبنا إيصال جديد) اتسألت مؤخراً لهذا "
+                "المريض قبل ما تربط الصورة فيها؛ لو ما في، بترجع error. لو رجعت submitted=true، قولي "
+                "للمريض بجملة طبيعية إن الإيصال وصل وقيد المراجعة. لو رجعت error، معناها الصورة مش "
+                "مرتبطة بأي دفعة تستنى إيصال — لا تفترضي إنها إيصال دفع، وتعاملي مع رسالته عادي (اسأليه "
+                "شو قصده منها لو محتاجة). ممنوع تستدعيها لصورة عندها وصف مرئي (يعني ظهرت طبية/تجميلية) "
+                "مهما كان — هذيك تُعامل حسب قاعدة الصور الطبية، مش كإيصال."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
             "strict": True,
         },
     },
@@ -753,13 +874,23 @@ def _get_gemini_fallback(
 def _load_conversation(db: Client, conversation_id: str) -> dict:
     conv = (
         db.table("conversations")
-        .select("id, mode, patient_id, channel_id, ai_episode_started_at, channels(branch_id)")
+        .select("id, mode, patient_id, channel_id, branch_id, ai_episode_started_at, channels(branch_id)")
         .eq("id", conversation_id)
         .single()
         .execute()
         .data
     )
-    conv["branch_id"] = conv["channels"]["branch_id"]
+    # Recorded before the fallback below overwrites branch_id, so
+    # _build_system_prompt can tell "the patient explicitly picked this
+    # branch" apart from "this is just the channel's default, nobody's
+    # confirmed it yet" -- the two need different prompt behavior for a
+    # multi-branch clinic.
+    conv["branch_selected_explicitly"] = bool(conv.get("branch_id"))
+    # The conversation's own branch_id (set by select_branch once the patient
+    # picks one) overrides the channel's default -- null for every
+    # conversation on a single-branch clinic, which is most of them, and
+    # every conversation that existed before this column did.
+    conv["branch_id"] = conv.get("branch_id") or conv["channels"]["branch_id"]
     return conv
 
 
@@ -811,6 +942,59 @@ def _load_history(db: Client, conversation_id: str) -> list[dict]:
     return [{"role": "user" if r["direction"] == "inbound" else "assistant", "content": r["content"]} for r in rows]
 
 
+def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
+    """The image URL of this conversation's most recent inbound message, if
+    it carries one — n8n already downloads a patient's photo and uploads it
+    to Supabase Storage before /conversations/inbound ever runs (built for
+    payment receipts: db/migrations/0043_message_media.sql), so the URL is
+    sitting on the message row by the time this turn starts. Nothing new to
+    wire through n8n or the backend for this to work.
+
+    The most recent inbound row is always this turn's message: n8n records
+    the inbound message and only then calls /chat/reply, with no interleaving
+    possible for a single conversation."""
+    rows = (
+        db.table("messages")
+        .select("media_url, media_type")
+        .eq("conversation_id", conversation_id)
+        .eq("direction", "inbound")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows or rows[0].get("media_type") != "image":
+        return None
+    return rows[0].get("media_url") or None
+
+
+def _photo_description_for_turn(
+    db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
+) -> tuple[str | None, bool]:
+    """Gemini-only by design: the vision analysis rides on whichever key is
+    already configured as the text fallback, rather than needing a second
+    key managed separately. No Gemini configured for this clinic simply
+    means photos are skipped and the turn proceeds as a normal text-only
+    reply — this must never be the reason a patient waiting on a reply
+    doesn't get one.
+
+    Returns (description, image_without_medical_description). The second
+    value is only True when vision actually ran and explicitly said the
+    photo isn't medical/cosmetic (describe_patient_photo returns None for
+    that case too, same as a payment receipt or an unrelated photo) — it's
+    what tells _build_system_prompt this turn's photo is a candidate for
+    submit_payment_receipt rather than the medical-photo block. Left False
+    whenever there's no image, or no way to classify one (no Gemini
+    configured): guessing "maybe a receipt" without ever having looked at
+    the photo is exactly the blind matching this was built to replace."""
+    image_url = _latest_inbound_image_url(db, conversation_id)
+    if not image_url or not fallback:
+        return None, False
+    vision_client, vision_model = fallback
+    description = describe_patient_photo(vision_client, vision_model, image_url)
+    return description, description is None
+
+
 def _patient_said(history: list[dict]) -> str:
     """Only what the patient themselves wrote. The assistant's own replies are
     excluded on purpose: a name it invented in an earlier turn would otherwise
@@ -818,7 +1002,15 @@ def _patient_said(history: list[dict]) -> str:
     return " ".join(m["content"] or "" for m in history if m["role"] == "user")
 
 
-def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict, patient_id: str | None = None) -> str:
+def _build_system_prompt(
+    db: Client,
+    branch_id: str,
+    ch_settings: dict,
+    patient_id: str | None = None,
+    photo_description: str | None = None,
+    branch_selected_explicitly: bool = True,
+    image_without_medical_description: bool = False,
+) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
         db.table("branches")
@@ -888,18 +1080,51 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict, patient_
     if patient_id:
         rows = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data
         missing = missing_contact_fields(db, patient_id)
-        if not missing and rows:
+        # Age never blocks a booking the way name/phone do -- it only feeds a
+        # min_age gate on individual services (backend/app/routers/slots.py),
+        # not every booking, so a patient who won't answer shouldn't be stuck.
+        blocking = [m for m in missing if m in ("name", "phone")]
+        if not blocking and rows:
             parts.append(
                 f"المريض اللي بتحكي معه مسجّل عندنا: الاسم {rows[0]['full_name']} والرقم {rows[0]['phone']}. "
-                "ممنوع تسأليه عن اسمه أو رقمه من جديد وممنوع تستدعي save_contact_info — احجزي مباشرة. "
+                "ممنوع تسأليه عن اسمه أو رقمه من جديد وممنوع تستدعي save_contact_info لهذول — احجزي مباشرة. "
                 "استثناء وحيد: إذا هو نفسه قال إنه بده يعدّل اسمه أو رقمه، أو إذا كان الحجز لشخص تاني."
             )
+            if "age" in missing:
+                parts.append(
+                    "ناقص عنا عمره فقط — هذا ما يمنع الحجز إطلاقاً. اسأليه عنه مرة وحدة بشكل طبيعي "
+                    "وغير ملحّ ضمن المحادثة (مش شرط قبل ما تحجزي)، ولو جاوب استدعي save_contact_info "
+                    "بـ age لحاله (full_name وphone فاضيين). لو ما جاوب أو تجاهل السؤال، كمّلي الحجز "
+                    "عادي بدون ما تلحّي عليه أكتر من مرة."
+                )
         else:
+            label = {"name": "الاسم الثلاثي", "phone": "رقم الجوال", "age": "عمره"}
             parts.append(
-                "المريض اللي بتحكي معه لسا ما تعرّفنا عليه: ناقص عنا "
-                + ("، ".join("الاسم الثلاثي" if m == "name" else "رقم الجوال" for m in missing))
-                + ". لازم تاخذيهم منه وتحفظيهم بـ save_contact_info قبل أي حجز."
+                "المريض اللي بتحكي معه لسا ما تعرّفنا عليه بالكامل: ناقص عنا "
+                + "، ".join(label[m] for m in missing)
+                + ". الاسم ورقم الجوال شرط قبل أي حجز — خذيهم منه وتحفظيهم بـ save_contact_info. لو "
+                "ناقص عمره كمان، اسأليه عنه بنفس الرسالة أو بعدها بشكل طبيعي (مش شرط للحجز)."
             )
+
+    if photo_description:
+        parts.append(
+            f"المريض بعت صورة مع رسالته الأخيرة، ووصفها المرئي (وصف شكلي محايد، مش تشخيص طبي): "
+            f"{photo_description}. استخدمي هذا الوصف بس لتقترحي أنسب خدمة أو قسم من عندنا يناسب "
+            "شكله (متل ما تستخدمي وصف المريض نفسه لعرضه — 'حبوب بوجهي' مثلاً)، بالضبط نفس معاملتك "
+            "لأي سبب زيارة ذكره المريض بكلامه: اسأليه أو استدعي find_doctors بالتخصص المناسب. ممنوع "
+            "نهائياً تسمي أي مرض أو حالة طبية بالاسم أو تقولي للمريض 'عندك كذا' أو 'هذا يبدو متل كذا' "
+            "بناءً على الصورة — إنتِ موظفة استقبال مش طبيبة، ولا يحق لك أي تشخيص من صورة ولا من كلام. "
+            "لو حابب يعرف شو المشكلة بالضبط، وضحيله إنه لازم يحجز عشان الطبيب يشوفها عن قرب."
+        )
+    elif image_without_medical_description:
+        parts.append(
+            "المريض بعت صورة مع رسالته الأخيرة، وما ظهر إنها صورة طبية أو تجميلية — يعني ممكن تكون "
+            "إيصال دفع، أو صورة مش متعلقة بزيارته إطلاقاً. لا تفترضي إنها إيصال دفع من عندك؛ استدعي "
+            "submit_payment_receipt لتتأكدي فعلياً (الأداة بترفض تلقائياً لو ما في دفعة قيد الانتظار "
+            "تستنى إيصال لهذا المريض). لو رجعت submitted=true، قولي له بجملة طبيعية إن الإيصال وصل "
+            "وقيد المراجعة. لو رجعت error، تعاملي مع الصورة كرسالة عادية بدون أي افتراض عن محتواها، "
+            "واسأليه شو قصده منها لو كان غير واضح من كلامه."
+        )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
     about_text = settings_row[0]["about_text"] if settings_row else ""
@@ -918,6 +1143,27 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict, patient_
         if b.get("working_hours_note"):
             details.append(f"hours: {b['working_hours_note']}")
         parts.append("الفرع: " + " | ".join(details))
+
+    if not branch_selected_explicitly:
+        all_branches = list_active_branches(db)
+        if len(all_branches) > 1:
+            lines = [
+                "هذه العيادة عندها أكثر من فرع، والمريض لسا ما حدد صراحة أي فرع بهذه المحادثة "
+                "(الفرع المذكور فوق هو مجرد افتراضي مؤقت، مش اختيار المريض):"
+            ]
+            for b in all_branches:
+                line = f"- {b['name']}"
+                if b.get("address"):
+                    line += f" ({b['address']})"
+                lines.append(line)
+            parts.append("\n".join(lines))
+            parts.append(
+                "لازم تسألي المريض أي فرع بيفضّل (إلا إذا كان قد ذكره صراحة بنفس رسالته الأخيرة) قبل "
+                "أي استدعاء لـ find_doctors أو find_available_slots أو list_services أو "
+                "book_appointment — استخدمي list_branches لعرضها له لو سأل، وفور ما يحدد استدعي "
+                "select_branch بالاسم يلي قاله. ما تفترضي إنه الفرع الافتراضي المذكور فوق هو "
+                "قصده بدون ما يأكد."
+            )
 
     if services:
         lines = ["الخدمات:"]
@@ -1033,6 +1279,15 @@ def _false_booking_claim(reply: str, ctx: dict) -> str | None:
 
 def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
     try:
+        if name == "list_branches":
+            return {"branches": list_active_branches(db)}
+        if name == "select_branch":
+            branch_id = resolve_branch_id_by_name(db, args.get("branch_name") or "")
+            if not branch_id:
+                return {"error": "ما لقينا فرع بهذا الاسم — استدعي list_branches وتأكدي من الاسم بالضبط."}
+            db.table("conversations").update({"branch_id": branch_id}).eq("id", ctx["conversation_id"]).execute()
+            ctx["branch_id"] = branch_id
+            return {"selected": True}
         if name == "list_services":
             return {"services": list_services(db, ctx["branch_id"], args.get("query") or None)}
         if name == "find_doctors":
@@ -1054,7 +1309,12 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {"error": "ما في مريض مرتبط بهذه المحادثة بعد."}
             try:
                 saved = save_contact_info(
-                    db, ctx["patient_id"], args["full_name"], args["phone"], patient_said=ctx["patient_said"]
+                    db,
+                    ctx["patient_id"],
+                    args.get("full_name") or None,
+                    args.get("phone") or None,
+                    age=args.get("age") or None,
+                    patient_said=ctx["patient_said"],
                 )
             except Exception:
                 # Booking in the same turn the contact details were rejected
@@ -1068,6 +1328,15 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # against that same real identity, not the abandoned placeholder.
             ctx["patient_id"] = saved["patient_id"]
             return {"saved": True, "full_name": saved["full_name"], "phone": saved["phone"]}
+        if name == "send_confirmation_code":
+            code = generate_booking_otp(db, ctx["conversation_id"])
+            return {"sent": True, "code": code}
+        if name == "verify_confirmation_code":
+            try:
+                verify_booking_otp(db, ctx["conversation_id"], args.get("code") or "")
+            except OtpError as exc:
+                return {"verified": False, "error": str(exc)}
+            return {"verified": True}
         if name == "check_patient_benefits":
             service_id = resolve_service_id_by_name(db, args.get("service_name") or None)
             # Packages belong to a patient, so an unlinked conversation has
@@ -1121,6 +1390,17 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     for c in coupons
                 ],
             }
+        if name == "submit_payment_receipt":
+            if not ctx.get("patient_id"):
+                return {"error": "ما في مريض معروف بهذه المحادثة بعد."}
+            image_url = _latest_inbound_image_url(db, ctx["conversation_id"])
+            if not image_url:
+                return {"error": "ما في صورة بالرسالة الأخيرة لهذا المريض."}
+            payment_id = find_pending_receipt_payment(db, ctx["patient_id"])
+            if not payment_id:
+                return {"error": "ما في دفعة قيد الانتظار تستنى إيصال دفع لهذا المريض حالياً."}
+            attach_receipt(db, payment_id, image_url)
+            return {"submitted": True}
         if name == "apply_coupon_code":
             if not ctx.get("_booked_appointment_id") or not ctx.get("patient_id"):
                 return {"error": "لا يوجد دفعة نشطة الآن لتطبيق الكوبون عليها — لازم يكون في حجز تم للتو وطلب دفع."}
@@ -1151,7 +1431,9 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                     "error": "الاسم أو الرقم اللي أعطاه المريض انرفض بهذا الدور — اطلبيهم منه من جديد "
                     "واستنّي رده، وما تحجزي بنفس الرسالة."
                 }
-            missing = missing_contact_fields(db, ctx["patient_id"])
+            # Age is collected the same way as name/phone but never blocks a
+            # booking on its own -- see missing_contact_fields' docstring.
+            missing = [f for f in missing_contact_fields(db, ctx["patient_id"]) if f in ("name", "phone")]
             if missing:
                 # A hard gate, not just the prompt asking nicely: the prompt
                 # already told the model to collect the name first, but a
@@ -1165,6 +1447,15 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {
                     "error": f"لسا ناقص {fields_ar} الحقيقي لهذا المريض. اسأليه عنه/عنهم الآن، وبعد ما "
                     "يجاوب استدعي save_contact_info لتحفظيه، وبس بعدها كمّلي الحجز — ممنوع تحجزي قبل هيك.",
+                }
+            if not has_verified_booking_otp(db, ctx["conversation_id"]):
+                # Same enforcement pattern as the name/phone gate right above:
+                # a hard requirement, not just the prompt asking the model to
+                # verify a code first.
+                return {
+                    "error": "ما في تحقق ناجح وحديث من كود تأكيد لهذه المحادثة. استدعي "
+                    "send_confirmation_code، اذكري الكود للمريض، استنّي رده، واستدعي "
+                    "verify_confirmation_code بالكود يلي بعته قبل ما تستدعي هذه الأداة من جديد.",
                 }
             booking_result = book_by_doctor_and_time(
                 db,
@@ -1510,8 +1801,20 @@ def generate_reply(
         return ReplyResponse(reply=reply, needs_human=True)
 
     history = _load_history(db, payload.conversation_id)
-    system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"))
+    photo_description, image_without_medical_description = _photo_description_for_turn(
+        db, payload.conversation_id, fallback
+    )
+    system_prompt = _build_system_prompt(
+        db,
+        conv["branch_id"],
+        ch_settings,
+        conv.get("patient_id"),
+        photo_description,
+        conv["branch_selected_explicitly"],
+        image_without_medical_description,
+    )
     ctx = {
+        "conversation_id": payload.conversation_id,
         "branch_id": conv["branch_id"],
         "patient_id": conv.get("patient_id"),
         "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",
@@ -1633,8 +1936,20 @@ def reclaim_stale_conversations(
         try:
             conv = _load_conversation(db, row["id"])
             history = _load_history(db, row["id"])
-            system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"))
+            photo_description, image_without_medical_description = _photo_description_for_turn(
+                db, row["id"], fallback
+            )
+            system_prompt = _build_system_prompt(
+                db,
+                conv["branch_id"],
+                ch_settings,
+                conv.get("patient_id"),
+                photo_description,
+                conv["branch_selected_explicitly"],
+                image_without_medical_description,
+            )
             ctx = {
+                "conversation_id": row["id"],
                 "branch_id": conv["branch_id"],
                 "patient_id": conv.get("patient_id"),
                 "booking_enabled": ch_settings.get("ai_mode", "full_booking") == "full_booking",

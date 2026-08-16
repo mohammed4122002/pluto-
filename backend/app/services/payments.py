@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from supabase import Client
@@ -17,6 +17,17 @@ _INSTRUCTIONS_TEMPLATE = (
 _VERIFIED_TEMPLATE = "تم تأكيد استلام دفعتك لحجزك رقم {{appointment_number}}. شكراً إلك!"
 _REJECTED_TEMPLATE = "للأسف ما قدرنا نتحقق من الإيصال المرسل لحجزك رقم {{appointment_number}}. السبب: {{reason}}\nيرجى إرسال إيصال واضح مرة أخرى."
 _RECEIPT_RECEIVED_TEMPLATE = "وصلنا إيصال الدفع وهو قيد المراجعة الآن — رح نأكدلك خلال وقت قصير."
+
+# How long after being asked for a receipt a photo still plausibly answers
+# that ask. Wide enough for someone who pays a day later and sends the photo
+# once they're back near their phone, narrow enough that a payment nobody
+# ever followed up on stops silently claiming whatever unrelated photo the
+# patient happens to send next.
+_RECEIPT_MATCH_WINDOW = timedelta(hours=72)
+
+
+def _parse_timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def create_payment_for_appointment(db: Client, appointment_id: str) -> None:
@@ -470,10 +481,19 @@ def attach_receipt_from_inbound_media(db: Client, patient_id: str, media_url: st
     it — finds their most recent payment still waiting on a receipt
     (pending, or rejected and being retried) and attaches this image to it.
     Returns None (and attaches nothing) if there's no such payment, since an
-    unrelated photo shouldn't silently attach to something stale."""
+    unrelated photo shouldn't silently attach to something stale.
+
+    "Stale" is checked, not just claimed: the docstring above always said an
+    unrelated photo shouldn't attach to something stale, but the code never
+    actually looked at *when* the patient was asked for a receipt, only
+    *whether* some pending/rejected payment existed at all — confirmed live,
+    a patient with an old unrelated pending payment sent a photo of an
+    injury and was told "we received your payment receipt, reviewing it
+    now." Only a payment the patient was asked about within
+    _RECEIPT_MATCH_WINDOW counts as "right after" now."""
     rows = (
         db.table("payments")
-        .select("id, created_at")
+        .select("id, status, payment_instructions_sent_at, verified_at, created_at")
         .eq("patient_id", patient_id)
         .in_("status", ["pending", "rejected"])
         .order("created_at", desc=True)
@@ -483,7 +503,16 @@ def attach_receipt_from_inbound_media(db: Client, patient_id: str, media_url: st
     )
     if not rows:
         return None
-    return submit_receipt(db, rows[0]["id"], media_url)
+    payment = rows[0]
+    # A "pending" payment was asked for via payment_instructions_sent_at; a
+    # "rejected" one via verified_at, which reject_payment stamps as the
+    # moment staff rejected it and the patient was told to resend (see
+    # reject_payment above — verified_at is reused for both verify and
+    # reject, there is no separate rejected_at column).
+    asked_at = payment.get("payment_instructions_sent_at") if payment["status"] == "pending" else payment.get("verified_at")
+    if not asked_at or _parse_timestamp(asked_at) < datetime.now(timezone.utc) - _RECEIPT_MATCH_WINDOW:
+        return None
+    return submit_receipt(db, payment["id"], media_url)
 
 
 def _deliver(db: Client, channel: dict, patient_id: str, message: str) -> None:

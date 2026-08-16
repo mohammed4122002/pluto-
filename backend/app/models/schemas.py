@@ -810,7 +810,11 @@ class InboundMessage(BaseModel):
     display_name: str | None = None
     # Set when n8n already uploaded an inbound photo/file to storage before
     # calling this endpoint — media_type="image" triggers an attempt to
-    # attach it to the patient's pending payment as a receipt.
+    # attach it to the patient's pending payment as a receipt, but only for a
+    # human-handled conversation (mode=human). An AI-handled one defers that
+    # call to ai-services' submit_payment_receipt tool instead, which only
+    # fires after Gemini vision has already ruled the photo isn't medical —
+    # this endpoint has no way to look at what the photo actually shows.
     media_url: str | None = None
     media_type: str | None = None
 

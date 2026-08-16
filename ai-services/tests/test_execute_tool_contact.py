@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.routers.chat import _execute_tool, _patient_said  # noqa: E402
+from app.services.booking import _date_of_birth_from_age  # noqa: E402
 
 
 class _Query:
@@ -119,3 +120,56 @@ def test_patient_said_excludes_the_assistants_own_words():
     said = _patient_said(HISTORY)
     assert "النجار" in said
     assert "الأحمد" not in said
+
+
+# --- Age, saved independently of name/phone --------------------------------
+
+AGE_HISTORY = [
+    {"role": "user", "content": "مرحبا بدي احجز، عمري 25"},
+]
+
+
+def test_saves_an_age_alone_for_a_patient_already_known_by_name_and_phone():
+    db = _Db()
+    result = _execute_tool(
+        db, _ctx(AGE_HISTORY), "save_contact_info", {"full_name": "", "phone": "", "age": 25}
+    )
+    assert result == {"saved": True, "full_name": "Sami", "phone": "+962790000666"}
+    assert db.tables["patients"].updates == [{"date_of_birth": _date_of_birth_from_age(25)}]
+    # And the name/phone already on file must survive an age-only save.
+    assert db.tables["patients"].rows[0]["full_name"] == "Sami"
+    assert db.tables["patients"].rows[0]["phone"] == "+962790000666"
+
+
+def test_rejects_an_age_the_patient_never_mentioned():
+    db = _Db()
+    ctx = _ctx(HISTORY)  # sami's history never mentions an age
+    result = _execute_tool(db, ctx, "save_contact_info", {"full_name": "", "phone": "", "age": 40})
+    assert "العمر" in result["error"]
+    assert db.tables["patients"].updates == []
+
+
+def test_saves_name_phone_and_age_together_for_a_new_patient():
+    db = _Db()
+    history = [{"role": "user", "content": "اسمي سامي خالد النجار ورقمي 0791234567 وعمري 25"}]
+    result = _execute_tool(
+        db,
+        _ctx(history),
+        "save_contact_info",
+        {"full_name": "سامي خالد النجار", "phone": "0791234567", "age": 25},
+    )
+    assert result == {"saved": True, "full_name": "سامي خالد النجار", "phone": "0791234567"}
+    assert db.tables["patients"].updates == [
+        {"full_name": "سامي خالد النجار", "phone": "0791234567", "date_of_birth": _date_of_birth_from_age(25)}
+    ]
+
+
+def test_zero_age_from_the_model_means_not_mentioned_not_an_actual_age():
+    # The tool schema tells the model to send 0 when the patient hasn't
+    # given an age -- 0 must never reach validate_age as a real value.
+    db = _Db()
+    result = _execute_tool(
+        db, _ctx(HISTORY), "save_contact_info", {"full_name": "سامي خالد النجار", "phone": "0791234567", "age": 0}
+    )
+    assert result == {"saved": True, "full_name": "سامي خالد النجار", "phone": "0791234567"}
+    assert db.tables["patients"].updates == [{"full_name": "سامي خالد النجار", "phone": "0791234567"}]
