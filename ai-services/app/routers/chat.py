@@ -37,6 +37,7 @@ from app.services.booking import (
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors, list_services
 from app.services.money import tidy_amount
+from app.services.vision import describe_patient_photo
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger("chat")
@@ -825,6 +826,50 @@ def _load_history(db: Client, conversation_id: str) -> list[dict]:
     return [{"role": "user" if r["direction"] == "inbound" else "assistant", "content": r["content"]} for r in rows]
 
 
+def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
+    """The image URL of this conversation's most recent inbound message, if
+    it carries one — n8n already downloads a patient's photo and uploads it
+    to Supabase Storage before /conversations/inbound ever runs (built for
+    payment receipts: db/migrations/0043_message_media.sql), so the URL is
+    sitting on the message row by the time this turn starts. Nothing new to
+    wire through n8n or the backend for this to work.
+
+    The most recent inbound row is always this turn's message: n8n records
+    the inbound message and only then calls /chat/reply, with no interleaving
+    possible for a single conversation."""
+    rows = (
+        db.table("messages")
+        .select("media_url, media_type")
+        .eq("conversation_id", conversation_id)
+        .eq("direction", "inbound")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows or rows[0].get("media_type") != "image":
+        return None
+    return rows[0].get("media_url") or None
+
+
+def _photo_description_for_turn(
+    db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
+) -> str | None:
+    """Gemini-only by design: the vision analysis rides on whichever key is
+    already configured as the text fallback, rather than needing a second
+    key managed separately. No Gemini configured for this clinic simply
+    means photos are skipped and the turn proceeds as a normal text-only
+    reply — this must never be the reason a patient waiting on a reply
+    doesn't get one."""
+    if not fallback:
+        return None
+    image_url = _latest_inbound_image_url(db, conversation_id)
+    if not image_url:
+        return None
+    vision_client, vision_model = fallback
+    return describe_patient_photo(vision_client, vision_model, image_url)
+
+
 def _patient_said(history: list[dict]) -> str:
     """Only what the patient themselves wrote. The assistant's own replies are
     excluded on purpose: a name it invented in an earlier turn would otherwise
@@ -832,7 +877,13 @@ def _patient_said(history: list[dict]) -> str:
     return " ".join(m["content"] or "" for m in history if m["role"] == "user")
 
 
-def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict, patient_id: str | None = None) -> str:
+def _build_system_prompt(
+    db: Client,
+    branch_id: str,
+    ch_settings: dict,
+    patient_id: str | None = None,
+    photo_description: str | None = None,
+) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
         db.table("branches")
@@ -927,6 +978,17 @@ def _build_system_prompt(db: Client, branch_id: str, ch_settings: dict, patient_
                 + ". الاسم ورقم الجوال شرط قبل أي حجز — خذيهم منه وتحفظيهم بـ save_contact_info. لو "
                 "ناقص عمره كمان، اسأليه عنه بنفس الرسالة أو بعدها بشكل طبيعي (مش شرط للحجز)."
             )
+
+    if photo_description:
+        parts.append(
+            f"المريض بعت صورة مع رسالته الأخيرة، ووصفها المرئي (وصف شكلي محايد، مش تشخيص طبي): "
+            f"{photo_description}. استخدمي هذا الوصف بس لتقترحي أنسب خدمة أو قسم من عندنا يناسب "
+            "شكله (متل ما تستخدمي وصف المريض نفسه لعرضه — 'حبوب بوجهي' مثلاً)، بالضبط نفس معاملتك "
+            "لأي سبب زيارة ذكره المريض بكلامه: اسأليه أو استدعي find_doctors بالتخصص المناسب. ممنوع "
+            "نهائياً تسمي أي مرض أو حالة طبية بالاسم أو تقولي للمريض 'عندك كذا' أو 'هذا يبدو متل كذا' "
+            "بناءً على الصورة — إنتِ موظفة استقبال مش طبيبة، ولا يحق لك أي تشخيص من صورة ولا من كلام. "
+            "لو حابب يعرف شو المشكلة بالضبط، وضحيله إنه لازم يحجز عشان الطبيب يشوفها عن قرب."
+        )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
     about_text = settings_row[0]["about_text"] if settings_row else ""
@@ -1542,7 +1604,8 @@ def generate_reply(
         return ReplyResponse(reply=reply, needs_human=True)
 
     history = _load_history(db, payload.conversation_id)
-    system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"))
+    photo_description = _photo_description_for_turn(db, payload.conversation_id, fallback)
+    system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description)
     ctx = {
         "branch_id": conv["branch_id"],
         "patient_id": conv.get("patient_id"),
@@ -1665,7 +1728,10 @@ def reclaim_stale_conversations(
         try:
             conv = _load_conversation(db, row["id"])
             history = _load_history(db, row["id"])
-            system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"))
+            photo_description = _photo_description_for_turn(db, row["id"], fallback)
+            system_prompt = _build_system_prompt(
+                db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description
+            )
             ctx = {
                 "branch_id": conv["branch_id"],
                 "patient_id": conv.get("patient_id"),
