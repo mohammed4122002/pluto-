@@ -4,6 +4,46 @@ from app.services.money import tidy_amount
 from app.services.text_match import fuzzy_contains
 
 
+def list_active_branches(db: Client) -> list[dict]:
+    """Every active branch of this clinic, clinic-wide -- not scoped to any
+    one branch, since its whole purpose is letting the assistant ask "which
+    location?" for a clinic with more than one. A single-branch clinic (most
+    of them) never has a reason to call this; _build_system_prompt only
+    offers it to the model when there's actually a choice to make."""
+    rows = (
+        db.table("branches")
+        .select("id, name, address, working_hours_note")
+        .eq("is_active", True)
+        .order("name")
+        .execute()
+        .data
+    )
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "address": r.get("address"),
+            "working_hours_note": r.get("working_hours_note"),
+        }
+        for r in rows
+    ]
+
+
+def resolve_branch_id_by_name(db: Client, branch_name: str) -> str | None:
+    """Loose match against an active branch's name -- mirrors booking.py's
+    _resolve_doctor_id, same reason: the model has to name what it's picking
+    from list_active_branches' own results, not a literal id it would have
+    to carry across turns."""
+    query = (branch_name or "").strip()
+    if not query:
+        return None
+    rows = db.table("branches").select("id, name").eq("is_active", True).execute().data
+    for row in rows:
+        if fuzzy_contains(row["name"], query) or fuzzy_contains(query, row["name"]):
+            return row["id"]
+    return None
+
+
 def find_doctors(db: Client, branch_id: str, specialty_query: str | None = None) -> list[dict]:
     """Doctors actually available at this branch right now, optionally
     narrowed to a specialty/department the patient mentioned (matched

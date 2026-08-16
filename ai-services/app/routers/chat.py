@@ -35,7 +35,7 @@ from app.services.booking import (
     search_available_slots,
 )
 from app.services.delivery import deliver_outbound_message
-from app.services.directory import find_doctors, list_services
+from app.services.directory import find_doctors, list_active_branches, list_services, resolve_branch_id_by_name
 from app.services.money import tidy_amount
 from app.services.otp import OtpError, generate_booking_otp, has_verified_booking_otp, verify_booking_otp
 from app.services.vision import describe_patient_photo
@@ -313,6 +313,42 @@ _DEFAULT_CHANNEL_SETTINGS = {
 }
 
 TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_branches",
+            "description": (
+                "قائمة فروع العيادة النشطة كلها. استدعيها فقط إذا طلب منك البرومبت صراحة تسألي المريض "
+                "أي فرع بيفضّل (هذا بيصير فقط لما العيادة عندها أكثر من فرع واحد ولسا ما تحدد فرع لهذه "
+                "المحادثة) — إذا العيادة فرع واحد بس، ما في داعي تستدعيها أصلاً ولا تسألي عن الفرع."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "select_branch",
+            "description": (
+                "ثبّتي الفرع اللي اختاره المريض لباقي هذه المحادثة، بعد ما تعرضي عليه فروع العيادة من "
+                "list_branches ويحدد واحد صراحة. استدعيها مرة وحدة بعد ما يحدد، وبعدها كمّلي الحجز عادي "
+                "(find_doctors/find_available_slots/book_appointment) — كلهم رح يستخدموا هذا الفرع "
+                "تلقائياً بعد هذا الاستدعاء."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branch_name": {
+                        "type": "string",
+                        "description": "اسم الفرع بالضبط متل ما ظهر بنتيجة list_branches.",
+                    },
+                },
+                "required": ["branch_name"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -819,13 +855,23 @@ def _get_gemini_fallback(
 def _load_conversation(db: Client, conversation_id: str) -> dict:
     conv = (
         db.table("conversations")
-        .select("id, mode, patient_id, channel_id, ai_episode_started_at, channels(branch_id)")
+        .select("id, mode, patient_id, channel_id, branch_id, ai_episode_started_at, channels(branch_id)")
         .eq("id", conversation_id)
         .single()
         .execute()
         .data
     )
-    conv["branch_id"] = conv["channels"]["branch_id"]
+    # Recorded before the fallback below overwrites branch_id, so
+    # _build_system_prompt can tell "the patient explicitly picked this
+    # branch" apart from "this is just the channel's default, nobody's
+    # confirmed it yet" -- the two need different prompt behavior for a
+    # multi-branch clinic.
+    conv["branch_selected_explicitly"] = bool(conv.get("branch_id"))
+    # The conversation's own branch_id (set by select_branch once the patient
+    # picks one) overrides the channel's default -- null for every
+    # conversation on a single-branch clinic, which is most of them, and
+    # every conversation that existed before this column did.
+    conv["branch_id"] = conv.get("branch_id") or conv["channels"]["branch_id"]
     return conv
 
 
@@ -934,6 +980,7 @@ def _build_system_prompt(
     ch_settings: dict,
     patient_id: str | None = None,
     photo_description: str | None = None,
+    branch_selected_explicitly: bool = True,
 ) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -1059,6 +1106,27 @@ def _build_system_prompt(
             details.append(f"hours: {b['working_hours_note']}")
         parts.append("الفرع: " + " | ".join(details))
 
+    if not branch_selected_explicitly:
+        all_branches = list_active_branches(db)
+        if len(all_branches) > 1:
+            lines = [
+                "هذه العيادة عندها أكثر من فرع، والمريض لسا ما حدد صراحة أي فرع بهذه المحادثة "
+                "(الفرع المذكور فوق هو مجرد افتراضي مؤقت، مش اختيار المريض):"
+            ]
+            for b in all_branches:
+                line = f"- {b['name']}"
+                if b.get("address"):
+                    line += f" ({b['address']})"
+                lines.append(line)
+            parts.append("\n".join(lines))
+            parts.append(
+                "لازم تسألي المريض أي فرع بيفضّل (إلا إذا كان قد ذكره صراحة بنفس رسالته الأخيرة) قبل "
+                "أي استدعاء لـ find_doctors أو find_available_slots أو list_services أو "
+                "book_appointment — استخدمي list_branches لعرضها له لو سأل، وفور ما يحدد استدعي "
+                "select_branch بالاسم يلي قاله. ما تفترضي إنه الفرع الافتراضي المذكور فوق هو "
+                "قصده بدون ما يأكد."
+            )
+
     if services:
         lines = ["الخدمات:"]
         for s in services:
@@ -1173,6 +1241,15 @@ def _false_booking_claim(reply: str, ctx: dict) -> str | None:
 
 def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
     try:
+        if name == "list_branches":
+            return {"branches": list_active_branches(db)}
+        if name == "select_branch":
+            branch_id = resolve_branch_id_by_name(db, args.get("branch_name") or "")
+            if not branch_id:
+                return {"error": "ما لقينا فرع بهذا الاسم — استدعي list_branches وتأكدي من الاسم بالضبط."}
+            db.table("conversations").update({"branch_id": branch_id}).eq("id", ctx["conversation_id"]).execute()
+            ctx["branch_id"] = branch_id
+            return {"selected": True}
         if name == "list_services":
             return {"services": list_services(db, ctx["branch_id"], args.get("query") or None)}
         if name == "find_doctors":
@@ -1676,7 +1753,9 @@ def generate_reply(
 
     history = _load_history(db, payload.conversation_id)
     photo_description = _photo_description_for_turn(db, payload.conversation_id, fallback)
-    system_prompt = _build_system_prompt(db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description)
+    system_prompt = _build_system_prompt(
+        db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description, conv["branch_selected_explicitly"]
+    )
     ctx = {
         "conversation_id": payload.conversation_id,
         "branch_id": conv["branch_id"],
@@ -1802,7 +1881,12 @@ def reclaim_stale_conversations(
             history = _load_history(db, row["id"])
             photo_description = _photo_description_for_turn(db, row["id"], fallback)
             system_prompt = _build_system_prompt(
-                db, conv["branch_id"], ch_settings, conv.get("patient_id"), photo_description
+                db,
+                conv["branch_id"],
+                ch_settings,
+                conv.get("patient_id"),
+                photo_description,
+                conv["branch_selected_explicitly"],
             )
             ctx = {
                 "conversation_id": row["id"],
