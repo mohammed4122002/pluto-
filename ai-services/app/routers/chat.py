@@ -1150,7 +1150,7 @@ def _photo_description_for_turn(
     if not image_row or not fallback:
         return None, None, False
     vision_client, vision_model = fallback
-    kind, text, failure_reason = describe_patient_photo(vision_client, vision_model, image_row["media_url"])
+    kind, text, failure_reason = describe_patient_photo(vision_client.api_key, vision_model, image_row["media_url"])
     if failure_reason:
         try:
             db.table("audit_log").insert(

@@ -1,8 +1,22 @@
+import base64
 import logging
 
-from openai import OpenAI
+import httpx
 
 logger = logging.getLogger(__name__)
+
+# Gemini's native generateContent endpoint, not the OpenAI-compatible shim
+# this used to go through: confirmed live, every single vision call was
+# failing with "Request contains an invalid argument" (a 400 -- a malformed
+# request, not a safety block, which Gemini returns as a normal 200 with
+# finishReason=SAFETY) once that failure finally got logged to audit_log
+# instead of being silently swallowed. The prior code sent the image as a
+# remote image_url the same way OpenAI's own vision models accept, but
+# Gemini's compat layer doesn't reliably fetch a remote URL server-side the
+# same way -- the same gap transcription.py already hit and fixed the same
+# way: download the bytes here and send them inline as base64, which is
+# Gemini's own documented, reliable way to accept image input.
+_GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # Classifies a patient's photo into one of three lanes, on purpose, rather
 # than always producing the same kind of output:
@@ -64,9 +78,13 @@ _VISION_SYSTEM_PROMPT = (
 )
 
 
-def describe_patient_photo(client: OpenAI, model: str, image_url: str) -> tuple[str | None, str | None, str | None]:
+def describe_patient_photo(api_key: str, model: str, image_url: str) -> tuple[str | None, str | None, str | None]:
     """Classifies and (for "urgent"/"analysis") describes a photo a patient
     sent, for the booking assistant to relay and act on.
+
+    Downloads the image itself and sends it inline (base64 + mime type) to
+    Gemini's generateContent endpoint, rather than handing Gemini a remote
+    URL to fetch — see the module comment above for why.
 
     Returns (kind, text, failure_reason).
 
@@ -74,33 +92,47 @@ def describe_patient_photo(client: OpenAI, model: str, image_url: str) -> tuple[
     - (None, None, None) when Gemini explicitly classified the photo as
       "none" (a payment receipt, an unrelated selfie, an unclear photo) --
       a real, positive classification, not a failure.
-    - (None, None, failure_reason) when the call itself failed (provider
-      error, a safety filter refusing a graphic image, an empty response)
-      — kept distinguishable from a genuine "none" classification on
-      purpose. Confirmed live: a photo of an injured/burned hand got no
-      classification back at all (almost certainly a safety-filter block
-      on a graphic wound image, not the model actually looking at it and
-      deciding "not medical"), and the caller treated that silence
-      identically to "confirmed not a medical photo" -- which routed it
-      straight into the receipt-matching path and told the patient their
-      payment receipt was received. A failure must read as "unknown", not
-      "confirmed non-medical", so the caller can refuse to guess either way
-      instead of picking the wrong one.
+    - (None, None, failure_reason) when the call itself failed (download
+      error, provider error, an empty response) — kept distinguishable
+      from a genuine "none" classification on purpose, so a failure reads
+      as "unknown" rather than "confirmed not medical" (see
+      _photo_description_for_turn in chat.py, which is what actually acts
+      on this distinction).
     """
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": _VISION_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": [{"type": "image_url", "image_url": {"url": image_url}}],
-                },
-            ],
-            max_tokens=280,
-            temperature=0.2,
+        image_response = httpx.get(image_url, timeout=20)
+        image_response.raise_for_status()
+        image_bytes = image_response.content
+        mime_type = (image_response.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
+    except Exception as exc:
+        logger.exception("failed to download patient photo from %s", image_url)
+        return None, None, f"image download failed: {exc}"
+
+    try:
+        response = httpx.post(
+            _GENERATE_CONTENT_URL.format(model=model),
+            params={"key": api_key},
+            json={
+                "systemInstruction": {"parts": [{"text": _VISION_SYSTEM_PROMPT}]},
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type or "image/jpeg",
+                                    "data": base64.b64encode(image_bytes).decode("ascii"),
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {"maxOutputTokens": 280, "temperature": 0.2},
+            },
+            timeout=30,
         )
-        text = (response.choices[0].message.content or "").strip()
+        response.raise_for_status()
+        data = response.json()
+        text = (data["candidates"][0]["content"]["parts"][0]["text"] or "").strip()
     except Exception as exc:
         logger.exception("photo description call failed for image_url=%s", image_url)
         return None, None, f"vision call failed: {exc}"
