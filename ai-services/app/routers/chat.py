@@ -1026,12 +1026,29 @@ def _transcribe_voice_note_for_turn(db: Client, conversation_id: str, client: Op
     worked — generate_reply uses this to tell "no voice note this turn"
     (proceed on payload.message as normal) apart from "there was one and
     transcription failed" (ask the patient to resend/type instead of
-    silently answering an empty message)."""
+    silently answering an empty message). A failure is also recorded to
+    audit_log with the real reason (download error, provider error, or an
+    empty transcript e.g. from a near-silent/sub-second clip) — the first
+    version of this only logged failures to Python's own logger, which
+    isn't queryable from here, so a real failure and Whisper genuinely
+    hearing nothing looked identical after the fact."""
     voice_row = _latest_inbound_voice_message(db, conversation_id)
     if not voice_row:
         return None, False
-    text = transcribe_voice_message(client, voice_row["media_url"])
+    text, failure_reason = transcribe_voice_message(client, voice_row["media_url"])
     if not text:
+        try:
+            db.table("audit_log").insert(
+                {
+                    "entity_type": "voice_transcription",
+                    "entity_id": voice_row["id"],
+                    "action": "transcription_failed",
+                    "reason": failure_reason,
+                    "channel": "ai-services",
+                }
+            ).execute()
+        except Exception:
+            logger.exception("failed to record voice transcription failure in audit_log")
         return None, True
     db.table("messages").update({"content": text}).eq("id", voice_row["id"]).execute()
     return text, True

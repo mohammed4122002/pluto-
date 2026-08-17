@@ -3,6 +3,13 @@ through Whisper, so a voice message can be treated exactly like a typed
 one everywhere downstream. Must never raise -- a patient waiting on a
 reply after sending a voice note must always get *something* back, even
 if the download or the transcription itself fails.
+
+Returns (text, failure_reason) rather than just text-or-None: a real
+failure (bad download, provider outage) needs to stay distinguishable from
+Whisper genuinely returning nothing for a near-silent/sub-second clip, so
+whichever happened is visible afterward (see chat.py's
+_transcribe_voice_note_for_turn, which logs failure_reason to audit_log)
+instead of both looking identical.
 """
 
 import sys
@@ -51,11 +58,12 @@ def _fake_response(content=b"fake-audio-bytes", status=200):
 
 
 @patch("app.services.transcription.httpx.get")
-def test_returns_the_transcribed_text(mock_get):
+def test_returns_the_transcribed_text_with_no_failure_reason(mock_get):
     mock_get.return_value = _fake_response()
     client = _FakeClient(text="بدي أحجز موعد بكرة الصبح")
-    result = transcribe_voice_message(client, "https://example.test/voice.ogg")
-    assert result == "بدي أحجز موعد بكرة الصبح"
+    text, failure_reason = transcribe_voice_message(client, "https://example.test/voice.ogg")
+    assert text == "بدي أحجز موعد بكرة الصبح"
+    assert failure_reason is None
 
 
 @patch("app.services.transcription.httpx.get")
@@ -69,10 +77,12 @@ def test_the_downloaded_audio_actually_reaches_the_whisper_call(mock_get):
 
 
 @patch("app.services.transcription.httpx.get")
-def test_a_download_failure_returns_none_rather_than_raising(mock_get):
+def test_a_download_failure_returns_none_with_a_diagnostic_reason(mock_get):
     mock_get.side_effect = httpx.ConnectError("connection refused")
     client = _FakeClient(text="لن يتم استدعاؤه")
-    assert transcribe_voice_message(client, "https://example.test/voice.ogg") is None
+    text, failure_reason = transcribe_voice_message(client, "https://example.test/voice.ogg")
+    assert text is None
+    assert "download failed" in failure_reason
     assert client.audio.transcriptions.calls == []
 
 
@@ -80,18 +90,24 @@ def test_a_download_failure_returns_none_rather_than_raising(mock_get):
 def test_a_non_200_response_returns_none_rather_than_raising(mock_get):
     mock_get.return_value = _fake_response(status=404)
     client = _FakeClient(text="لن يتم استدعاؤه")
-    assert transcribe_voice_message(client, "https://example.test/voice.ogg") is None
+    text, failure_reason = transcribe_voice_message(client, "https://example.test/voice.ogg")
+    assert text is None
+    assert failure_reason is not None
 
 
 @patch("app.services.transcription.httpx.get")
-def test_a_whisper_provider_error_returns_none_rather_than_raising(mock_get):
+def test_a_whisper_provider_error_returns_none_with_a_diagnostic_reason(mock_get):
     mock_get.return_value = _fake_response()
     client = _FakeClient(error=RuntimeError("provider is down"))
-    assert transcribe_voice_message(client, "https://example.test/voice.ogg") is None
+    text, failure_reason = transcribe_voice_message(client, "https://example.test/voice.ogg")
+    assert text is None
+    assert "whisper failed" in failure_reason
 
 
 @patch("app.services.transcription.httpx.get")
 def test_an_empty_transcript_is_treated_as_no_transcription(mock_get):
     mock_get.return_value = _fake_response()
     client = _FakeClient(text="   ")
-    assert transcribe_voice_message(client, "https://example.test/voice.ogg") is None
+    text, failure_reason = transcribe_voice_message(client, "https://example.test/voice.ogg")
+    assert text is None
+    assert "empty transcript" in failure_reason
