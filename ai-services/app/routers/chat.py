@@ -1013,13 +1013,24 @@ def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | No
     return row
 
 
-def _transcribe_voice_note_for_turn(db: Client, conversation_id: str, client: OpenAI) -> tuple[str | None, bool]:
+def _transcribe_voice_note_for_turn(
+    db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
+) -> tuple[str | None, bool]:
     """Transcribes this turn's inbound voice note, if there is one still
     waiting on a transcript, and writes the result into the message's own
     content — unlike photo analysis (recomputed fresh every turn, since an
     old photo's relevance fades), a voice note IS what the patient said, and
     every later turn's _load_history must see the exact same text a typed
     message would have produced, not just this one.
+
+    Gemini, not OpenAI/Whisper — same fallback key vision already depends
+    on, not a separate credential. Confirmed live: an expired/rotated
+    OpenAI key silently broke every voice note with a 401, while text
+    replies kept working the whole time because chat completions already
+    had a Gemini fallback path and voice transcription (originally
+    OpenAI-only, no fallback) didn't. No Gemini configured for this clinic
+    means voice notes are skipped the same way photos are — the turn must
+    still proceed, never blocked on this.
 
     Returns (transcript, had_voice_note). had_voice_note is True whenever
     there was a voice note to transcribe at all, whether or not it actually
@@ -1030,12 +1041,15 @@ def _transcribe_voice_note_for_turn(db: Client, conversation_id: str, client: Op
     audit_log with the real reason (download error, provider error, or an
     empty transcript e.g. from a near-silent/sub-second clip) — the first
     version of this only logged failures to Python's own logger, which
-    isn't queryable from here, so a real failure and Whisper genuinely
+    isn't queryable from here, so a real failure and Gemini genuinely
     hearing nothing looked identical after the fact."""
     voice_row = _latest_inbound_voice_message(db, conversation_id)
     if not voice_row:
         return None, False
-    text, failure_reason = transcribe_voice_message(client, voice_row["media_url"])
+    if not fallback:
+        return None, True
+    gemini_client, gemini_model = fallback
+    text, failure_reason = transcribe_voice_message(gemini_client.api_key, gemini_model, voice_row["media_url"])
     if not text:
         try:
             db.table("audit_log").insert(
@@ -1900,7 +1914,7 @@ def generate_reply(
         _escalate(db, payload.conversation_id)
         return ReplyResponse(reply="", needs_human=True, skipped=True)
 
-    transcript, had_voice_note = _transcribe_voice_note_for_turn(db, payload.conversation_id, client)
+    transcript, had_voice_note = _transcribe_voice_note_for_turn(db, payload.conversation_id, fallback)
     if had_voice_note and not transcript:
         # Whisper genuinely failed on this one (bad download, transient
         # provider error) -- answering as if the patient sent nothing would
@@ -2063,7 +2077,7 @@ def reclaim_stale_conversations(
             # Whisper error), this naturally retries it -- _load_history
             # right after picks up whatever content ended up on the row
             # either way, transcribed or still blank.
-            _transcribe_voice_note_for_turn(db, row["id"], client)
+            _transcribe_voice_note_for_turn(db, row["id"], fallback)
             history = _load_history(db, row["id"])
             photo_description, photo_kind, image_without_medical_description = _photo_description_for_turn(
                 db, row["id"], fallback
