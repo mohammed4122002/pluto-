@@ -18,6 +18,7 @@ class _Query:
         self._table = table
         self._rows = list(table.rows)
         self._update = None
+        self._insert = None
         self._order_col = None
         self._order_desc = False
 
@@ -44,7 +45,15 @@ class _Query:
         self._update = values
         return self
 
+    def insert(self, values):
+        self._insert = values
+        return self
+
     def execute(self):
+        if self._insert is not None:
+            row = dict(self._insert)
+            self._table.rows.append(row)
+            return _Result([row])
         if self._update is not None:
             ids = {r["id"] for r in self._rows}
             for row in self._table.rows:
@@ -69,10 +78,10 @@ class _Table:
 
 class _Db:
     def __init__(self, messages=None):
-        self.tables = {"messages": _Table(messages or [])}
+        self.tables = {"messages": _Table(messages or []), "audit_log": _Table()}
 
     def table(self, name):
-        return _Query(self.tables[name])
+        return _Query(self.tables.setdefault(name, _Table()))
 
 
 def _voice_message(msg_id="m1", content="", created_at="2026-01-01T00:00:00Z"):
@@ -137,22 +146,34 @@ class _FakeClient:
     pass
 
 
-@patch("app.routers.chat.transcribe_voice_message", return_value="بدي أحجز موعد بكرة")
+@patch("app.routers.chat.transcribe_voice_message", return_value=("بدي أحجز موعد بكرة", None))
 def test_a_successful_transcription_is_written_back_to_the_message_row(_mock):
     db = _Db(messages=[_voice_message()])
     text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
     assert text == "بدي أحجز موعد بكرة"
     assert had_voice_note is True
     assert db.tables["messages"].rows[0]["content"] == "بدي أحجز موعد بكرة"
+    assert db.tables["audit_log"].rows == []
 
 
-@patch("app.routers.chat.transcribe_voice_message", return_value=None)
+@patch("app.routers.chat.transcribe_voice_message", return_value=(None, "whisper failed: boom"))
 def test_a_failed_transcription_leaves_the_row_untouched(_mock):
     db = _Db(messages=[_voice_message()])
     text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
     assert text is None
     assert had_voice_note is True
     assert db.tables["messages"].rows[0]["content"] == ""
+
+
+@patch("app.routers.chat.transcribe_voice_message", return_value=(None, "empty transcript (clip may be too short or silent)"))
+def test_a_failed_transcription_records_the_real_reason_in_audit_log(_mock):
+    db = _Db(messages=[_voice_message(msg_id="m1")])
+    _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
+    entries = db.tables["audit_log"].rows
+    assert len(entries) == 1
+    assert entries[0]["entity_type"] == "voice_transcription"
+    assert entries[0]["entity_id"] == "m1"
+    assert entries[0]["reason"] == "empty transcript (clip may be too short or silent)"
 
 
 @patch("app.routers.chat.transcribe_voice_message")
