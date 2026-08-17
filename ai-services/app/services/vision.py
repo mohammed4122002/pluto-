@@ -58,15 +58,28 @@ _VISION_SYSTEM_PROMPT = (
 )
 
 
-def describe_patient_photo(client: OpenAI, model: str, image_url: str) -> tuple[str, str] | None:
+def describe_patient_photo(client: OpenAI, model: str, image_url: str) -> tuple[str | None, str | None, str | None]:
     """Classifies and (for "urgent"/"analysis") describes a photo a patient
-    sent, for the booking assistant to relay and act on. Returns None on any
-    failure or when the photo is classified "none" (a payment receipt, an
-    unrelated selfie, ...) — the calling turn must proceed as a normal
-    text-only reply either way, never blocked by this. Otherwise returns
-    (kind, text) where kind is "urgent" or "analysis" — see
-    _VISION_SYSTEM_PROMPT for what each means and how the caller should
-    treat it differently.
+    sent, for the booking assistant to relay and act on.
+
+    Returns (kind, text, failure_reason).
+
+    - ("urgent" | "analysis", text, None) on a successful classification.
+    - (None, None, None) when Gemini explicitly classified the photo as
+      "none" (a payment receipt, an unrelated selfie, an unclear photo) --
+      a real, positive classification, not a failure.
+    - (None, None, failure_reason) when the call itself failed (provider
+      error, a safety filter refusing a graphic image, an empty response)
+      — kept distinguishable from a genuine "none" classification on
+      purpose. Confirmed live: a photo of an injured/burned hand got no
+      classification back at all (almost certainly a safety-filter block
+      on a graphic wound image, not the model actually looking at it and
+      deciding "not medical"), and the caller treated that silence
+      identically to "confirmed not a medical photo" -- which routed it
+      straight into the receipt-matching path and told the patient their
+      payment receipt was received. A failure must read as "unknown", not
+      "confirmed non-medical", so the caller can refuse to guess either way
+      instead of picking the wrong one.
     """
     try:
         response = client.chat.completions.create(
@@ -82,23 +95,23 @@ def describe_patient_photo(client: OpenAI, model: str, image_url: str) -> tuple[
             temperature=0.2,
         )
         text = (response.choices[0].message.content or "").strip()
-    except Exception:
+    except Exception as exc:
         logger.exception("photo description call failed for image_url=%s", image_url)
-        return None
+        return None, None, f"vision call failed: {exc}"
     if not text:
-        return None
+        return None, None, "empty response from vision model"
 
     first_line, _, rest = text.partition("\n")
     marker = first_line.strip().upper().strip(".:، ")
     body = rest.strip()
 
     if marker == "NONE":
-        return None
+        return None, None, None
     if marker == "URGENT":
-        return ("urgent", body or text)
+        return "urgent", body or text, None
     if marker == "ANALYSIS":
-        return ("analysis", body or text)
+        return "analysis", body or text, None
     # No recognizable marker (a model that ignored the format) -- treat the
     # whole reply as a plain, non-urgent description rather than dropping a
     # real analysis on the floor over a formatting slip.
-    return ("analysis", text)
+    return "analysis", text, None
