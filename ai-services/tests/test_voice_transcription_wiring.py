@@ -82,7 +82,7 @@ def _voice_message(msg_id="m1", content="", created_at="2026-01-01T00:00:00Z"):
         "direction": "inbound",
         "content": content,
         "media_url": "https://example.test/voice.ogg",
-        "media_type": "voice",
+        "media_type": "audio",
         "created_at": created_at,
     }
 
