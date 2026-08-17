@@ -985,7 +985,14 @@ def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | No
     "is a voice note": once transcribe_voice_note_for_turn writes the
     transcript into this same row's content, every later turn (this one
     reprocessed, or a reclaim) must see it as an ordinary text message and
-    never spend another Whisper call transcribing it again."""
+    never spend another Whisper call transcribing it again.
+
+    media_type is "audio", not "voice" — messages.media_type's check
+    constraint (0043_message_media.sql) only allows
+    image/document/audio/video, and n8n's voice branch sets it to "audio"
+    to match. Confirmed live: the first version of this used "voice" and
+    every voice note failed outright at the database insert
+    (messages_media_type_check violation), before ai-services ever saw it."""
     rows = (
         db.table("messages")
         .select("id, content, media_url, media_type")
@@ -999,7 +1006,7 @@ def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | No
     if not rows:
         return None
     row = rows[0]
-    if row.get("media_type") != "voice" or not row.get("media_url"):
+    if row.get("media_type") != "audio" or not row.get("media_url"):
         return None
     if (row.get("content") or "").strip():
         return None
