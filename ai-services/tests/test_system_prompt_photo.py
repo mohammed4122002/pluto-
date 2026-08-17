@@ -111,6 +111,20 @@ def test_analysis_block_ends_with_the_not_a_diagnosis_disclaimer_and_booking_off
     assert "تحجزيله موعد" in prompt
 
 
+def test_analysis_block_specifies_the_reference_card_sections_and_emoji():
+    # Matches a reference bot's photo-analysis format the clinic asked to
+    # replicate: type/status, a bulleted notes section, matched real
+    # services, a short personal note, then a disclaimer + specialist
+    # referral -- each section keyed to a fixed emoji, not left to the
+    # model's own formatting judgment.
+    prompt = _prompt(photo_description="النوع: بشرة دهنية", photo_kind="analysis")
+    assert "🔹 *النوع:*" in prompt
+    assert "🔹 *الحالة العامة:*" in prompt
+    assert "📋 *الملاحظات:*" in prompt
+    assert "✨ *خدمات مناسبة لك:*" in prompt
+    assert "👤 للتشخيص الدقيق" in prompt
+
+
 # --- urgent -------------------------------------------------------------
 
 
