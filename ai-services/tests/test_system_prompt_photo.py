@@ -139,12 +139,26 @@ def test_urgent_block_still_forbids_naming_a_condition():
     assert "ممنوع نهائياً تسمي أي مرض أو حالة طبية محددة بالاسم" in prompt
 
 
-def test_urgent_never_offers_the_routine_analysis_card():
-    # An urgent photo must never fall into the "here's a nice card + book a
-    # service" treatment -- that would read as the clinic treating an
-    # emergency as routine upsell.
+def test_urgent_never_shows_the_routine_analysis_card_layout():
+    # An urgent photo must never fall into the full "type/status card" the
+    # analysis branch uses -- that would read as the clinic treating an
+    # emergency as routine business, even though (per a later product
+    # decision) it's now allowed to mention real follow-up services below
+    # the emergency advice.
     prompt = _prompt(photo_description="صورة يد فيها احمرار وتقشّر واسع", photo_kind="urgent")
-    assert "اقترحي عليه 2-3 خدمات حقيقية" not in prompt
+    assert "🔹 *النوع:*" not in prompt
+
+
+def test_urgent_block_may_suggest_real_follow_up_services_after_the_emergency_advice():
+    # Product decision: an urgent photo should still point at real services
+    # for later follow-up (e.g. burn care) -- but only after the emergency
+    # advice, framed explicitly as not a substitute for it, and only from
+    # list_services (never invented).
+    prompt = _prompt(photo_description="صورة يد فيها احمرار وتقشّر واسع", photo_kind="urgent")
+    assert "أقرب طوارئ" in prompt
+    assert "بعد نصيحة الطوارئ مباشرة" in prompt
+    assert "list_services" in prompt
+    assert "مش بديل عن الطوارئ" in prompt
 
 
 # --- receipt-candidate (not medical/cosmetic at all) -------------------------
