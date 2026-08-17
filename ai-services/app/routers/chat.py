@@ -39,6 +39,7 @@ from app.services.directory import find_doctors, list_active_branches, list_serv
 from app.services.money import tidy_amount
 from app.services.otp import OtpError, generate_booking_otp, has_verified_booking_otp, verify_booking_otp
 from app.services.receipts import attach_receipt, find_pending_receipt_payment
+from app.services.transcription import transcribe_voice_message
 from app.services.vision import describe_patient_photo
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -978,6 +979,57 @@ def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
     return rows[0].get("media_url") or None
 
 
+def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | None:
+    """This conversation's most recent inbound message, if it's an
+    untranscribed voice note. "Untranscribed" is the key check, not just
+    "is a voice note": once transcribe_voice_note_for_turn writes the
+    transcript into this same row's content, every later turn (this one
+    reprocessed, or a reclaim) must see it as an ordinary text message and
+    never spend another Whisper call transcribing it again."""
+    rows = (
+        db.table("messages")
+        .select("id, content, media_url, media_type")
+        .eq("conversation_id", conversation_id)
+        .eq("direction", "inbound")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows:
+        return None
+    row = rows[0]
+    if row.get("media_type") != "voice" or not row.get("media_url"):
+        return None
+    if (row.get("content") or "").strip():
+        return None
+    return row
+
+
+def _transcribe_voice_note_for_turn(db: Client, conversation_id: str, client: OpenAI) -> tuple[str | None, bool]:
+    """Transcribes this turn's inbound voice note, if there is one still
+    waiting on a transcript, and writes the result into the message's own
+    content — unlike photo analysis (recomputed fresh every turn, since an
+    old photo's relevance fades), a voice note IS what the patient said, and
+    every later turn's _load_history must see the exact same text a typed
+    message would have produced, not just this one.
+
+    Returns (transcript, had_voice_note). had_voice_note is True whenever
+    there was a voice note to transcribe at all, whether or not it actually
+    worked — generate_reply uses this to tell "no voice note this turn"
+    (proceed on payload.message as normal) apart from "there was one and
+    transcription failed" (ask the patient to resend/type instead of
+    silently answering an empty message)."""
+    voice_row = _latest_inbound_voice_message(db, conversation_id)
+    if not voice_row:
+        return None, False
+    text = transcribe_voice_message(client, voice_row["media_url"])
+    if not text:
+        return None, True
+    db.table("messages").update({"content": text}).eq("id", voice_row["id"]).execute()
+    return text, True
+
+
 def _photo_description_for_turn(
     db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
 ) -> tuple[str | None, str | None, bool]:
@@ -1824,7 +1876,18 @@ def generate_reply(
         _escalate(db, payload.conversation_id)
         return ReplyResponse(reply="", needs_human=True, skipped=True)
 
-    lowered = payload.message.lower()
+    transcript, had_voice_note = _transcribe_voice_note_for_turn(db, payload.conversation_id, client)
+    if had_voice_note and not transcript:
+        # Whisper genuinely failed on this one (bad download, transient
+        # provider error) -- answering as if the patient sent nothing would
+        # read as the bot ignoring them. Ask them to try again instead of
+        # silently proceeding on an empty message.
+        reply = "معلش، ما قدرت أسمع الرسالة الصوتية منيح — ممكن تعيد إرسالها أو تكتبلي نفس الكلام؟"
+        _store_reply(db, payload.conversation_id, reply)
+        return ReplyResponse(reply=reply, needs_human=False)
+    patient_message = transcript or payload.message
+
+    lowered = patient_message.lower()
     keyword_hit = any(k.lower() in lowered for k in (ch_settings.get("escalation_keywords") or []) if k)
     turn_limit = ch_settings.get("max_ai_turns_before_human") or 10
     turn_limit_hit = _count_ai_turns(db, payload.conversation_id, conv["ai_episode_started_at"]) >= turn_limit
@@ -1971,6 +2034,12 @@ def reclaim_stale_conversations(
         ).eq("id", row["id"]).execute()
         try:
             conv = _load_conversation(db, row["id"])
+            # Best-effort: if the backlog's last message was a voice note
+            # that failed to transcribe the first time around (transient
+            # Whisper error), this naturally retries it -- _load_history
+            # right after picks up whatever content ended up on the row
+            # either way, transcribed or still blank.
+            _transcribe_voice_note_for_turn(db, row["id"], client)
             history = _load_history(db, row["id"])
             photo_description, photo_kind, image_without_medical_description = _photo_description_for_turn(
                 db, row["id"], fallback
