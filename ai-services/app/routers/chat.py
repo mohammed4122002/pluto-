@@ -1003,6 +1003,25 @@ def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
     return rows[0].get("media_url") or None
 
 
+def _latest_inbound_image_message(db: Client, conversation_id: str) -> dict | None:
+    """Like _latest_inbound_image_url, but also carries the message's own id
+    — needed so a vision-call failure can be logged to audit_log against
+    the right row (see _photo_description_for_turn)."""
+    rows = (
+        db.table("messages")
+        .select("id, media_url, media_type")
+        .eq("conversation_id", conversation_id)
+        .eq("direction", "inbound")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows or rows[0].get("media_type") != "image":
+        return None
+    return rows[0]
+
+
 def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | None:
     """This conversation's most recent inbound message, if it's an
     untranscribed voice note. "Untranscribed" is the key check, not just
@@ -1111,22 +1130,41 @@ def _photo_description_for_turn(
     conflated.
 
     image_without_medical_description is only True when vision actually ran
-    and explicitly classified the photo as not medical/cosmetic at all
-    (describe_patient_photo returns None for that case too, same as a
-    payment receipt or an unrelated photo) — it's what tells
-    _build_system_prompt this turn's photo is a candidate for
-    submit_payment_receipt instead. Left False whenever there's no image, or
-    no way to classify one (no Gemini configured): guessing "maybe a
-    receipt" without ever having looked at the photo is exactly the blind
-    matching this was built to replace."""
-    image_url = _latest_inbound_image_url(db, conversation_id)
-    if not image_url or not fallback:
+    and *explicitly* classified the photo as not medical/cosmetic at all —
+    a real positive classification, kept strictly separate from a failed
+    vision call (see describe_patient_photo's own docstring). Confirmed
+    live: a photo of an injured/burned hand got no classification back at
+    all (almost certainly a safety filter on a graphic wound image, not
+    Gemini actually deciding "not medical"), and this used to treat that
+    failure identically to a genuine "none" classification — which routed
+    it straight into the receipt-matching path and told the patient their
+    payment receipt was received. A failed call now leaves both
+    description and image_without_medical_description at their safe
+    defaults (nothing shown, no receipt path offered) and is logged to
+    audit_log with the real reason, instead of silently picking the wrong
+    of two very different outcomes. Also left at defaults whenever there's
+    no image, or no way to classify one (no Gemini configured)."""
+    image_row = _latest_inbound_image_message(db, conversation_id)
+    if not image_row or not fallback:
         return None, None, False
     vision_client, vision_model = fallback
-    result = describe_patient_photo(vision_client, vision_model, image_url)
-    if result is None:
+    kind, text, failure_reason = describe_patient_photo(vision_client, vision_model, image_row["media_url"])
+    if failure_reason:
+        try:
+            db.table("audit_log").insert(
+                {
+                    "entity_type": "photo_classification",
+                    "entity_id": image_row["id"],
+                    "action": "classification_failed",
+                    "reason": failure_reason,
+                    "channel": "ai-services",
+                }
+            ).execute()
+        except Exception:
+            logger.exception("failed to record photo classification failure in audit_log")
+        return None, None, False
+    if kind is None:
         return None, None, True
-    kind, text = result
     return text, kind, False
 
 

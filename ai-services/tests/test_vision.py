@@ -59,16 +59,18 @@ class _FakeClient:
 
 def test_analysis_response_is_parsed_with_its_body():
     client = _FakeClient(content="ANALYSIS\nالنوع: بشرة دهنية/مختلطة\nالحالة العامة: تحتاج عناية")
-    result = describe_patient_photo(client, "gemini-flash-lite-latest", "https://example.test/photo.jpg")
-    assert result[0] == "analysis"
-    assert "بشرة دهنية" in result[1]
+    kind, text, failure_reason = describe_patient_photo(client, "gemini-flash-lite-latest", "https://example.test/photo.jpg")
+    assert kind == "analysis"
+    assert "بشرة دهنية" in text
+    assert failure_reason is None
 
 
 def test_urgent_response_is_parsed_with_its_body():
     client = _FakeClient(content="URGENT\nصورة يد فيها احمرار وتقشّر واسع يمتد لعدة أصابع")
-    result = describe_patient_photo(client, "gemini-flash-lite-latest", "https://example.test/photo.jpg")
-    assert result[0] == "urgent"
-    assert "تقشّر" in result[1]
+    kind, text, failure_reason = describe_patient_photo(client, "gemini-flash-lite-latest", "https://example.test/photo.jpg")
+    assert kind == "urgent"
+    assert "تقشّر" in text
+    assert failure_reason is None
 
 
 def test_the_image_actually_reaches_the_api_call():
@@ -85,27 +87,42 @@ def test_the_image_actually_reaches_the_api_call():
     assert image_parts and image_parts[0]["image_url"]["url"] == "https://example.test/photo.jpg"
 
 
-def test_none_response_means_not_a_relevant_photo():
+def test_none_response_means_not_a_relevant_photo_not_a_failure():
     client = _FakeClient(content="NONE")
-    assert describe_patient_photo(client, "m", "https://example.test/receipt.jpg") is None
+    kind, text, failure_reason = describe_patient_photo(client, "m", "https://example.test/receipt.jpg")
+    assert (kind, text, failure_reason) == (None, None, None)
 
 
 def test_none_response_is_case_and_punctuation_insensitive():
     for raw in ["None", "none", "NONE.", "none، "]:
         client = _FakeClient(content=raw)
-        assert describe_patient_photo(client, "m", "https://example.test/x.jpg") is None
+        kind, text, failure_reason = describe_patient_photo(client, "m", "https://example.test/x.jpg")
+        assert (kind, text, failure_reason) == (None, None, None)
 
 
-def test_empty_response_is_treated_as_no_description():
+def test_empty_response_is_a_failure_not_a_none_classification():
+    # A blank reply from the model is not the same as it looking at the
+    # photo and deciding "not medical" -- callers must not conflate the two
+    # (see describe_patient_photo's docstring for the live incident this
+    # distinction fixes).
     client = _FakeClient(content="")
-    assert describe_patient_photo(client, "m", "https://example.test/x.jpg") is None
+    kind, text, failure_reason = describe_patient_photo(client, "m", "https://example.test/x.jpg")
+    assert kind is None
+    assert text is None
+    assert failure_reason is not None
 
 
-def test_a_provider_error_returns_none_rather_than_raising():
+def test_a_provider_error_is_a_failure_not_a_none_classification():
     # The patient is waiting on a reply -- a vision-call failure must never
-    # break the turn, only fall back to a text-only reply.
+    # break the turn, only fall back to a text-only reply. But it must also
+    # never be silently treated as "confirmed not medical" -- a safety
+    # filter blocking a graphic photo looks identical to a provider outage
+    # here, and neither one means the photo was actually classified.
     client = _FakeClient(error=RuntimeError("provider is down"))
-    assert describe_patient_photo(client, "m", "https://example.test/x.jpg") is None
+    kind, text, failure_reason = describe_patient_photo(client, "m", "https://example.test/x.jpg")
+    assert kind is None
+    assert text is None
+    assert "provider is down" in failure_reason
 
 
 def test_a_reply_with_no_recognizable_marker_still_surfaces_as_analysis():
@@ -113,8 +130,9 @@ def test_a_reply_with_no_recognizable_marker_still_surfaces_as_analysis():
     # drop a real analysis on the floor -- better to treat it as a
     # (non-urgent) analysis than lose it entirely.
     client = _FakeClient(content="بشرة فيها حبوب متوسطة الشدة")
-    result = describe_patient_photo(client, "m", "https://example.test/x.jpg")
-    assert result == ("analysis", "بشرة فيها حبوب متوسطة الشدة")
+    kind, text, failure_reason = describe_patient_photo(client, "m", "https://example.test/x.jpg")
+    assert (kind, text) == ("analysis", "بشرة فيها حبوب متوسطة الشدة")
+    assert failure_reason is None
 
 
 def test_the_prompt_still_explicitly_bans_real_disease_names():
