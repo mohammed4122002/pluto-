@@ -142,24 +142,35 @@ def test_only_the_most_recent_message_is_considered():
 # --- _transcribe_voice_note_for_turn ------------------------------------------
 
 
-class _FakeClient:
-    pass
+class _FakeGeminiClient:
+    api_key = "test-gemini-key"
+
+
+_FALLBACK = (_FakeGeminiClient(), "gemini-flash-lite-latest")
 
 
 @patch("app.routers.chat.transcribe_voice_message", return_value=("بدي أحجز موعد بكرة", None))
 def test_a_successful_transcription_is_written_back_to_the_message_row(_mock):
     db = _Db(messages=[_voice_message()])
-    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
+    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FALLBACK)
     assert text == "بدي أحجز موعد بكرة"
     assert had_voice_note is True
     assert db.tables["messages"].rows[0]["content"] == "بدي أحجز موعد بكرة"
     assert db.tables["audit_log"].rows == []
 
 
-@patch("app.routers.chat.transcribe_voice_message", return_value=(None, "whisper failed: boom"))
+@patch("app.routers.chat.transcribe_voice_message")
+def test_the_gemini_key_and_model_from_fallback_are_what_actually_get_used(mock_transcribe):
+    mock_transcribe.return_value = ("وصف", None)
+    db = _Db(messages=[_voice_message()])
+    _transcribe_voice_note_for_turn(db, "c1", _FALLBACK)
+    mock_transcribe.assert_called_once_with("test-gemini-key", "gemini-flash-lite-latest", "https://example.test/voice.ogg")
+
+
+@patch("app.routers.chat.transcribe_voice_message", return_value=(None, "gemini transcription failed: boom"))
 def test_a_failed_transcription_leaves_the_row_untouched(_mock):
     db = _Db(messages=[_voice_message()])
-    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
+    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FALLBACK)
     assert text is None
     assert had_voice_note is True
     assert db.tables["messages"].rows[0]["content"] == ""
@@ -168,7 +179,7 @@ def test_a_failed_transcription_leaves_the_row_untouched(_mock):
 @patch("app.routers.chat.transcribe_voice_message", return_value=(None, "empty transcript (clip may be too short or silent)"))
 def test_a_failed_transcription_records_the_real_reason_in_audit_log(_mock):
     db = _Db(messages=[_voice_message(msg_id="m1")])
-    _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
+    _transcribe_voice_note_for_turn(db, "c1", _FALLBACK)
     entries = db.tables["audit_log"].rows
     assert len(entries) == 1
     assert entries[0]["entity_type"] == "voice_transcription"
@@ -179,7 +190,21 @@ def test_a_failed_transcription_records_the_real_reason_in_audit_log(_mock):
 @patch("app.routers.chat.transcribe_voice_message")
 def test_no_voice_note_never_calls_the_transcription_api_at_all(mock_transcribe):
     db = _Db(messages=[])
-    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FakeClient())
+    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", _FALLBACK)
     assert text is None
     assert had_voice_note is False
     mock_transcribe.assert_not_called()
+
+
+@patch("app.routers.chat.transcribe_voice_message")
+def test_no_gemini_configured_skips_transcription_without_crashing(mock_transcribe):
+    # No Gemini key for this clinic -- same graceful-skip philosophy as
+    # photo analysis. had_voice_note stays True so generate_reply still
+    # tells the patient it couldn't process the note, rather than silently
+    # answering an empty message.
+    db = _Db(messages=[_voice_message()])
+    text, had_voice_note = _transcribe_voice_note_for_turn(db, "c1", None)
+    assert text is None
+    assert had_voice_note is True
+    mock_transcribe.assert_not_called()
+    assert db.tables["audit_log"].rows == []
