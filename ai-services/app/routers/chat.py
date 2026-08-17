@@ -932,6 +932,9 @@ _HISTORY_LIMIT = 24  # ~12 exchanges — see _load_history
 _ARABIC_WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
 
 
+_MEDIA_PLACEHOLDER = {"image": "[صورة]", "audio": "[رسالة صوتية]"}
+
+
 def _load_history(db: Client, conversation_id: str) -> list[dict]:
     """Bounded to the most recent messages, not the conversation's entire
     lifetime — a conversation stays open indefinitely (the same row gets
@@ -939,10 +942,25 @@ def _load_history(db: Client, conversation_id: str) -> list[dict]:
     stale facts from hours or days ago (a doctor who has since been deleted,
     an old failed booking attempt) sit right next to the current question
     with nothing marking them as outdated, and the model has no reliable way
-    to tell "still true" from "was true when I said it.\""""
+    to tell "still true" from "was true when I said it."
+
+    A photo or voice note with no caption/text has content="" on its own
+    row (see 0043_message_media.sql) — left as an empty string here, that
+    turn is invisible to the model, which is bad on its own (looks like the
+    patient sent nothing) but broke outright on Gemini specifically:
+    confirmed live, a genuinely empty trailing user turn gets dropped when
+    converted to Gemini's format, so the request actually ends on
+    whatever the previous assistant reply was, and Gemini rejects that
+    with "Requests ending with a model turn are not supported" — the
+    fallback existed for exactly the turns needing it most (OpenAI down)
+    and silently failed on every photo/voice message with no caption. A
+    short placeholder keeps the turn non-empty for every provider, and the
+    patient still lost nothing: what the photo/voice actually showed/said
+    is injected separately into the system prompt (see
+    _photo_description_for_turn / _transcribe_voice_note_for_turn)."""
     rows = (
         db.table("messages")
-        .select("direction, content")
+        .select("direction, content, media_type")
         .eq("conversation_id", conversation_id)
         .order("created_at", desc=True)
         .limit(_HISTORY_LIMIT)
@@ -950,7 +968,13 @@ def _load_history(db: Client, conversation_id: str) -> list[dict]:
         .data
     )
     rows.reverse()
-    return [{"role": "user" if r["direction"] == "inbound" else "assistant", "content": r["content"]} for r in rows]
+    return [
+        {
+            "role": "user" if r["direction"] == "inbound" else "assistant",
+            "content": r["content"] or _MEDIA_PLACEHOLDER.get(r.get("media_type"), ""),
+        }
+        for r in rows
+    ]
 
 
 def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
