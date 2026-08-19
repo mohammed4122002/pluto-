@@ -1099,10 +1099,34 @@ def _load_history(db: Client, conversation_id: str) -> list[dict]:
     return [
         {
             "role": "user" if r["direction"] == "inbound" else "assistant",
-            "content": r["content"] or _MEDIA_PLACEHOLDER.get(r.get("media_type"), ""),
+            "content": _strip_photo_note(r["content"]) or _MEDIA_PLACEHOLDER.get(r.get("media_type"), ""),
         }
         for r in rows
     ]
+
+
+def _strip_photo_note(content: str | None) -> str:
+    """Removes the stored analysis of an older photo from a history turn,
+    keeping whatever the patient themselves wrote.
+
+    The note is kept on the row (see _remember_photo_context) so a follow-up
+    question about a photo still has something to work from, but it must not
+    be replayed inside the conversation, where it sits in the model's context
+    looking exactly like a fresh analysis. It reliably won that contest:
+    confirmed live, a photo of teeth was classified correctly as "أسنان
+    ولثة" and the reply still described "احمرار ونتوءات صغيرة على سطح اليد"
+    -- the previous photo's note, verbatim, for a completely different body
+    part. Wording the note as "previous" and telling the model in the system
+    prompt to ignore older notes both failed to stop it; keeping it out of
+    the history entirely is what actually does.
+
+    Where it is still needed, it is fetched deliberately and placed in the
+    system prompt instead (see _previous_photo_note)."""
+    text = content or ""
+    marker_at = text.find(_PHOTO_CONTEXT_MARKER)
+    if marker_at == -1:
+        return text
+    return text[:marker_at].strip()
 
 
 def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
@@ -1347,6 +1371,7 @@ def _build_system_prompt(
     branch_selected_explicitly: bool = True,
     image_without_medical_description: bool = False,
     photo_kind: str | None = None,
+    previous_photo_note: str | None = None,
 ) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -1538,6 +1563,18 @@ def _build_system_prompt(
             "إيصال دفع' أو تذكري كلمة إيصال أصلاً إلا إذا submit_payment_receipt رجعت submitted=true. "
             "المريض اللي بعت صورة جرح أو طفح وسمع 'دي ممكن تكون صورة إيصال' بيحس إنك ما شفتِ صورته "
             "إطلاقاً. لو ما بتعرفي شو بالصورة، اسأليه بجملة بسيطة وبس."
+        )
+    elif previous_photo_note:
+        # No photo this turn, but one earlier in the conversation. Delivered
+        # here rather than left in the history, where the model kept reading
+        # an old photo's analysis as if it described the photo in front of
+        # it (see _strip_photo_note).
+        parts.append(
+            "معلومة للسياق فقط: المريض بعت صورة **سابقاً** بهاي المحادثة (مش مع رسالته الحالية)، "
+            f"وهذا كان تحليلها وقتها:\n{previous_photo_note}\n"
+            "استخدمي هاي المعلومة **فقط** إذا رسالته الحالية عم تشير لهاي الصورة (مثلاً 'شو رأيك "
+            "فيها؟'، 'يعني شو الحل؟'، 'وهاي شو؟'). لو عم يحكي بموضوع تاني، تجاهليها تماماً. وممنوع "
+            "تعيدي عرض كارت التحليل من جديد إلا إذا طلب منك صراحة."
         )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
@@ -2262,6 +2299,7 @@ def generate_reply(
         conv["branch_selected_explicitly"],
         image_without_medical_description,
         photo_kind,
+        _previous_photo_note(db, payload.conversation_id) if not photo_kind else None,
     )
     ctx = {
         "conversation_id": payload.conversation_id,
@@ -2340,6 +2378,37 @@ def generate_reply(
     return ReplyResponse(
         reply=reply, needs_human=needs_human, escalation_category=escalation_category, image_url=image_url
     )
+
+
+def _previous_photo_note(db: Client, conversation_id: str) -> str | None:
+    """The stored analysis of the last photo this conversation received, for
+    a turn that has no photo of its own.
+
+    This is the other half of keeping notes out of the history
+    (_strip_photo_note): a patient who sends a photo and then asks about it
+    in a separate message still needs the turn to know what the photo
+    showed, but that context has to arrive as system-prompt context marked
+    as being about an earlier photo -- never as a message in the
+    conversation, where the model treats it as the analysis of whatever
+    photo it is answering right now."""
+    rows = (
+        db.table("messages")
+        .select("content, media_type")
+        .eq("conversation_id", conversation_id)
+        .eq("direction", "inbound")
+        .eq("media_type", "image")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not rows:
+        return None
+    content = rows[0].get("content") or ""
+    marker_at = content.find(_PHOTO_CONTEXT_MARKER)
+    if marker_at == -1:
+        return None
+    return content[marker_at:].strip() or None
 
 
 def _suppress_medical_escalation_on_analysed_photo(
@@ -2470,6 +2539,7 @@ def reclaim_stale_conversations(
                 conv["branch_selected_explicitly"],
                 image_without_medical_description,
                 photo_kind,
+                _previous_photo_note(db, row["id"]) if not photo_kind else None,
             )
             ctx = {
                 "conversation_id": row["id"],
