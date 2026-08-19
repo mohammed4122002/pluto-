@@ -1477,6 +1477,13 @@ def _build_system_prompt(
         parts.append(
             "المريض بعت صورة مع رسالته الأخيرة، وهذا تحليلها المرئي الأولي (تقريبي، مش تشخيص طبي "
             f"نهائي):\n{photo_description}\n"
+            "قبل أي شي — استثناء صريح يلغي قاعدة 'طلب استشارة أو تشخيص أو رأي طبي فعلي → صعّدي' "
+            "المذكورة فوق، لهذا الدور تحديداً: ممنوع منعاً باتاً تصعّدي هون، ولازم needs_human=false. "
+            "صورة انصنّفت للتحليل مش 'طلب استشارة طبية' — هاي بالضبط الحالة اللي هاي الميزة موجودة "
+            "عشانها، والتصعيد هون بيلغيها بالكامل ويترك المريض بلا رد. وهاد بينطبق حتى لو كتب مع "
+            "الصورة كلام زي 'شو هاد؟' أو 'طفلي بيعاني من هيك' أو 'هل هاد خطير؟' أو 'بدي رأيك' — "
+            "كلها أسئلة طبيعية مع صورة، جاوبيها بالكارت تحت. التصعيد بسبب صورة مسموح بحالة وحدة "
+            "فقط: لما تكون الصورة مصنّفة URGENT (وهاي مش هي).\n"
             "اعرضي هذا التحليل للمريض بكارت منظم بهذا الترتيب بالضبط، كل بند بسطر لحاله:\n"
             "1) '🔹 *النوع:* [...]' وتحته '🔹 *الحالة العامة:* [...]' — استخدمي نفس المصطلحات "
             "المذكورة فوق بالضبط، ممنوع تضيفي اسم مرض أو تشخيص من عندك.\n"
@@ -2317,6 +2324,10 @@ def generate_reply(
         # triage upward -- pulling a doctor out of clinic cannot be undone.
         escalation_category = ADMINISTRATIVE
 
+    needs_human, escalation_category = _suppress_medical_escalation_on_analysed_photo(
+        photo_kind, needs_human, escalation_category
+    )
+
     _store_reply(db, payload.conversation_id, reply)
     if needs_human:
         _escalate(db, payload.conversation_id, escalation_category)
@@ -2329,6 +2340,33 @@ def generate_reply(
     return ReplyResponse(
         reply=reply, needs_human=needs_human, escalation_category=escalation_category, image_url=image_url
     )
+
+
+def _suppress_medical_escalation_on_analysed_photo(
+    photo_kind: str | None, needs_human: bool, escalation_category: str
+) -> tuple[bool, str]:
+    """A photo the vision model classified as "analysis" must not be handed
+    off as a request for medical advice.
+
+    BASE_INSTRUCTIONS tells the model to escalate "a request for a
+    consultation, diagnosis, or real medical opinion" -- and a photo of a
+    rash reads as exactly that, so the model kept escalating instead of
+    producing the analysis card, which is the entire point of the feature.
+    Confirmed live more than once: a photo of an infant's rash, correctly
+    classified by the vision model as "طفح جلدي بسيط", was answered with
+    "this is a medical question, someone from the team will contact you".
+    That also put the conversation into human mode, so the patient's *next*
+    photo got no reply at all.
+
+    The prompt states the exception too, but the model has overridden it
+    repeatedly, so the guarantee lives here. Deliberately narrow: only a
+    "medical" escalation on an analysis photo is dropped. An urgent photo
+    is a different classification entirely and still escalates, and a
+    complaint or a payment dispute raised in the same message keeps its own
+    category -- those are not what this feature replaces."""
+    if photo_kind == "analysis" and needs_human and escalation_category == MEDICAL:
+        return False, escalation_category
+    return needs_human, escalation_category
 
 
 def _has_inbound_since(db: Client, conversation_id: str, since_iso: str) -> bool:
