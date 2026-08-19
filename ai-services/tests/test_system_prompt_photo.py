@@ -172,7 +172,48 @@ def test_no_receipt_hint_when_nothing_was_sent():
 def test_receipt_hint_appears_when_photo_is_not_medical():
     prompt = _prompt(image_without_medical_description=True)
     assert "submit_payment_receipt" in prompt
-    assert "لا تفترضي إنها إيصال دفع من عندك" in prompt
+    assert "ممنوع تخمني إنها إيصال أو حالة طبية" in prompt
+
+
+def test_an_unclear_photo_asks_the_patient_instead_of_guessing():
+    # "none" now means genuinely unidentified -- a receipt has its own
+    # class -- so the fallback here is to ask, not to narrate a guess.
+    prompt = _prompt(image_without_medical_description=True)
+    assert "اسأليه بشكل طبيعي وودّي شو بيحب تشوفي بالصورة" in prompt
+
+
+# --- receipt (its own classification, not a flavour of "none") ---------------
+
+
+def test_a_receipt_photo_goes_straight_to_submit_payment_receipt():
+    prompt = _prompt(photo_kind="receipt")
+    assert "إثبات دفع" in prompt
+    assert "استدعي submit_payment_receipt مباشرة" in prompt
+
+
+def test_a_receipt_photo_never_gets_the_medical_analysis_treatment():
+    # Only the photo block is checked here -- "go to the emergency room"
+    # also appears in the general escalation rules, which every prompt
+    # carries regardless of what was sent.
+    prompt = _prompt(photo_kind="receipt")
+    assert "🔹 *النوع:*" not in prompt
+    assert "هاي صورة تبدو حالة تحتاج عناية طبية عاجلة" not in prompt
+
+
+def test_a_receipt_the_clinic_has_no_pending_payment_for_is_not_called_rejected():
+    # An unmatched receipt means we couldn't find a payment waiting on it,
+    # not that the patient's payment failed -- telling them it was rejected
+    # would be alarming and wrong.
+    prompt = _prompt(photo_kind="receipt")
+    assert "لا تقوليله إن الإيصال انرفض" in prompt
+
+
+def test_the_bot_never_reads_amounts_off_a_receipt_itself():
+    # Amount/reference matching is submit_payment_receipt's job against the
+    # real payment row; a number read off the image by a vision model and
+    # repeated to the patient would read as the clinic confirming it.
+    prompt = _prompt(photo_kind="receipt")
+    assert "ممنوع نهائياً تحاولي تقري مبلغ أو رقم عملية من الصورة" in prompt
 
 
 def test_receipt_hint_is_suppressed_when_photo_is_analysis_even_if_flag_is_set():

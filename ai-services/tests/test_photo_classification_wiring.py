@@ -103,6 +103,18 @@ def test_a_successful_classification_is_returned_with_no_audit_log_entry(_mock):
     assert db.tables["audit_log"].rows == []
 
 
+@patch("app.routers.chat.describe_patient_photo", return_value=("receipt", None, None))
+def test_a_receipt_classification_is_passed_through_as_its_own_kind(_mock):
+    # It carries no description text, so it must not be mistaken for
+    # "nothing came back" -- the kind alone is what routes the turn to
+    # submit_payment_receipt.
+    db = _Db(messages=[_image_message()])
+    text, kind, image_without_medical_description = _photo_description_for_turn(db, "c1", _FALLBACK)
+    assert (text, kind) == (None, "receipt")
+    assert image_without_medical_description is False
+    assert db.tables["audit_log"].rows == []
+
+
 @patch("app.routers.chat.describe_patient_photo", return_value=(None, None, None))
 def test_a_genuine_none_classification_is_a_receipt_candidate_not_a_failure(_mock):
     db = _Db(messages=[_image_message()])

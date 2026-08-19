@@ -64,6 +64,12 @@ BASE_INSTRUCTIONS = (
     "وأسماء الأطباء عندك بالعربي — ترجميها بردك. لو المريض بدّل لغته بنص المحادثة، بدّلي معه.\n"
     "- خلي ردودك قصيرة كأنك عم تكتبي رسالة شات حقيقية، مش إيميل رسمي أو فقرة طويلة. جملة أو جملتين "
     "غالباً كفاية.\n"
+    "- نادي المريض باسمه الأول إذا كان معروف عندك، وإلا خاطبيه بشكل محايد ومهذب. ممنوع الألقاب "
+    "العامية الدارجة متل 'يا فنان' أو 'يا معلم' أو 'يا باشا' أو 'يا قلبي' — إحنا عيادة طبية، "
+    "وهاي بتطلع مستخفة خصوصاً لما يكون المريض قلقان أو موجوع.\n"
+    "- ولا تكرري نفس الجملة الجاهزة بكل رد. لو سبق وقلتِ 'سلامتك ألف سلامة' أو 'تحت أمرك' بردّك "
+    "السابق، غيّري الصياغة — التكرار الحرفي هو أوضح شي بيخلي المريض يحس إنه عم يحكي مع بوت. اقري "
+    "آخر رد لك بالمحادثة قبل ما تكتبي، وتجنّبي تبدأي بنفس الكلمة.\n"
     "- ردودك المنظّمة (مواعيد، خدمات، أطباء، تفاصيل حجز، تحليل صورة) لازم تطلع بشكل *كارت* واضح "
     "ومرتّب — عناوين **بولد**، إيموجي مناسب لكل نوع معلومة، وكل عنصر بسطر لحاله (نقطة '• ' أو رقم "
     "لو كان الترتيب مهم). هيك بتطلع منظمة واحترافية متل تطبيقات الحجز الحديثة، وبتسهّل عالمريض يقرأ "
@@ -71,6 +77,16 @@ BASE_INSTRUCTIONS = (
     "المعلومة كل مرة): 📅 للتاريخ، 🕐 للوقت، 💰 للسعر، 📍 للفرع، 🎫 لرقم الحجز، 👩‍⚕️ للطبيب/ة، "
     "📋 للتفاصيل والملاحظات، ⚠️ للتنبيهات المهمة، ✨ لمسة ودّية بختام رسائل الترحيب أو التأكيد، "
     "🔹 لبنود تحليل الصورة (النوع/الحالة العامة)، 👤 للتوصية بمراجعة مختص.\n"
+    "- ممنوع منعاً باتاً تفسّري نتيجة فاضية من أي أداة بسبب من عندك. لو find_available_slots رجعت بدون "
+    "مواعيد، هاد بيعني حرفياً 'ما في أوقات فاضية بهذا البحث' وبس — ممنوع تقولي إن الخدمة مش متوفرة "
+    "بالفرع، ولا إن الطبيب ما بيعمل هاي الخدمة، ولا إن التخصص مش موجود، إلا إذا الأداة نفسها رجعت لك "
+    "ذلك صراحة (service_not_available_at_branch أو doctor_not_found أو specialty_not_found). سبب "
+    "مخترع بيخلي المريض يروح لعيادة تانية على معلومة غلط. لو ما بتعرفي السبب، قولي ببساطة إنه ما في "
+    "أوقات متاحة بهذا البحث واعرضي عليه يوم تاني أو طبيب تاني.\n"
+    "- ولا تناقضي حالك أبداً: أي وقت أو طبيب أو خدمة عرضتيها برد سابق لازم تضل صحيحة. قبل ما تعرضي "
+    "أوقات لخدمة محددة، مرري اسمها بـ service_name لـ find_available_slots — هيك بتتأكدي من البداية "
+    "إن الأوقات يلي بتعرضيها فعلاً عند طبيب بيعمل هاي الخدمة بهذا الفرع، بدل ما تكتشفي بعدين وتتراجعي "
+    "قدام المريض.\n"
     "- لما المريض يسأل عن **الأوقات المتاحة**، اذكريله **كل الأوقات** اللي رجعت من الأداة، مش عيّنة "
     "منها — موظفة الاستقبال ما بتخبّي مواعيد فاضية عن المريض. رتّبيها بكارت: عنوان بولد لكل تاريخ "
     "مع 📅 (مثلاً '📅 *الإثنين 5 يناير:*')، وتحته كل وقت بسطر لحاله ('• 🕐 09:00 ص'). لو الأوقات "
@@ -436,6 +452,15 @@ TOOLS = [
                         "type": "string",
                         "description": "تخصص أو سبب زيارة ذكره المريض لتضييق البحث، أو نص فاضي.",
                     },
+                    "service_name": {
+                        "type": "string",
+                        "description": (
+                            "اسم الخدمة يلي اختارها المريض (متل ما رجعت من list_services بالضبط) — مرريها "
+                            "دايماً فور ما يحدد خدمة، عشان ما تعرضي عليه أوقات عند طبيب أصلاً ما بيعمل هاي "
+                            "الخدمة. لو الخدمة مش متوفرة بالفرع بترجع service_not_available_at_branch. "
+                            "اتركيها فاضية بس لو المريض لسا ما حدد خدمة."
+                        ),
+                    },
                     "doctor_gender": {
                         "type": "string",
                         "description": "'male' أو 'female' إذا المريض طلب جنس طبيب محدد صراحة، وإلا نص فاضي.",
@@ -464,6 +489,7 @@ TOOLS = [
                 "required": [
                     "doctor_name",
                     "specialty_query",
+                    "service_name",
                     "doctor_gender",
                     "doctor_language",
                     "max_price",
@@ -1130,7 +1156,9 @@ def _photo_description_for_turn(
     description is set — _build_system_prompt uses it to pick between the
     "push toward urgent care" block and the "structured analysis card"
     block, since those need very different handling and must never be
-    conflated.
+    conflated. kind is also "receipt" (with no description) when the photo
+    is proof of payment, which routes straight to submit_payment_receipt
+    instead of either medical block.
 
     image_without_medical_description is only True when vision actually ran
     and *explicitly* classified the photo as not medical/cosmetic at all —
@@ -1308,22 +1336,35 @@ def _build_system_prompt(
             "2) '📋 *الملاحظات:*' وتحتها كل ملاحظة بسطر لحالها ('• [الملاحظة] ([الشدة])' لو كانت "
             "الشدة مذكورة).\n"
             "3) استدعي list_services (بكلمة بحث مرتبطة بالملاحظات، مثلاً 'بشرة' أو 'شعر' أو "
-            "'حروق') وحطي تحت '✨ *خدمات مناسبة لك:*' سطر لكل خدمة حقيقية من نتيجتها (2-3 خدمات) "
-            "— ممنوع نهائياً تقترحي اسم خدمة مش راجع فعلاً من list_services.\n"
+            "'حروق') واختاري من نتيجتها **الخدمة الأنسب** لهاي الحالة تحديداً، وحطيها أول سطر تحت "
+            "'✨ *خدمات مناسبة لك:*' مع كلمة (الأنسب لحالتك) وسعرها، وتحتها خدمة أو اتنين بديلة "
+            "مرتبطة. اربطي اختيارك بالملاحظات يلي فوق بجملة قصيرة (مثلاً 'لأنها بتركّز على آثار "
+            "حب الشباب') — ممنوع نهائياً تقترحي اسم خدمة مش راجع فعلاً من list_services، ولو ما "
+            "رجعت أي خدمة مناسبة قولي بصراحة إنه بيحتاج تقييم بالعيادة يحدد الأنسب.\n"
             "4) '💬 ' وبعدها جملة ودّية شخصية قصيرة تلخّص الوضع بأسلوبك وتشجعه على تقييم دقيق "
             "بالعيادة.\n"
             "5) سطر فاصل ('———')، وتحته سطرين: '⚠️ هذا تحليل أولي استرشادي مش تشخيص طبي دقيق' "
             "و'👤 للتشخيص الدقيق، ننصحك بحجز موعد مع أطبائنا المتخصصين'.\n"
             "اختمي رسالتك بسؤال قصير إذا حاب تحجزيله موعد."
         )
+    elif photo_kind == "receipt":
+        parts.append(
+            "المريض بعت صورة مع رسالته الأخيرة، والصورة إثبات دفع (إيصال أو فاتورة أو سكرين شوت حوالة "
+            "بنكية/محفظة). استدعي submit_payment_receipt مباشرة. لو رجعت submitted=true، أكّديله "
+            "بجملة طبيعية قصيرة إن الإيصال وصل وقيد المراجعة وإنه رح يوصله تأكيد بعد ما يتأكد "
+            "المحاسب. لو رجعت error (يعني ما في دفعة قيد الانتظار مربوطة فيه)، لا تقوليله إن "
+            "الإيصال انرفض — قوليله بلُطف إنك شايفة الإيصال بس ما لقيتِ عليه دفعة مستحقة باسمه، "
+            "واسأليه الإيصال يخص أي حجز أو خدمة. ممنوع نهائياً تحاولي تقري مبلغ أو رقم عملية من "
+            "الصورة وتذكريهم — التحقق من الأرقام شغل المحاسب مش شغلك."
+        )
     elif image_without_medical_description:
         parts.append(
-            "المريض بعت صورة مع رسالته الأخيرة، وما ظهر إنها صورة طبية أو تجميلية — يعني ممكن تكون "
-            "إيصال دفع، أو صورة مش متعلقة بزيارته إطلاقاً. لا تفترضي إنها إيصال دفع من عندك؛ استدعي "
-            "submit_payment_receipt لتتأكدي فعلياً (الأداة بترفض تلقائياً لو ما في دفعة قيد الانتظار "
-            "تستنى إيصال لهذا المريض). لو رجعت submitted=true، قولي له بجملة طبيعية إن الإيصال وصل "
-            "وقيد المراجعة. لو رجعت error، تعاملي مع الصورة كرسالة عادية بدون أي افتراض عن محتواها، "
-            "واسأليه شو قصده منها لو كان غير واضح من كلامه."
+            "المريض بعت صورة مع رسالته الأخيرة، وما ظهر إنها صورة طبية ولا تجميلية ولا إثبات دفع — "
+            "يعني مش واضح شو قصده منها. لا تفترضي محتواها من عندك أبداً. استدعي "
+            "submit_payment_receipt مرة وحدة للاحتياط (الأداة بترفض تلقائياً لو ما في دفعة قيد "
+            "الانتظار تستنى إيصال لهذا المريض) — لو رجعت submitted=true، قولي له بجملة طبيعية إن "
+            "الإيصال وصل وقيد المراجعة. لو رجعت error، اسأليه بشكل طبيعي وودّي شو بيحب تشوفي "
+            "بالصورة أو شو قصده منها، وكمّلي معه عادي — ممنوع تخمني إنها إيصال أو حالة طبية."
         )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
@@ -1498,6 +1539,7 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 ctx["branch_id"],
                 doctor_name=args.get("doctor_name") or None,
                 specialty_query=args.get("specialty_query") or None,
+                service_name=args.get("service_name") or None,
                 doctor_gender=args.get("doctor_gender") or None,
                 doctor_language=args.get("doctor_language") or None,
                 max_price=args.get("max_price") or None,
@@ -2100,6 +2142,34 @@ def generate_reply(
     )
 
 
+def _has_inbound_since(db: Client, conversation_id: str, since_iso: str) -> bool:
+    """Did the patient actually say anything after the handoff started?
+
+    This is what separates a conversation with a real backlog waiting on a
+    reply from one where the patient said their piece, got escalated, and
+    has been silent ever since. Only the first kind has anything for the AI
+    to answer.
+
+    Without this check the reclaim loop re-answers the *same* last message
+    forever: it hands the conversation back to the AI, the AI reads an
+    unchanged history, produces the same reply, escalates again on the same
+    grounds, and the next sweep 20 minutes later repeats it. Confirmed live
+    -- a patient who sent one photo of a burn got the identical "go to the
+    emergency room" message roughly every 25 minutes for six hours, none of
+    it triggered by anything they did."""
+    rows = (
+        db.table("messages")
+        .select("id")
+        .eq("conversation_id", conversation_id)
+        .eq("direction", "inbound")
+        .gt("created_at", since_iso)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return bool(rows)
+
+
 @router.post("/reclaim-stale", dependencies=[Depends(require_service_token)])
 def reclaim_stale_conversations(
     db: Client = Depends(get_supabase),
@@ -2140,6 +2210,13 @@ def reclaim_stale_conversations(
         if now - last < timedelta(minutes=timeout_minutes):
             continue
         if not ch_settings.get("ai_enabled", True):
+            continue
+        # Nothing new from the patient since the handoff means there is no
+        # backlog to answer -- only the same message the AI already replied
+        # to and escalated on. Reclaiming here produces a duplicate reply and
+        # a fresh escalation, which this sweep then finds again next run (see
+        # _has_inbound_since). Leave it with staff instead.
+        if not _has_inbound_since(db, row["id"], stale_since):
             continue
 
         db.table("conversations").update(

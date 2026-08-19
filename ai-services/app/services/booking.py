@@ -380,6 +380,47 @@ def _resolve_specialty_doctor_ids(db: Client, branch_id: str, specialty_query: s
     return matched
 
 
+def _resolve_service_doctor_ids(db: Client, branch_id: str, service_query: str) -> set[str] | None:
+    """Doctors at this branch who actually perform the service the patient
+    named -- the same service_doctors/staff_branches path list_services uses
+    to decide whether a service is offered at a branch at all, so the two
+    can't disagree about it.
+
+    Slots themselves carry no service (see _resolve_service_id: they're
+    generated from doctor_availability, which has no notion of one), so
+    without this the slot search is blind to what the patient came for and
+    will happily offer times with a doctor who doesn't do it. Confirmed
+    live: a patient chose teeth cleaning at the Zarqa branch, was offered
+    9:00/9:30/10:00 with two doctors, and after picking 9:00 was told first
+    that the doctor had nothing then that the service "isn't available at
+    Zarqa" -- while Zarqa's Dr. Alaa Ghoneim was linked to that exact
+    service the whole time.
+
+    Returns None when no service was named (no filtering), or the set of
+    matching doctor ids -- empty if this branch genuinely has nobody for it.
+    """
+    query = (service_query or "").strip()
+    if not query:
+        return None
+    branch_staff_ids = {
+        row["staff_id"]
+        for row in db.table("staff_branches").select("staff_id").eq("branch_id", branch_id).execute().data
+    }
+    if not branch_staff_ids:
+        return set()
+    services = db.table("services").select("id, name").eq("is_active", True).is_("deleted_at", "null").execute().data
+    matched_service_ids = {s["id"] for s in services if fuzzy_contains(s["name"], query)}
+    if not matched_service_ids:
+        return set()
+    links = db.table("service_doctors").select("service_id, staff_id").execute().data
+    providers = {link["staff_id"] for link in links if link["service_id"] in matched_service_ids}
+    # A service nobody is linked to is clinic-wide -- list_services treats it
+    # the same way, so it must not read as "unavailable" here either.
+    if not providers:
+        return None
+    return providers & branch_staff_ids
+
+
 _ARABIC_WEEKDAYS_SHORT = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
 
 
@@ -422,6 +463,7 @@ def search_available_slots(
     *,
     doctor_name: str | None = None,
     specialty_query: str | None = None,
+    service_name: str | None = None,
     doctor_gender: str | None = None,
     doctor_language: str | None = None,
     max_price: float | None = None,
@@ -456,6 +498,29 @@ def search_available_slots(
             "error": f"ما في طبيب بتخصص '{specialty_query}' بهذا الفرع — قولي للمريض إن هذا التخصص مش "
             "متوفر عنا (لا تقولي إنه ما في مواعيد)، واعرضي التخصصات الموجودة عبر find_doctors.",
         }
+
+    service_doctor_ids = _resolve_service_doctor_ids(db, branch_id, service_name) if service_name else None
+    if service_doctor_ids is not None and not service_doctor_ids:
+        return {
+            "slots": [],
+            "alternative_doctors": [],
+            "service_not_available_at_branch": True,
+            "error": f"خدمة '{service_name}' ما في حدا بيعملها بهذا الفرع — قولي للمريض إن الخدمة مش "
+            "متوفرة بهذا الفرع تحديداً (لا تقولي إنه ما في مواعيد)، واعرضي عليه إما فرع تاني عبر "
+            "list_branches أو الخدمات المتوفرة بهذا الفرع عبر list_services.",
+        }
+    if service_doctor_ids is not None:
+        specialty_doctor_ids = (
+            service_doctor_ids if specialty_doctor_ids is None else specialty_doctor_ids & service_doctor_ids
+        )
+        if not specialty_doctor_ids:
+            return {
+                "slots": [],
+                "alternative_doctors": [],
+                "specialty_not_found": True,
+                "error": f"ما في طبيب بهذا الفرع بيجمع بين تخصص '{specialty_query}' وخدمة '{service_name}' "
+                "— اسألي المريض يختار وحدة منهم بدل ما تقولي إنه ما في مواعيد.",
+            }
 
     branch_rows = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
     tz = ZoneInfo((branch_rows[0].get("timezone") if branch_rows else None) or "Asia/Amman")
