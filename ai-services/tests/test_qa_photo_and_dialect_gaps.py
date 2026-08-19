@@ -240,3 +240,63 @@ def test_a_configured_dialect_is_restated_after_every_other_instruction():
 def test_no_dialect_configured_adds_no_reminder():
     prompt = _analysis_prompt(_PromptDb(_TWO_BRANCHES), branch_selected=True)
     assert "تذكير أخير وأهم من كل يلي فوق بخصوص اللهجة" not in prompt
+
+
+# --- a new photo must never be answered with an older photo's analysis ------
+
+
+def _photo_prompt(kind="analysis", description="النوع: طفح جلدي بسيط", unclear=False):
+    return _build_system_prompt(
+        _PromptDb(_TWO_BRANCHES),
+        "b1",
+        {},
+        patient_id=None,
+        photo_description=description if kind else None,
+        branch_selected_explicitly=True,
+        image_without_medical_description=unclear,
+        photo_kind=kind,
+    )
+
+
+def test_the_prompt_says_the_analysis_belongs_to_the_newest_photo():
+    # Live: a hand-rash photo was answered with "the same notes as before
+    # about your teeth". The vision model had classified it correctly as
+    # "طفح جلدي بسيط" -- the reply simply reached for an older analysis
+    # sitting in the history notes.
+    prompt = _photo_prompt()
+    assert "يخص **آخر صورة بعتها المريض للتو" in prompt
+    assert "ولا تقولي 'نفس الملاحظات السابقة'" in prompt
+
+
+def test_older_photo_notes_are_named_so_they_can_be_told_apart():
+    # The guard has to point at the exact marker the notes carry, otherwise
+    # the model has no way to recognise which lines are historical.
+    prompt = _photo_prompt()
+    assert _PHOTO_CONTEXT_MARKER.strip("[ —") in prompt
+
+
+def test_the_newest_photo_guard_covers_every_photo_outcome():
+    for kind, unclear in (("analysis", False), ("urgent", False), ("receipt", False), (None, True)):
+        prompt = _photo_prompt(kind=kind, unclear=unclear)
+        assert "تنبيه حاسم قبل أي شي يخص الصور" in prompt, kind
+
+
+def test_no_photo_this_turn_adds_no_newest_photo_guard():
+    prompt = _photo_prompt(kind=None, unclear=False)
+    assert "تنبيه حاسم قبل أي شي يخص الصور" not in prompt
+
+
+def test_the_receipt_guess_is_never_spoken_to_the_patient():
+    # Live: a patient sent a photo of a rash on their hand and was told
+    # "this might be a payment receipt" -- which reads as the bot not having
+    # looked at the photo at all.
+    prompt = _photo_prompt(kind=None, unclear=True)
+    assert "ممنوع منعاً باتاً تقولي للمريض إن صورته" in prompt
+    assert "إلا إذا submit_payment_receipt رجعت submitted=true" in prompt
+
+
+def test_a_stored_note_is_worded_as_a_past_photo():
+    # It is only ever read back on a later turn (history is loaded before the
+    # classification runs), so calling it "previous" is both accurate and
+    # what stops it being mistaken for the photo being answered right now.
+    assert "سابقة" in _PHOTO_CONTEXT_MARKER
