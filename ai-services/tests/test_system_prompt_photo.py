@@ -226,7 +226,10 @@ def test_receipt_hint_is_suppressed_when_photo_is_analysis_even_if_flag_is_set()
         photo_kind="analysis",
         image_without_medical_description=True,
     )
-    assert "submit_payment_receipt" not in prompt
+    # The receipt-handling block (which instructs *calling* the tool) must
+    # not appear; a separate line forbidding the tool by name is expected
+    # and is not the same thing -- see test_analysis_and_urgent_forbid_the_receipt_tool.
+    assert "استدعي submit_payment_receipt مباشرة" not in prompt
 
 
 def test_receipt_hint_is_suppressed_when_photo_is_urgent_even_if_flag_is_set():
@@ -235,4 +238,4 @@ def test_receipt_hint_is_suppressed_when_photo_is_urgent_even_if_flag_is_set():
         photo_kind="urgent",
         image_without_medical_description=True,
     )
-    assert "submit_payment_receipt" not in prompt
+    assert "استدعي submit_payment_receipt مباشرة" not in prompt
