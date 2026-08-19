@@ -790,6 +790,15 @@ REPLY_SCHEMA = {
 class ReplyRequest(BaseModel):
     conversation_id: str
     message: str
+    # The exact media this turn's inbound Telegram/WhatsApp message carried,
+    # if any -- sourced straight from n8n's own copy of the update, not
+    # re-derived here. Lets this turn's photo/voice lookups resolve one
+    # specific row instead of "whichever is newest in the conversation right
+    # now", which two messages sent within the ~8-10s a vision call takes
+    # would otherwise race (see _latest_inbound_image_message). Optional so
+    # older callers/a text-only message still work.
+    media_url: str | None = None
+    media_type: str | None = None
 
 
 # Mirrors backend/app/services/escalation.py -- the two apps are deployed
@@ -1155,20 +1164,38 @@ def _latest_inbound_image_url(db: Client, conversation_id: str) -> str | None:
     return rows[0].get("media_url") or None
 
 
-def _latest_inbound_image_message(db: Client, conversation_id: str) -> dict | None:
+def _latest_inbound_image_message(
+    db: Client, conversation_id: str, expected_media_url: str | None = None
+) -> dict | None:
     """Like _latest_inbound_image_url, but also carries the message's own id
     — needed so a vision-call failure can be logged to audit_log against
-    the right row (see _photo_description_for_turn)."""
-    rows = (
+    the right row (see _photo_description_for_turn).
+
+    When expected_media_url is given, resolves that exact row instead of
+    whichever image is newest at query time. Without it, two photos sent
+    within the ~8-10s a vision call takes race: n8n gives each inbound
+    Telegram message its own concurrent execution, so the /chat/reply call
+    handling the *first* photo can end up querying "latest inbound image"
+    after the *second* photo has already been inserted by the other,
+    still-running call -- and answers the wrong one. Confirmed live twice:
+    a teeth photo was answered with a hand-rash analysis, and separately a
+    second photo in a burst got a generic "you sent several photos" with no
+    analysis at all. n8n now passes the media_url straight from the
+    Telegram update it received (see ReplyRequest), so each call can look
+    up the specific row its own payload is about, independent of how many
+    other calls are in flight or how their timing interleaves. Left
+    optional because reclaim_stale_conversations has no live payload to
+    give one -- it processes one conversation at a time on a schedule, so
+    the race this guards against does not apply there."""
+    query = (
         db.table("messages")
         .select("id, content, media_url, media_type")
         .eq("conversation_id", conversation_id)
         .eq("direction", "inbound")
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-        .data
     )
+    if expected_media_url:
+        query = query.eq("media_url", expected_media_url)
+    rows = query.order("created_at", desc=True).limit(1).execute().data
     if not rows or rows[0].get("media_type") != "image":
         return None
     return rows[0]
@@ -1202,7 +1229,9 @@ def _remember_photo_context(db: Client, image_row: dict, note: str) -> None:
         logger.exception("failed to persist photo context for message %s", image_row.get("id"))
 
 
-def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | None:
+def _latest_inbound_voice_message(
+    db: Client, conversation_id: str, expected_media_url: str | None = None
+) -> dict | None:
     """This conversation's most recent inbound message, if it's an
     untranscribed voice note. "Untranscribed" is the key check, not just
     "is a voice note": once transcribe_voice_note_for_turn writes the
@@ -1215,17 +1244,21 @@ def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | No
     image/document/audio/video, and n8n's voice branch sets it to "audio"
     to match. Confirmed live: the first version of this used "voice" and
     every voice note failed outright at the database insert
-    (messages_media_type_check violation), before ai-services ever saw it."""
-    rows = (
+    (messages_media_type_check violation), before ai-services ever saw it.
+
+    expected_media_url pins this to one exact row instead of "whichever is
+    newest right now" -- the same race two quick photos hit (see
+    _latest_inbound_image_message), possible here too if a patient sends
+    voice notes back to back."""
+    query = (
         db.table("messages")
         .select("id, content, media_url, media_type")
         .eq("conversation_id", conversation_id)
         .eq("direction", "inbound")
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-        .data
     )
+    if expected_media_url:
+        query = query.eq("media_url", expected_media_url)
+    rows = query.order("created_at", desc=True).limit(1).execute().data
     if not rows:
         return None
     row = rows[0]
@@ -1237,7 +1270,10 @@ def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | No
 
 
 def _transcribe_voice_note_for_turn(
-    db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
+    db: Client,
+    conversation_id: str,
+    fallback: tuple[OpenAI, str] | None,
+    expected_media_url: str | None = None,
 ) -> tuple[str | None, bool]:
     """Transcribes this turn's inbound voice note, if there is one still
     waiting on a transcript, and writes the result into the message's own
@@ -1266,7 +1302,7 @@ def _transcribe_voice_note_for_turn(
     version of this only logged failures to Python's own logger, which
     isn't queryable from here, so a real failure and Gemini genuinely
     hearing nothing looked identical after the fact."""
-    voice_row = _latest_inbound_voice_message(db, conversation_id)
+    voice_row = _latest_inbound_voice_message(db, conversation_id, expected_media_url)
     if not voice_row:
         return None, False
     if not fallback:
@@ -1292,7 +1328,10 @@ def _transcribe_voice_note_for_turn(
 
 
 def _photo_description_for_turn(
-    db: Client, conversation_id: str, fallback: tuple[OpenAI, str] | None
+    db: Client,
+    conversation_id: str,
+    fallback: tuple[OpenAI, str] | None,
+    expected_media_url: str | None = None,
 ) -> tuple[str | None, str | None, bool]:
     """Gemini-only by design: the vision analysis rides on whichever key is
     already configured as the text fallback, rather than needing a second
@@ -1326,7 +1365,7 @@ def _photo_description_for_turn(
     audit_log with the real reason, instead of silently picking the wrong
     of two very different outcomes. Also left at defaults whenever there's
     no image, or no way to classify one (no Gemini configured)."""
-    image_row = _latest_inbound_image_message(db, conversation_id)
+    image_row = _latest_inbound_image_message(db, conversation_id, expected_media_url)
     if not image_row or not fallback:
         return None, None, False
     vision_client, vision_model = fallback
@@ -2264,7 +2303,9 @@ def generate_reply(
         _escalate(db, payload.conversation_id)
         return ReplyResponse(reply="", needs_human=True, skipped=True)
 
-    transcript, had_voice_note = _transcribe_voice_note_for_turn(db, payload.conversation_id, fallback)
+    transcript, had_voice_note = _transcribe_voice_note_for_turn(
+        db, payload.conversation_id, fallback, payload.media_url
+    )
     if had_voice_note and not transcript:
         # Whisper genuinely failed on this one (bad download, transient
         # provider error) -- answering as if the patient sent nothing would
@@ -2288,7 +2329,7 @@ def generate_reply(
 
     history = _load_history(db, payload.conversation_id)
     photo_description, photo_kind, image_without_medical_description = _photo_description_for_turn(
-        db, payload.conversation_id, fallback
+        db, payload.conversation_id, fallback, payload.media_url
     )
     system_prompt = _build_system_prompt(
         db,
