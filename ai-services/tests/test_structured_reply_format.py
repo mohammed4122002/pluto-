@@ -43,3 +43,29 @@ def test_available_times_are_still_shown_in_full_just_now_as_a_card():
 def test_booking_confirmation_uses_the_details_card_format():
     assert "تفاصيل موعدك" in BASE_INSTRUCTIONS
     assert "🎫 رقم الحجز" in BASE_INSTRUCTIONS
+
+
+def test_slangy_nicknames_are_banned():
+    # Live: the bot opened an emergency reply to a patient who had just sent
+    # a photo of a burned hand with "يا فنان" -- street-slang address that
+    # reads as flippant exactly when the patient is most worried.
+    from app.routers.chat import BASE_INSTRUCTIONS
+
+    assert "يا فنان" in BASE_INSTRUCTIONS
+    assert "ممنوع الألقاب" in BASE_INSTRUCTIONS
+
+
+def test_verbatim_repetition_across_turns_is_called_out():
+    # The single clearest bot-tell, and the thing patients notice first.
+    from app.routers.chat import BASE_INSTRUCTIONS
+
+    assert "ولا تكرري نفس الجملة الجاهزة بكل رد" in BASE_INSTRUCTIONS
+
+
+def test_empty_tool_results_may_not_be_explained_away():
+    # Live: an empty slot search became "this service isn't available at
+    # the Zarqa branch" -- which was false, and sent the patient elsewhere.
+    from app.routers.chat import BASE_INSTRUCTIONS
+
+    assert "ممنوع منعاً باتاً تفسّري نتيجة فاضية من أي أداة بسبب من عندك" in BASE_INSTRUCTIONS
+    assert "service_not_available_at_branch" in BASE_INSTRUCTIONS

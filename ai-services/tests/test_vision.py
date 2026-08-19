@@ -102,6 +102,32 @@ def test_none_response_means_not_a_relevant_photo_not_a_failure(mock_get, mock_p
 
 @patch("app.services.vision.httpx.post")
 @patch("app.services.vision.httpx.get")
+def test_a_receipt_is_its_own_classification_not_a_none(mock_get, mock_post):
+    # Receipts and unidentifiable photos need opposite handling downstream
+    # (submit the receipt vs. ask the patient what they sent), so they must
+    # not collapse into the same answer the way they used to.
+    mock_get.return_value = _fake_get_response()
+    mock_post.return_value = _fake_gemini_response(text="RECEIPT")
+    kind, text, failure_reason = describe_patient_photo("api-key", "m", "https://example.test/receipt.jpg")
+    assert kind == "receipt"
+    assert text is None
+    assert failure_reason is None
+
+
+@patch("app.services.vision.httpx.post")
+@patch("app.services.vision.httpx.get")
+def test_the_prompt_makes_body_vs_no_body_the_first_decision(mock_get, mock_post):
+    # Pins the rule that keeps the two apart in both directions: a photo of
+    # a body part is never a receipt, and a page of numbers is never a skin
+    # condition.
+    from app.services.vision import _VISION_SYSTEM_PROMPT
+
+    assert "في بالصورة جزء من جسم إنسان أو لأ؟" in _VISION_SYSTEM_PROMPT
+    assert "RECEIPT" in _VISION_SYSTEM_PROMPT
+
+
+@patch("app.services.vision.httpx.post")
+@patch("app.services.vision.httpx.get")
 def test_none_response_is_case_and_punctuation_insensitive(mock_get, mock_post):
     mock_get.return_value = _fake_get_response()
     for raw in ["None", "none", "NONE.", "none، "]:

@@ -47,7 +47,7 @@ _GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models
 _VISION_SYSTEM_PROMPT = (
     "إنتِ تحلّلين صورة أرسلها مريض لعيادة، لمساعدة مساعدة حجز آلية تقترح عليه أنسب خدمة وتشجعه يحجز — "
     "مش تشخيص طبي نهائي أو رأي طبيب بأي شكل من الأشكال.\n\n"
-    "أول كلمة بردّك، بالضبط، لازم تكون وحدة من هاي الثلاث (بحروف إنجليزية كبيرة، بدون أي شي قبلها)، "
+    "أول كلمة بردّك، بالضبط، لازم تكون وحدة من هاي الأربع (بحروف إنجليزية كبيرة، بدون أي شي قبلها)، "
     "وبعدها سطر جديد فيه التفاصيل:\n\n"
     "URGENT — لو الصورة تبيّن شي بيحتاج عناية طبية عاجلة فعلاً: حرق كبير أو عميق المظهر، نزيف واضح، "
     "تشوّه أو انتفاخ شديد ومقلق، جرح يبدو ملتهب أو متقيّح بشكل واضح. بعدها اكتبي وصف شكلي محايد بجملة "
@@ -67,14 +67,22 @@ _VISION_SYSTEM_PROMPT = (
     "(إكزيما، صدفية، فطريات، التهاب بكتيري...) أو درجة حرق طبية رسمية (درجة أولى/تانية/تالتة) أو أي "
     "كلام يوحي بتشخيص فعلي. هاي ملاحظات شكلية تقريبية بس، مش تشخيص — ولو في أي شك إنه المستوى أخطر من "
     "'متوسطة'، صنّفيها URGENT بدل هيك.\n\n"
-    "NONE — لو الصورة مو طبية ولا تجميلية إطلاقاً (إيصال دفع، صورة شخصية عادية بدون أي شي ظاهر يستدعي "
-    "تحليل، صورة غير واضحة). بعدها ما تكتبي شي إضافي.\n\n"
+    "RECEIPT — لو الصورة إثبات دفع: إيصال أو فاتورة، سكرين شوت من تطبيق بنك أو محفظة إلكترونية "
+    "(كليك/زين كاش/أوركاش...)، إشعار حوالة، أو صورة بوصة كاشير. العلامات: مبلغ ورقم مرجعي/عملية، "
+    "تاريخ ووقت، اسم بنك أو محفظة أو متجر، كلمات متل 'تم التحويل' أو 'ناجحة' أو 'المبلغ'. بعدها ما "
+    "تكتبي شي إضافي.\n\n"
+    "NONE — لو الصورة مو طبية ولا تجميلية ولا إثبات دفع إطلاقاً (صورة شخصية عادية بدون أي شي ظاهر "
+    "يستدعي تحليل، منتج، مستند مش واضح، صورة غير واضحة). بعدها ما تكتبي شي إضافي.\n\n"
     "مهم: لو الصورة فيها أي جزء من جسم إنسان (يد، وجه، جلد، شعر...) وعليه أي شي غير طبيعي ظاهر بالعين "
     "(احمرار، تورم، تغيّر لون، تقشّر، طفح، جرح، بقعة غريبة...) — حتى لو بسيط، حتى لو مو متأكدة شو "
     "بالضبط، حتى لو الصورة شكلها احترافية أو product photography — صنّفيها ANALYSIS أو URGENT حسب "
     "شدتها، ولا تصنّفيها NONE أبداً. NONE محجوزة بس للصور اللي فعلاً ما فيها أي جزء جسم غير طبيعي "
-    "الشكل (إيصال، سيلفي عادي، منتج، مستند...). الخطأ الأخطر هون إنك تفوّتي صورة فيها إصابة أو مشكلة "
-    "حقيقية وتصنّفيها NONE — مش إنك تحللي صورة سليمة بالغلط."
+    "الشكل ولا هي إثبات دفع (سيلفي عادي، منتج، مستند...). الخطأ الأخطر هون إنك تفوّتي صورة فيها إصابة "
+    "أو مشكلة حقيقية وتصنّفيها NONE — مش إنك تحللي صورة سليمة بالغلط.\n\n"
+    "وبنفس الوقت، ممنوع تخلطي بين الاتنين بالاتجاه التاني: صورة فيها ورق أو شاشة فيها أرقام ومبالغ "
+    "وما فيها ولا جزء من جسم إنسان هي RECEIPT (أو NONE لو مش واضحة إنها دفع)، وممنوع تحلليها كأنها "
+    "حالة جلدية. القرار الأول اللي لازم تاخديه: في بالصورة جزء من جسم إنسان أو لأ؟ إذا في → URGENT "
+    "أو ANALYSIS. إذا ما في → RECEIPT أو NONE."
 )
 
 
@@ -89,9 +97,14 @@ def describe_patient_photo(api_key: str, model: str, image_url: str) -> tuple[st
     Returns (kind, text, failure_reason).
 
     - ("urgent" | "analysis", text, None) on a successful classification.
+    - ("receipt", None, None) when it's proof of payment (a receipt, an
+      invoice, a bank/wallet transfer screenshot). Its own class rather
+      than a flavour of "none": the two need opposite handling — a receipt
+      goes straight to submit_payment_receipt, while "none" means we don't
+      know what the patient sent and have to ask.
     - (None, None, None) when Gemini explicitly classified the photo as
-      "none" (a payment receipt, an unrelated selfie, an unclear photo) --
-      a real, positive classification, not a failure.
+      "none" (an unrelated selfie, a product, an unclear photo) -- a real,
+      positive classification, not a failure.
     - (None, None, failure_reason) when the call itself failed (download
       error, provider error, an empty response) — kept distinguishable
       from a genuine "none" classification on purpose, so a failure reads
@@ -145,6 +158,11 @@ def describe_patient_photo(api_key: str, model: str, image_url: str) -> tuple[st
 
     if marker == "NONE":
         return None, None, None
+    if marker == "RECEIPT":
+        # No body text: the receipt's own contents are matched against the
+        # pending payment by submit_payment_receipt, not by anything the
+        # vision model reads off it.
+        return "receipt", None, None
     if marker == "URGENT":
         return "urgent", body or text, None
     if marker == "ANALYSIS":
