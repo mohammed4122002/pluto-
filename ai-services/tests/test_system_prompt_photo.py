@@ -172,7 +172,7 @@ def test_no_receipt_hint_when_nothing_was_sent():
 def test_receipt_hint_appears_when_photo_is_not_medical():
     prompt = _prompt(image_without_medical_description=True)
     assert "submit_payment_receipt" in prompt
-    assert "ممنوع تخمني إنها إيصال أو حالة طبية" in prompt
+    assert "ممنوع منعاً باتاً تقولي للمريض إن صورته" in prompt
 
 
 def test_an_unclear_photo_asks_the_patient_instead_of_guessing():

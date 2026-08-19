@@ -1049,7 +1049,18 @@ _MEDIA_PLACEHOLDER = {"image": "[صورة]", "audio": "[رسالة صوتية]"}
 
 # Prefix of the note _remember_photo_context leaves on an image message, so a
 # re-run recognises its own earlier note instead of stacking another copy.
-_PHOTO_CONTEXT_MARKER = "[صورة أرسلها المريض —"
+#
+# Worded as an *older* photo on purpose. The note is written after this turn's
+# history has already been loaded, so it can only ever be read back on a later
+# turn -- by which point the photo it describes really is a previous one. The
+# first wording ("صورة أرسلها المريض") didn't say that, and once a patient had
+# sent a second photo the model started answering about the wrong one:
+# confirmed live, a photo of a hand rash was answered with "the same notes as
+# before about your teeth", and a third photo got "this might be a payment
+# receipt" -- while the vision model had in fact classified all three
+# correctly. The failure was never in the classification, only in which
+# analysis the reply reached for.
+_PHOTO_CONTEXT_MARKER = "[صورة سابقة بالمحادثة —"
 
 
 def _load_history(db: Client, conversation_id: str) -> list[dict]:
@@ -1432,6 +1443,21 @@ def _build_system_prompt(
                 "ناقص عمره كمان، اسأليه عنه بنفس الرسالة أو بعدها بشكل طبيعي (مش شرط للحجز)."
             )
 
+    # Which photo the block below is about. Without this the model reached for
+    # whichever analysis it saw first in the history notes: live, a hand-rash
+    # photo was answered with "the same notes as before about your teeth", and
+    # the next one with "this might be a payment receipt" -- both while the
+    # correct fresh analysis sat right here in the prompt.
+    if photo_kind or image_without_medical_description:
+        parts.append(
+            "تنبيه حاسم قبل أي شي يخص الصور: التحليل المذكور تحت يخص **آخر صورة بعتها المريض للتو "
+            "بهذه الرسالة**، ولا شي غيرها. لو شفتِ بسجل المحادثة ملاحظات عن صور سابقة (بتبلّش بـ "
+            "'[صورة سابقة بالمحادثة'), هاي **صور قديمة خلصت** — ممنوع منعاً باتاً تستخدمي تحليلها "
+            "للصورة الجديدة، ولا تقولي 'نفس الملاحظات السابقة'، ولا تخلطي بين موضوعين مختلفين (مثلاً "
+            "صورة أسنان قديمة وصورة جلد جديدة). كل صورة جديدة بتاخد ردّها الكامل من التحليل المذكور "
+            "تحت لحالها، حتى لو المريض بعت عشر صور قبلها."
+        )
+
     if photo_description and photo_kind == "urgent":
         parts.append(
             f"المريض بعت صورة مع رسالته الأخيرة، ووصفها المرئي (وصف شكلي محايد، مش تشخيص طبي): "
@@ -1500,7 +1526,11 @@ def _build_system_prompt(
             "submit_payment_receipt مرة وحدة للاحتياط (الأداة بترفض تلقائياً لو ما في دفعة قيد "
             "الانتظار تستنى إيصال لهذا المريض) — لو رجعت submitted=true، قولي له بجملة طبيعية إن "
             "الإيصال وصل وقيد المراجعة. لو رجعت error، اسأليه بشكل طبيعي وودّي شو بيحب تشوفي "
-            "بالصورة أو شو قصده منها، وكمّلي معه عادي — ممنوع تخمني إنها إيصال أو حالة طبية."
+            "بالصورة أو شو قصده منها، وكمّلي معه عادي.\n"
+            "مهم جداً: هذا الفحص داخلي بالكامل. ممنوع منعاً باتاً تقولي للمريض إن صورته 'ممكن تكون "
+            "إيصال دفع' أو تذكري كلمة إيصال أصلاً إلا إذا submit_payment_receipt رجعت submitted=true. "
+            "المريض اللي بعت صورة جرح أو طفح وسمع 'دي ممكن تكون صورة إيصال' بيحس إنك ما شفتِ صورته "
+            "إطلاقاً. لو ما بتعرفي شو بالصورة، اسأليه بجملة بسيطة وبس."
         )
 
     clinic_name = settings_row[0]["clinic_name"] if settings_row else ""
