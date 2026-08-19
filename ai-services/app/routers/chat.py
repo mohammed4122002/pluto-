@@ -1521,6 +1521,13 @@ def _build_system_prompt(
             "صورة أسنان قديمة وصورة جلد جديدة). كل صورة جديدة بتاخد ردّها الكامل من التحليل المذكور "
             "تحت لحالها، حتى لو المريض بعت عشر صور قبلها."
         )
+    if photo_kind in ("urgent", "analysis"):
+        parts.append(
+            "هاي الصورة **مصنّفة طبياً/تجميلياً**، مش إيصال دفع — ممنوع نهائياً تستدعي "
+            "submit_payment_receipt أو تذكري كلمة 'إيصال' أو 'دفعة' بردّك على هالصورة، حتى لو في "
+            "شكوى أو نزاع دفع سابق بنفس المحادثة. هذا الرد يخص الصورة وبس — أي موضوع سابق (شكوى، "
+            "دفعة، حجز) خلّيه لحاله، لا تخلطيه بتحليل الصورة."
+        )
 
     if photo_description and photo_kind == "urgent":
         parts.append(
@@ -1682,18 +1689,34 @@ def _build_system_prompt(
     return "\n\n".join(parts)
 
 
-def _select_tools(ch_settings: dict) -> list[dict]:
+def _select_tools(ch_settings: dict, photo_kind: str | None = None) -> list[dict]:
     mode = ch_settings.get("ai_mode", "full_booking")
     if mode == "greeting_only":
-        return []
-    if mode == "inquiry_only":
-        return [
+        tools = []
+    elif mode == "inquiry_only":
+        tools = [
             t
             for t in TOOLS
             if t["function"]["name"]
             not in ("book_appointment", "cancel_appointment", "save_contact_info", "apply_coupon_code")
         ]
-    return TOOLS
+    else:
+        tools = list(TOOLS)
+
+    # A photo this turn already classified as medical (analysis/urgent) must
+    # never be treated as a receipt -- not just discouraged by the prompt,
+    # removed as a possibility. Confirmed live: a baby's rash photo, stored
+    # correctly as "analysis" with its own text, still got a reply about an
+    # unmatched payment receipt ("معلش الإيصال اللي بعتته مش مرتبط بدفعة") --
+    # the model called submit_payment_receipt on its own initiative, most
+    # likely anchored on an unrelated administrative complaint earlier in
+    # the same conversation, and answered from that tool's result instead of
+    # the analysis-card instructions actually written for this branch. The
+    # instruction not to do this already exists in the receipt block of the
+    # prompt; it does nothing for a turn that never reaches that block.
+    if photo_kind in ("analysis", "urgent"):
+        tools = [t for t in tools if t["function"]["name"] != "submit_payment_receipt"]
+    return tools
 
 
 # Only two tools ever hand the model a real booking number: book_appointment
@@ -2354,7 +2377,7 @@ def generate_reply(
             for m in history
         ),
     }
-    tools = _select_tools(ch_settings)
+    tools = _select_tools(ch_settings, photo_kind)
 
     try:
         try:
@@ -2594,7 +2617,7 @@ def reclaim_stale_conversations(
                     for m in history
                 ),
             }
-            tools = _select_tools(ch_settings)
+            tools = _select_tools(ch_settings, photo_kind)
 
             reply, needs_human, escalation_category = _run_conversation_turn(client, system_prompt, history, tools, db, ctx, fallback)
             _store_reply(db, row["id"], reply)
