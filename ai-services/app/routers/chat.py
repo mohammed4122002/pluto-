@@ -956,6 +956,90 @@ def _count_ai_turns(db: Client, conversation_id: str, since: str) -> int:
     return result.count or 0
 
 
+# A patient coming back after this long is starting a new conversation, not
+# continuing the old one, so the "this round is going nowhere" turn counter
+# starts over for them.
+_NEW_SESSION_GAP_MINUTES = 45
+
+
+def _escalation_keyword_hit(message: str, keywords: list[str]) -> bool:
+    """Whether the patient's message trips one of the channel's configured
+    escalation keywords.
+
+    Matched on a trailing word boundary rather than as a bare substring: a
+    plain `in` test fires on a keyword buried inside an unrelated word, and
+    every one of those is a patient pulled out of a working conversation and
+    parked in a staff queue for no reason. A leading boundary is deliberately
+    *not* required, because Arabic glues its article and conjunctions onto
+    the front of a word ("الشكوى", "وشكوى") and those must still match
+    "شكوى".
+
+    Single- and two-character keywords are ignored outright: they are almost
+    always a misconfiguration, and at that length a coincidental match is
+    near-certain in any real sentence."""
+    text = (message or "").lower()
+    if not text:
+        return False
+    for keyword in keywords:
+        cleaned = (keyword or "").strip().lower()
+        if len(cleaned) < 3:
+            continue
+        if re.search(rf"{re.escape(cleaned)}(?!\w)", text):
+            return True
+    return False
+
+
+def _reset_ai_episode(db: Client, conversation_id: str, when: datetime | None = None) -> str:
+    """Restarts the AI turn counter, and returns the new episode start.
+
+    max_ai_turns_before_human exists to catch a round that is going nowhere
+    and hand it to a human. But the counter only ever restarted on a
+    hand-off being reclaimed, never on the AI doing its job -- so once a
+    conversation had used up its budget, *every* later message tripped the
+    cap forever, and the only way back to a working bot was to be escalated
+    and then abandoned for the 20-minute timeout. Confirmed live: a patient
+    who wrote nothing but "اهلا" got "someone from our team will contact
+    you", as did patients answering "8" and "4"."""
+    started_at = (when or datetime.now(timezone.utc)).isoformat()
+    try:
+        db.table("conversations").update({"ai_episode_started_at": started_at}).eq("id", conversation_id).execute()
+    except Exception:
+        logger.exception("failed to reset ai episode for conversation %s", conversation_id)
+    return started_at
+
+
+def _previous_message_at(db: Client, conversation_id: str) -> datetime | None:
+    """When this conversation was last active, *before* the message being
+    answered right now (n8n records the inbound message before calling
+    /chat/reply, so the newest row is always the current one)."""
+    rows = (
+        db.table("messages")
+        .select("created_at")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .limit(2)
+        .execute()
+        .data
+    )
+    if len(rows) < 2:
+        return None
+    try:
+        return datetime.fromisoformat(rows[1]["created_at"].replace("Z", "+00:00"))
+    except (ValueError, KeyError, AttributeError):
+        return None
+
+
+def _episode_start_for_turn(db: Client, conversation_id: str, episode_started_at: str) -> str:
+    """The episode start this turn's cap should be measured against, after
+    restarting it for a patient who has come back after a long gap."""
+    previous = _previous_message_at(db, conversation_id)
+    if previous is None:
+        return episode_started_at
+    if datetime.now(timezone.utc) - previous >= timedelta(minutes=_NEW_SESSION_GAP_MINUTES):
+        return _reset_ai_episode(db, conversation_id)
+    return episode_started_at
+
+
 _HISTORY_LIMIT = 24  # ~12 exchanges — see _load_history
 
 _ARABIC_WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
@@ -1802,6 +1886,12 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # real instead of a generic failure — see _run_conversation_turn.
             ctx["_booked_appointment_number"] = appointment["appointment_number"]
             _remember_quoted_number(ctx, appointment["appointment_number"])
+            # A completed booking is proof this round is working, so the
+            # "going nowhere, hand to a human" counter starts over. Without
+            # this, a patient who books successfully and then asks anything
+            # else keeps burning down the same budget until the cap trips on
+            # an ordinary follow-up question.
+            _reset_ai_episode(db, ctx["conversation_id"])
             if payment_info:
                 result["deposit_amount"] = tidy_amount(payment_info["amount"])
                 result["deposit_currency"] = payment_info["currency"]
@@ -2111,10 +2201,10 @@ def generate_reply(
         return ReplyResponse(reply=reply, needs_human=False)
     patient_message = transcript or payload.message
 
-    lowered = patient_message.lower()
-    keyword_hit = any(k.lower() in lowered for k in (ch_settings.get("escalation_keywords") or []) if k)
+    keyword_hit = _escalation_keyword_hit(patient_message, ch_settings.get("escalation_keywords") or [])
     turn_limit = ch_settings.get("max_ai_turns_before_human") or 10
-    turn_limit_hit = _count_ai_turns(db, payload.conversation_id, conv["ai_episode_started_at"]) >= turn_limit
+    episode_start = _episode_start_for_turn(db, payload.conversation_id, conv["ai_episode_started_at"])
+    turn_limit_hit = _count_ai_turns(db, payload.conversation_id, episode_start) >= turn_limit
 
     if keyword_hit or turn_limit_hit:
         reply = ch_settings.get("handoff_message") or _DEFAULT_HANDOFF_MESSAGE
