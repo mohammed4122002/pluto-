@@ -963,6 +963,10 @@ _ARABIC_WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأ�
 
 _MEDIA_PLACEHOLDER = {"image": "[صورة]", "audio": "[رسالة صوتية]"}
 
+# Prefix of the note _remember_photo_context leaves on an image message, so a
+# re-run recognises its own earlier note instead of stacking another copy.
+_PHOTO_CONTEXT_MARKER = "[صورة أرسلها المريض —"
+
 
 def _load_history(db: Client, conversation_id: str) -> list[dict]:
     """Bounded to the most recent messages, not the conversation's entire
@@ -1038,7 +1042,7 @@ def _latest_inbound_image_message(db: Client, conversation_id: str) -> dict | No
     the right row (see _photo_description_for_turn)."""
     rows = (
         db.table("messages")
-        .select("id, media_url, media_type")
+        .select("id, content, media_url, media_type")
         .eq("conversation_id", conversation_id)
         .eq("direction", "inbound")
         .order("created_at", desc=True)
@@ -1049,6 +1053,34 @@ def _latest_inbound_image_message(db: Client, conversation_id: str) -> dict | No
     if not rows or rows[0].get("media_type") != "image":
         return None
     return rows[0]
+
+
+def _remember_photo_context(db: Client, image_row: dict, note: str) -> None:
+    """Writes what a photo turned out to be onto the message row itself, so
+    later turns still know about it.
+
+    Only the *most recent* inbound message is ever classified, which means a
+    patient who sends a photo and then explains it in a second message —
+    easily the most natural way to use this — lost the photo entirely on
+    that second turn. Confirmed live: a patient sent a photo of an injured
+    hand, then wrote "يعاني من هذه الاعراض اللي بالصورة", and that turn ran
+    with no photo context at all, so it read as a bare request for a
+    diagnosis and got escalated instead of answered.
+
+    Persisting it into content (the same thing _transcribe_voice_note_for_turn
+    does with a transcript) means _load_history carries it into every later
+    turn, and no second vision call is spent re-deriving it. Any caption the
+    patient wrote is kept — it's their own words and must not be overwritten."""
+    existing = (image_row.get("content") or "").strip()
+    if _PHOTO_CONTEXT_MARKER in existing:
+        return
+    merged = f"{existing}\n{note}".strip() if existing else note
+    try:
+        db.table("messages").update({"content": merged}).eq("id", image_row["id"]).execute()
+    except Exception:
+        # Never fail the turn over this: the patient is waiting on a reply,
+        # and this turn already has the analysis in its system prompt.
+        logger.exception("failed to persist photo context for message %s", image_row.get("id"))
 
 
 def _latest_inbound_voice_message(db: Client, conversation_id: str) -> dict | None:
@@ -1195,7 +1227,12 @@ def _photo_description_for_turn(
             logger.exception("failed to record photo classification failure in audit_log")
         return None, None, False
     if kind is None:
+        _remember_photo_context(db, image_row, f"{_PHOTO_CONTEXT_MARKER} ما تبيّن محتواها]")
         return None, None, True
+    if kind == "receipt":
+        _remember_photo_context(db, image_row, f"{_PHOTO_CONTEXT_MARKER} إثبات دفع]")
+        return None, kind, False
+    _remember_photo_context(db, image_row, f"{_PHOTO_CONTEXT_MARKER} تحليل مرئي آلي ({kind}): {text}]")
     return text, kind, False
 
 
@@ -1347,6 +1384,21 @@ def _build_system_prompt(
             "و'👤 للتشخيص الدقيق، ننصحك بحجز موعد مع أطبائنا المتخصصين'.\n"
             "اختمي رسالتك بسؤال قصير إذا حاب تحجزيله موعد."
         )
+        # The branch rule further down forbids calling list_services before
+        # the patient has picked a branch, because services differ per
+        # branch -- which flatly contradicts step 3 above for the most
+        # common entry point this feature has: a first-time patient whose
+        # opening message is a photo. Resolved explicitly rather than left
+        # for the model to pick a side, since picking the wrong one
+        # recommends a service the chosen branch doesn't offer -- the same
+        # retract-in-front-of-the-patient failure the Zarqa booking bug was.
+        if not branch_selected_explicitly and len(list_active_branches(db)) > 1:
+            parts.append(
+                "استثناء على الخطوة (3) تحديداً: المريض لسا ما حدد فرع، والخدمات بتختلف من فرع "
+                "لفرع — فممنوع تستدعي list_services أو تقترحي أي خدمة بهذا الرد. اعرضي التحليل "
+                "والملاحظات عادي، وبدل كارت الخدمات اسأليه أي فرع أقرب إله، وأول ما يحدد استدعي "
+                "select_branch وبعدها list_services واقترحي عليه الخدمة الأنسب."
+            )
     elif photo_kind == "receipt":
         parts.append(
             "المريض بعت صورة مع رسالته الأخيرة، والصورة إثبات دفع (إيصال أو فاتورة أو سكرين شوت حوالة "
@@ -1412,6 +1464,23 @@ def _build_system_prompt(
             price = f"{tidy_amount(s['price'])}" if s.get("price") is not None else "N/A"
             lines.append(f"- {s['name']} ({s['duration_minutes']} min, price: {price})")
         parts.append("\n".join(lines))
+
+    # Last word on dialect, on purpose. Every instruction block above -- the
+    # base rules, the photo blocks, the booking rules -- is itself written in
+    # Levantine, so a channel configured for another dialect had its setting
+    # stated once at the top and then drowned in pages of counter-examples.
+    # Confirmed live on a channel set to Egyptian: 162 outbound messages
+    # carried Levantine markers against 37 Egyptian ones, and single replies
+    # mixed both ("معلش يا علي" then "بس للأسف ما في مواعيد"), which is
+    # exactly the mid-conversation dialect switch the style rules call out as
+    # the fastest way for a patient to notice they're talking to a bot.
+    if ch_settings.get("dialect"):
+        parts.append(
+            f"تذكير أخير وأهم من كل يلي فوق بخصوص اللهجة: كل التعليمات بهذا البرومبت مكتوبة بلهجة "
+            f"شامية/أردنية لأسباب داخلية، بس ردّك للمريض لازم يكون بلهجة {ch_settings['dialect']} "
+            "بالكامل — الكلمات والتعابير والصياغة. لا تقلّدي لهجة التعليمات نفسها، ولا تخلطي بين "
+            "اللهجتين بنفس الرد. إذا المريض كتب بلهجة أو لغة تانية، رُدّي بلهجته هو."
+        )
 
     return "\n\n".join(parts)
 
