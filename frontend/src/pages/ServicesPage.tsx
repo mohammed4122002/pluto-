@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { addServiceDoctor, createService, listServices, removeServiceDoctor, updateService } from "../api/services";
-import type { Service, ServiceCreate } from "../api/services";
+import type { Service, ServiceCreate, ServiceUpdate } from "../api/services";
 import { listSpecialties } from "../api/specialties";
 import type { Specialty } from "../api/specialties";
 import { listStaffDirectory } from "../api/staff";
@@ -39,6 +39,9 @@ export function ServicesPage() {
   const [saving, setSaving] = useState(false);
   const [openFor, setOpenFor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<ServiceUpdate>({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -101,6 +104,44 @@ export function ServicesPage() {
     action
       .then((updated) => setServices((prev) => prev.map((s) => (s.id === service.id ? updated : s))))
       .catch((err) => setError(err.message));
+  };
+
+  const startEdit = (service: Service) => {
+    setError(null);
+    setOpenFor(null);
+    setEditingId(service.id);
+    setEditForm({
+      name: service.name,
+      description: service.description ?? "",
+      duration_minutes: service.duration_minutes,
+      price: service.price ?? undefined,
+      specialty_id: service.specialty_id ?? undefined,
+      deposit_amount: service.deposit_amount ?? undefined,
+      prep_instructions: service.prep_instructions ?? "",
+      required_documents: service.required_documents ?? "",
+      min_age: service.min_age ?? undefined,
+      patient_gender_restriction: service.patient_gender_restriction ?? undefined,
+      approval_requirement: service.approval_requirement,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const handleEditSubmit = (e: FormEvent, service: Service) => {
+    e.preventDefault();
+    if (!editForm.name?.trim()) return;
+    setEditSaving(true);
+    updateService(service.id, editForm)
+      .then((updated) => {
+        setServices((prev) => prev.map((s) => (s.id === service.id ? updated : s)));
+        setEditingId(null);
+        setEditForm({});
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setEditSaving(false));
   };
 
   const activeCount = services.filter((s) => s.is_active).length;
@@ -284,8 +325,16 @@ export function ServicesPage() {
                   <td>
                     {/* service.update isn't in the doctor role's grant -- read-only for them. */}
                     <>
-                      <button onClick={() => setOpenFor(openFor === service.id ? null : service.id)}>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setOpenFor(openFor === service.id ? null : service.id);
+                        }}
+                      >
                         {openFor === service.id ? "إخفاء" : "الأطباء"}
+                      </button>
+                      <button onClick={() => (editingId === service.id ? cancelEdit() : startEdit(service))}>
+                        {editingId === service.id ? "إلغاء" : "تعديل"}
                       </button>
                       <button onClick={() => toggleActive(service)}>
                         {service.is_active ? "إيقاف" : "تفعيل"}
@@ -308,6 +357,115 @@ export function ServicesPage() {
                           </label>
                         ))}
                       </div>
+                    </td>
+                  </tr>
+                )}
+                {editingId === service.id && (
+                  <tr>
+                    <td colSpan={8}>
+                      <form className="data-form" onSubmit={(e) => handleEditSubmit(e, service)}>
+                        <input
+                          placeholder="اسم الخدمة"
+                          value={editForm.name ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          required
+                        />
+                        <input
+                          placeholder="الوصف"
+                          value={editForm.description ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                        />
+                        <input
+                          type="number"
+                          placeholder="المدة (دقيقة)"
+                          value={editForm.duration_minutes ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, duration_minutes: Number(e.target.value) })}
+                        />
+                        <input
+                          type="number"
+                          placeholder="السعر"
+                          value={editForm.price ?? ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, price: e.target.value ? Number(e.target.value) : undefined })
+                          }
+                        />
+                        <select
+                          value={editForm.specialty_id ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, specialty_id: e.target.value || undefined })}
+                        >
+                          <option value="">بدون تخصص محدد</option>
+                          {specialties.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name_ar}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          placeholder="مبلغ مقدم (Deposit)"
+                          value={editForm.deposit_amount ?? ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              deposit_amount: e.target.value ? Number(e.target.value) : undefined,
+                            })
+                          }
+                        />
+                        <input
+                          type="number"
+                          placeholder="الحد الأدنى للعمر"
+                          value={editForm.min_age ?? ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, min_age: e.target.value ? Number(e.target.value) : undefined })
+                          }
+                        />
+                        <select
+                          value={editForm.patient_gender_restriction ?? ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              patient_gender_restriction: (e.target.value || undefined) as "male" | "female" | undefined,
+                            })
+                          }
+                        >
+                          <option value="">بدون تقييد جنس</option>
+                          <option value="male">ذكور فقط</option>
+                          <option value="female">إناث فقط</option>
+                        </select>
+                        <select
+                          value={editForm.approval_requirement ?? "none"}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              approval_requirement: e.target.value as ServiceCreate["approval_requirement"],
+                            })
+                          }
+                        >
+                          {Object.entries(approvalLabels).map(([code, label]) => (
+                            <option key={code} value={code}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          placeholder="تعليمات التحضير قبل الموعد"
+                          value={editForm.prep_instructions ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, prep_instructions: e.target.value })}
+                          style={{ minWidth: 260 }}
+                        />
+                        <input
+                          placeholder="المستندات المطلوبة"
+                          value={editForm.required_documents ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, required_documents: e.target.value })}
+                          style={{ minWidth: 220 }}
+                        />
+                        <button type="submit" disabled={editSaving}>
+                          {editSaving ? "..." : "حفظ التعديلات"}
+                        </button>
+                        <button type="button" onClick={cancelEdit}>
+                          إلغاء
+                        </button>
+                      </form>
                     </td>
                   </tr>
                 )}
