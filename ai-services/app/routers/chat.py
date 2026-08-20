@@ -37,14 +37,6 @@ from app.services.booking import (
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors, list_active_branches, list_services, resolve_branch_id_by_name
 from app.services.money import tidy_amount
-from app.services.otp import (
-    OtpError,
-    generate_booking_otp,
-    has_verified_booking_otp,
-    latest_unconsumed_otp,
-    looks_like_a_bare_otp_reply,
-    verify_booking_otp,
-)
 from app.services.receipts import attach_receipt, find_pending_receipt_payment
 from app.services.transcription import transcribe_voice_message
 from app.services.vision import describe_patient_photo
@@ -223,14 +215,6 @@ BASE_INSTRUCTIONS = (
     "بنفس رسالته، استدعي find_doctors/find_available_slots واعرضي عليه 2-3 خيارات فعلية بردك واستنّي "
     "يحدد، ولا تستدعي book_appointment إلا بعد ما يذكر صراحة الطبيب أو الوقت يلي يريحه من بين اللي "
     "عرضتيه — مش بس لأنه وافق على أصل فكرة الحجز.\n"
-    "- بعد ما يتحدد كل شي (الخدمة، الطبيب أو بدونه، الوقت) وقبل استدعاء book_appointment مباشرة، لازم "
-    "تأكيد إضافي بكود: استدعي send_confirmation_code (بترجع code)، اذكريه للمريض بجملة طبيعية "
-    "('تمام، بعتلك كود تأكيد 4821 — ابعتيه إلي عشان أثبت حجزك') واستنّي رده. لما يرد برقم، استدعي "
-    "verify_confirmation_code بالكود يلي كتبه بالضبط. لو رجعت verified=true، احجزي مباشرة بنفس الرد. "
-    "لو رجعت verified=false، اعرضي السبب (error) بلطف واطلبي منه المحاولة من جديد أو كود جديد حسب "
-    "السبب — book_appointment أصلاً رح يرفض لو ما في تحقق ناجح حديث، فما تحاولي تتجاوزي هذه الخطوة "
-    "أو تفترضي إنه المريض 'أكّد' لمجرد إنه وافق على فكرة الحجز أو أعطى وقت — الكود شرط منفصل ومطلوب "
-    "دائماً قبل أي book_appointment، حتى لو كان المريض مسجّل عندنا من قبل بالاسم والرقم.\n"
     "- ممنوع نهائياً قول 'تم الحجز' أو تأكيد أي حجز قبل استدعاء أداة book_appointment والتأكد من "
     "نتيجتها. مرري لها doctor_name وstart_at بالضبط متل ما رجعوا من find_available_slots — الأداة "
     "نفسها بتتحقق من التوفر وتحجز، إنتِ مش مسؤولة عن معرفة إذا كان الوقت 'لسا متاح' أو لأ.\n"
@@ -565,48 +549,6 @@ TOOLS = [
                     },
                 },
                 "required": ["full_name", "phone", "age"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "send_confirmation_code",
-            "description": (
-                "ابعتي كود تأكيد مكوّن من 4 أرقام لهذا المريض بنفس المحادثة — الخطوة الأخيرة قبل "
-                "book_appointment مباشرة، بعد ما يتحدد كل شي (الفرع/الخدمة/الطبيب أو بدونه/الوقت) وقبل "
-                "ما تحجزي فعلياً. استدعيها مرة وحدة، وبعدها اذكري الكود الراجع من نتيجة الأداة للمريض "
-                "بجملة طبيعية (متل 'ok، بعتلك كود تأكيد 4821، ابعتيه إلي عشان أثبت الحجز') واستنّي رده. "
-                "لو المريض قال إنه ما وصله الكود أو طلب كود جديد، استدعيها من جديد — الكود القديم "
-                "بيوقف يشتغل تلقائياً."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "verify_confirmation_code",
-            "description": (
-                "تحققي من كود التأكيد يلي رجّعه المريض بعد send_confirmation_code. استدعيها فور ما "
-                "يكتب رقماً رداً على طلب الكود — لو رجعت verified=true، احجزي مباشرة بنفس الرد "
-                "باستدعاء book_appointment (book_appointment أصلاً رح يرفض لو ما في تحقق ناجح حديث). "
-                "لو رجعت verified=false، اعرضي عليه السبب (error) بلطف واطلبي منه يعيد المحاولة أو "
-                "تستدعي send_confirmation_code من جديد لو قال الأداة إن الكود انتهت صلاحيته أو خلصت "
-                "محاولاته — ممنوع تحجزي بدون verified=true."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "الكود كما كتبه المريض حرفياً بردّه — بالأرقام كما أرسلها.",
-                    },
-                },
-                "required": ["code"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -1432,7 +1374,6 @@ def _build_system_prompt(
     image_without_medical_description: bool = False,
     photo_kind: str | None = None,
     previous_photo_note: str | None = None,
-    otp_check: dict | None = None,
 ) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -1530,36 +1471,6 @@ def _build_system_prompt(
                 "find_available_slots) — لا تبلّشي تسأليه عن اسمه ورقمه قبل هالتأكد (شوفي القاعدة "
                 "عن ترتيب الحجز بأعلى البرومبت). لو ناقص عمره كمان، اسأليه عنه بنفس الرسالة أو بعدها "
                 "بشكل طبيعي (مش شرط للحجز)."
-            )
-
-    # A bare-digits reply while an OTP is pending gets checked against the
-    # real code right here, deterministically -- not left to the model to
-    # remember to call verify_confirmation_code. Confirmed live: a patient
-    # sent back the exact code the bot had just given her, three turns in a
-    # row, and got told each one was wrong or expired with a fresh code sent
-    # every time, never actually verified -- consistent with a tool call
-    # that sometimes silently never happens (particularly on the Gemini
-    # fallback path, which this file's own history notes as unreliable
-    # specifically on tool-calling turns) while the model narrates a
-    # plausible-sounding rejection instead. This fact overrides whatever the
-    # model would otherwise guess.
-    if otp_check is not None:
-        if otp_check["verified"]:
-            parts.append(
-                "تحقّق تلقائي وأكيد 100%: الكود يلي بعته المريض للتو بهذه الرسالة تم التحقق منه فعلياً "
-                "ونجح (verified=true) — الكود موثّق ومستهلك بالفعل. ممنوع تستدعي send_confirmation_code "
-                "أو verify_confirmation_code من جديد لهذا الكود، وممنوع تقوليله إنه غلط أو انتهت "
-                "صلاحيته. كمّلي مباشرة باستدعاء book_appointment بنفس هالرد بتفاصيل الحجز يلي اتفقتوا "
-                "عليها قبل قليل بالمحادثة (الطبيب والوقت)."
-            )
-        else:
-            parts.append(
-                "تحقّق تلقائي وأكيد 100%: الكود يلي بعته المريض للتو بهذه الرسالة تم التحقق منه فعلياً "
-                f"ورجعت النتيجة الحقيقية (verified=false)، والسبب الفعلي بالضبط: {otp_check['error']} "
-                "اعرضي هذا السبب بالضبط (بصياغتك العامية الطبيعية) — ممنوع تخترعي سبب مختلف عنه (متل "
-                "إنه 'انتهت الصلاحية' لو السبب الحقيقي مش هيك)، وممنوع تستدعي verify_confirmation_code "
-                "من جديد لهذا الكود، هو موثّق مسبقاً. استدعي send_confirmation_code لكود جديد فقط لو "
-                "السبب نفسه يقول صراحة إن الكود انتهت صلاحيته أو خلصت محاولاته المسموحة."
             )
 
     # Which photo the block below is about. Without this the model reached for
@@ -1914,15 +1825,6 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
             # against that same real identity, not the abandoned placeholder.
             ctx["patient_id"] = saved["patient_id"]
             return {"saved": True, "full_name": saved["full_name"], "phone": saved["phone"]}
-        if name == "send_confirmation_code":
-            code = generate_booking_otp(db, ctx["conversation_id"])
-            return {"sent": True, "code": code}
-        if name == "verify_confirmation_code":
-            try:
-                verify_booking_otp(db, ctx["conversation_id"], args.get("code") or "")
-            except OtpError as exc:
-                return {"verified": False, "error": str(exc)}
-            return {"verified": True}
         if name == "check_patient_benefits":
             service_id = resolve_service_id_by_name(db, args.get("service_name") or None)
             # Packages belong to a patient, so an unlinked conversation has
@@ -2033,15 +1935,6 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 return {
                     "error": f"لسا ناقص {fields_ar} الحقيقي لهذا المريض. اسأليه عنه/عنهم الآن، وبعد ما "
                     "يجاوب استدعي save_contact_info لتحفظيه، وبس بعدها كمّلي الحجز — ممنوع تحجزي قبل هيك.",
-                }
-            if not has_verified_booking_otp(db, ctx["conversation_id"]):
-                # Same enforcement pattern as the name/phone gate right above:
-                # a hard requirement, not just the prompt asking the model to
-                # verify a code first.
-                return {
-                    "error": "ما في تحقق ناجح وحديث من كود تأكيد لهذه المحادثة. استدعي "
-                    "send_confirmation_code، اذكري الكود للمريض، استنّي رده، واستدعي "
-                    "verify_confirmation_code بالكود يلي بعته قبل ما تستدعي هذه الأداة من جديد.",
                 }
             booking_result = book_by_doctor_and_time(
                 db,
@@ -2410,17 +2303,6 @@ def generate_reply(
         db, payload.conversation_id, fallback, payload.media_url
     )
 
-    # Checked here, deterministically, rather than left entirely to the
-    # model calling verify_confirmation_code -- see the comment where
-    # otp_check is consumed in _build_system_prompt for why.
-    otp_check = None
-    if looks_like_a_bare_otp_reply(patient_message) and latest_unconsumed_otp(db, payload.conversation_id):
-        try:
-            verify_booking_otp(db, payload.conversation_id, patient_message)
-            otp_check = {"verified": True}
-        except OtpError as exc:
-            otp_check = {"verified": False, "error": str(exc)}
-
     system_prompt = _build_system_prompt(
         db,
         conv["branch_id"],
@@ -2431,7 +2313,6 @@ def generate_reply(
         image_without_medical_description,
         photo_kind,
         _previous_photo_note(db, payload.conversation_id) if not photo_kind else None,
-        otp_check,
     )
     ctx = {
         "conversation_id": payload.conversation_id,
