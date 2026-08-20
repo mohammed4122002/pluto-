@@ -489,16 +489,9 @@ def search_available_slots(
                 "الأطباء الموجودين فعلاً.",
             }
 
-    specialty_doctor_ids = _resolve_specialty_doctor_ids(db, branch_id, specialty_query) if specialty_query else None
-    if specialty_doctor_ids is not None and not specialty_doctor_ids:
-        return {
-            "slots": [],
-            "alternative_doctors": [],
-            "specialty_not_found": True,
-            "error": f"ما في طبيب بتخصص '{specialty_query}' بهذا الفرع — قولي للمريض إن هذا التخصص مش "
-            "متوفر عنا (لا تقولي إنه ما في مواعيد)، واعرضي التخصصات الموجودة عبر find_doctors.",
-        }
-
+    # Resolved before the specialty check (not after, as it used to be) so a
+    # named service that's genuinely offered here can override a stale
+    # specialty check below -- see the comment at that check for why.
     service_doctor_ids = _resolve_service_doctor_ids(db, branch_id, service_name) if service_name else None
     if service_doctor_ids is not None and not service_doctor_ids:
         return {
@@ -509,6 +502,31 @@ def search_available_slots(
             "متوفرة بهذا الفرع تحديداً (لا تقولي إنه ما في مواعيد)، واعرضي عليه إما فرع تاني عبر "
             "list_branches أو الخدمات المتوفرة بهذا الفرع عبر list_services.",
         }
+
+    specialty_doctor_ids = _resolve_specialty_doctor_ids(db, branch_id, specialty_query) if specialty_query else None
+    if specialty_doctor_ids is not None and not specialty_doctor_ids:
+        if service_doctor_ids is not None:
+            # A named service already resolved to real doctors at this branch
+            # via service_doctors/staff_branches -- the exact same data
+            # list_services' catalog uses to decide a service is offered
+            # here. doctor_specialties is a separate, staff-profile-level tag
+            # that can lag behind actual service assignments, so a missing
+            # tag on those same doctors must not override what the clinic's
+            # own service assignment already confirmed. Confirmed live: a
+            # service linked to two doctors at this branch was rejected as
+            # "specialty not found" because neither doctor had a matching
+            # doctor_specialties row -- directly contradicting the catalog
+            # that had just shown this exact service at this branch.
+            specialty_doctor_ids = None
+        else:
+            return {
+                "slots": [],
+                "alternative_doctors": [],
+                "specialty_not_found": True,
+                "error": f"ما في طبيب بتخصص '{specialty_query}' بهذا الفرع — قولي للمريض إن هذا التخصص مش "
+                "متوفر عنا (لا تقولي إنه ما في مواعيد)، واعرضي التخصصات الموجودة عبر find_doctors.",
+            }
+
     if service_doctor_ids is not None:
         specialty_doctor_ids = (
             service_doctor_ids if specialty_doctor_ids is None else specialty_doctor_ids & service_doctor_ids
