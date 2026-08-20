@@ -421,6 +421,44 @@ def _resolve_service_doctor_ids(db: Client, branch_id: str, service_query: str) 
     return providers & branch_staff_ids
 
 
+def _branches_offering_service(db: Client, service_query: str, exclude_branch_id: str) -> list[str]:
+    """Names of the branches that actually have someone linked to perform
+    this service -- excluding the branch that was just found not to offer
+    it, since offering it as its own alternative makes no sense.
+
+    Without this, service_not_available_at_branch only told the model to
+    "suggest another branch via list_branches", which returns every branch
+    with no service filter at all -- so the model guessed among all of them.
+    Confirmed live: pediatrics is only staffed at two of a clinic's four
+    branches, and asked about a third, the assistant apologized correctly
+    and then suggested three "other" branches, one of which (the fourth)
+    doesn't have a pediatrician either -- sending the patient into the exact
+    same dead end it had just apologized for."""
+    query = (service_query or "").strip()
+    if not query:
+        return []
+    services = db.table("services").select("id, name").eq("is_active", True).is_("deleted_at", "null").execute().data
+    matched_service_ids = {s["id"] for s in services if fuzzy_contains(s["name"], query)}
+    if not matched_service_ids:
+        return []
+    links = db.table("service_doctors").select("service_id, staff_id").execute().data
+    providers = {link["staff_id"] for link in links if link["service_id"] in matched_service_ids}
+    if not providers:
+        return []
+    staff_branch_rows = (
+        db.table("staff_branches")
+        .select("staff_id, branch_id")
+        .in_("staff_id", list(providers))
+        .execute()
+        .data
+    )
+    branch_ids = {row["branch_id"] for row in staff_branch_rows if row["branch_id"] != exclude_branch_id}
+    if not branch_ids:
+        return []
+    branch_rows = db.table("branches").select("id, name").in_("id", list(branch_ids)).execute().data
+    return sorted({row["name"] for row in branch_rows})
+
+
 _ARABIC_WEEKDAYS_SHORT = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
 
 
@@ -494,13 +532,26 @@ def search_available_slots(
     # specialty check below -- see the comment at that check for why.
     service_doctor_ids = _resolve_service_doctor_ids(db, branch_id, service_name) if service_name else None
     if service_doctor_ids is not None and not service_doctor_ids:
+        other_branches = _branches_offering_service(db, service_name, branch_id)
+        if other_branches:
+            branch_note = (
+                "الفروع التانية اللي فعلاً بتقدم هالخدمة (تحققنا منها فعلياً، مش تخمين): "
+                + "، ".join(other_branches)
+                + ". اعرضي على المريض هاي الفروع بالضبط وبس — ممنوع تذكري أي فرع تاني غيرهم كبديل "
+                "لهالخدمة تحديداً، حتى لو list_branches رجّع فروع إضافية."
+            )
+        else:
+            branch_note = (
+                "ولا فرع تاني عندنا بيقدم هالخدمة حالياً (تحققنا فعلياً) — ممنوع تقترحي فرع تاني كبديل "
+                "لهالخدمة تحديداً، اعرضي على المريض الخدمات المتوفرة بهذا الفرع عبر list_services بدلها."
+            )
         return {
             "slots": [],
             "alternative_doctors": [],
             "service_not_available_at_branch": True,
+            "available_at_other_branches": other_branches,
             "error": f"خدمة '{service_name}' ما في حدا بيعملها بهذا الفرع — قولي للمريض إن الخدمة مش "
-            "متوفرة بهذا الفرع تحديداً (لا تقولي إنه ما في مواعيد)، واعرضي عليه إما فرع تاني عبر "
-            "list_branches أو الخدمات المتوفرة بهذا الفرع عبر list_services.",
+            f"متوفرة بهذا الفرع تحديداً (لا تقولي إنه ما في مواعيد). {branch_note}",
         }
 
     specialty_doctor_ids = _resolve_specialty_doctor_ids(db, branch_id, specialty_query) if specialty_query else None
