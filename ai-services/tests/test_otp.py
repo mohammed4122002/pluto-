@@ -13,6 +13,8 @@ from app.services.otp import (  # noqa: E402
     OtpError,
     generate_booking_otp,
     has_verified_booking_otp,
+    latest_unconsumed_otp,
+    looks_like_a_bare_otp_reply,
     verify_booking_otp,
 )
 
@@ -187,3 +189,47 @@ def test_codes_from_a_different_conversation_do_not_cross_over():
     generate_booking_otp(db, "other-conversation")
     with pytest.raises(OtpError):
         verify_booking_otp(db, CONVERSATION, "1234")
+
+
+# latest_unconsumed_otp / looks_like_a_bare_otp_reply back the deterministic
+# check in generate_reply (chat.py) that verifies a bare-digits reply against
+# the real code itself, rather than only ever relying on the model to
+# reliably call verify_confirmation_code. Confirmed live: a patient sent
+# back the exact code the bot had just given her, three turns running, and
+# was told each one was wrong or expired with a fresh code sent every time,
+# never actually verified.
+
+
+def test_no_code_sent_yet_has_nothing_pending():
+    db = _Db()
+    assert latest_unconsumed_otp(db, CONVERSATION) is None
+
+
+def test_a_freshly_sent_code_is_pending():
+    db = _Db()
+    generate_booking_otp(db, CONVERSATION)
+    row = latest_unconsumed_otp(db, CONVERSATION)
+    assert row is not None
+    assert row.get("consumed_at") is None
+
+
+def test_a_consumed_code_is_no_longer_pending():
+    db = _Db()
+    code = generate_booking_otp(db, CONVERSATION)
+    verify_booking_otp(db, CONVERSATION, code)
+    assert latest_unconsumed_otp(db, CONVERSATION) is None
+
+
+def test_a_bare_code_reply_is_recognized_in_ascii_and_arabic_indic_digits():
+    assert looks_like_a_bare_otp_reply("3364") is True
+    assert looks_like_a_bare_otp_reply("  3364  ") is True
+    assert looks_like_a_bare_otp_reply("٣٣٦٤") is True
+
+
+def test_a_code_embedded_in_a_longer_sentence_is_not_a_bare_reply():
+    # The model should keep interpreting these normally, not have the
+    # deterministic OTP check hijack an unrelated message.
+    assert looks_like_a_bare_otp_reply("الكود يلي بعتلي هو 3364") is False
+    assert looks_like_a_bare_otp_reply("3364 شكراً") is False
+    assert looks_like_a_bare_otp_reply("") is False
+    assert looks_like_a_bare_otp_reply(None) is False
