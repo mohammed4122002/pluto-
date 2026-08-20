@@ -37,7 +37,14 @@ from app.services.booking import (
 from app.services.delivery import deliver_outbound_message
 from app.services.directory import find_doctors, list_active_branches, list_services, resolve_branch_id_by_name
 from app.services.money import tidy_amount
-from app.services.otp import OtpError, generate_booking_otp, has_verified_booking_otp, verify_booking_otp
+from app.services.otp import (
+    OtpError,
+    generate_booking_otp,
+    has_verified_booking_otp,
+    latest_unconsumed_otp,
+    looks_like_a_bare_otp_reply,
+    verify_booking_otp,
+)
 from app.services.receipts import attach_receipt, find_pending_receipt_payment
 from app.services.transcription import transcribe_voice_message
 from app.services.vision import describe_patient_photo
@@ -1425,6 +1432,7 @@ def _build_system_prompt(
     image_without_medical_description: bool = False,
     photo_kind: str | None = None,
     previous_photo_note: str | None = None,
+    otp_check: dict | None = None,
 ) -> str:
     settings_row = db.table("clinic_settings").select("clinic_name, about_text").limit(1).execute().data
     branch_rows = (
@@ -1522,6 +1530,36 @@ def _build_system_prompt(
                 "find_available_slots) — لا تبلّشي تسأليه عن اسمه ورقمه قبل هالتأكد (شوفي القاعدة "
                 "عن ترتيب الحجز بأعلى البرومبت). لو ناقص عمره كمان، اسأليه عنه بنفس الرسالة أو بعدها "
                 "بشكل طبيعي (مش شرط للحجز)."
+            )
+
+    # A bare-digits reply while an OTP is pending gets checked against the
+    # real code right here, deterministically -- not left to the model to
+    # remember to call verify_confirmation_code. Confirmed live: a patient
+    # sent back the exact code the bot had just given her, three turns in a
+    # row, and got told each one was wrong or expired with a fresh code sent
+    # every time, never actually verified -- consistent with a tool call
+    # that sometimes silently never happens (particularly on the Gemini
+    # fallback path, which this file's own history notes as unreliable
+    # specifically on tool-calling turns) while the model narrates a
+    # plausible-sounding rejection instead. This fact overrides whatever the
+    # model would otherwise guess.
+    if otp_check is not None:
+        if otp_check["verified"]:
+            parts.append(
+                "تحقّق تلقائي وأكيد 100%: الكود يلي بعته المريض للتو بهذه الرسالة تم التحقق منه فعلياً "
+                "ونجح (verified=true) — الكود موثّق ومستهلك بالفعل. ممنوع تستدعي send_confirmation_code "
+                "أو verify_confirmation_code من جديد لهذا الكود، وممنوع تقوليله إنه غلط أو انتهت "
+                "صلاحيته. كمّلي مباشرة باستدعاء book_appointment بنفس هالرد بتفاصيل الحجز يلي اتفقتوا "
+                "عليها قبل قليل بالمحادثة (الطبيب والوقت)."
+            )
+        else:
+            parts.append(
+                "تحقّق تلقائي وأكيد 100%: الكود يلي بعته المريض للتو بهذه الرسالة تم التحقق منه فعلياً "
+                f"ورجعت النتيجة الحقيقية (verified=false)، والسبب الفعلي بالضبط: {otp_check['error']} "
+                "اعرضي هذا السبب بالضبط (بصياغتك العامية الطبيعية) — ممنوع تخترعي سبب مختلف عنه (متل "
+                "إنه 'انتهت الصلاحية' لو السبب الحقيقي مش هيك)، وممنوع تستدعي verify_confirmation_code "
+                "من جديد لهذا الكود، هو موثّق مسبقاً. استدعي send_confirmation_code لكود جديد فقط لو "
+                "السبب نفسه يقول صراحة إن الكود انتهت صلاحيته أو خلصت محاولاته المسموحة."
             )
 
     # Which photo the block below is about. Without this the model reached for
@@ -2371,6 +2409,18 @@ def generate_reply(
     photo_description, photo_kind, image_without_medical_description = _photo_description_for_turn(
         db, payload.conversation_id, fallback, payload.media_url
     )
+
+    # Checked here, deterministically, rather than left entirely to the
+    # model calling verify_confirmation_code -- see the comment where
+    # otp_check is consumed in _build_system_prompt for why.
+    otp_check = None
+    if looks_like_a_bare_otp_reply(patient_message) and latest_unconsumed_otp(db, payload.conversation_id):
+        try:
+            verify_booking_otp(db, payload.conversation_id, patient_message)
+            otp_check = {"verified": True}
+        except OtpError as exc:
+            otp_check = {"verified": False, "error": str(exc)}
+
     system_prompt = _build_system_prompt(
         db,
         conv["branch_id"],
@@ -2381,6 +2431,7 @@ def generate_reply(
         image_without_medical_description,
         photo_kind,
         _previous_photo_note(db, payload.conversation_id) if not photo_kind else None,
+        otp_check,
     )
     ctx = {
         "conversation_id": payload.conversation_id,

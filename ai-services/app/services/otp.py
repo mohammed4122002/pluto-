@@ -1,9 +1,10 @@
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from supabase import Client
 
-from app.services.text_match import digits_only
+from app.services.text_match import digits_only, to_ascii_digits
 
 _CODE_LENGTH = 4
 _EXPIRY = timedelta(minutes=10)
@@ -80,6 +81,43 @@ def verify_booking_otp(db: Client, conversation_id: str, submitted_code: str) ->
     db.table("chat_booking_otp").update(
         {"consumed_at": datetime.now(timezone.utc).isoformat()}
     ).eq("id", row["id"]).execute()
+
+
+def latest_unconsumed_otp(db: Client, conversation_id: str) -> dict | None:
+    """The most recent OTP row for this conversation, only if it's still
+    awaiting a verification attempt -- None once it's been consumed (a
+    successful verification already happened on it) or if no code was ever
+    sent.
+
+    Used to check a bare-digits reply against the real code deterministically
+    (see generate_reply in chat.py), rather than only ever relying on the
+    model to reliably call verify_confirmation_code itself. Confirmed live:
+    a patient replied the exact code the bot had just sent, three times in a
+    row, and the bot claimed each one was wrong or expired and sent a new
+    one every time without the patient ever getting verified -- consistent
+    with the model's tool-calling turn (particularly on the Gemini fallback
+    path, which chat.py's own history notes as unreliable specifically on
+    tool-calling turns) sometimes never actually invoking
+    verify_confirmation_code at all, and instead free-narrating a plausible-
+    sounding rejection."""
+    row = _latest_otp_row(db, conversation_id)
+    if row is None or row.get("consumed_at"):
+        return None
+    return row
+
+
+_BARE_CODE_RE = re.compile(r"^\d{3,6}$")
+
+
+def looks_like_a_bare_otp_reply(message: str | None) -> bool:
+    """True when the patient's entire message is just a short number and
+    nothing else -- the shape of a code typed back in reply to
+    send_confirmation_code, not one that merely appears inside a longer
+    sentence (which the model should keep interpreting normally)."""
+    if not message:
+        return False
+    stripped = to_ascii_digits(message).strip()
+    return bool(_BARE_CODE_RE.fullmatch(stripped))
 
 
 def has_verified_booking_otp(db: Client, conversation_id: str) -> bool:
