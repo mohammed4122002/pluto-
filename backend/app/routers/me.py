@@ -74,7 +74,12 @@ def _name_map(db: Client, table: str, ids: set[str], column: str = "name") -> di
     if not ids:
         return {}
     rows = db.table(table).select(f"id, {column}").in_("id", list(ids)).execute().data
-    return {r["id"]: r[column] for r in rows}
+    # .get, not [] -- a real Supabase response always carries every selected
+    # column (null if unset), but this must still degrade the same way if a
+    # row is ever missing it rather than raise, the same reasoning
+    # branch_timezone's own "Asia/Amman" fallback exists for at the call
+    # sites below.
+    return {r["id"]: r.get(column) for r in rows}
 
 
 @router.get("/branches", response_model=list[Branch])
@@ -140,6 +145,7 @@ def my_queue(
     )
     by_patient = {p["id"]: p for p in patient_rows}
     branch_names = _name_map(db, "branches", {q["branch_id"] for q in queues})
+    branch_timezones = _name_map(db, "branches", {q["branch_id"] for q in queues}, column="timezone")
 
     by_queue: dict[str, list[MyQueueTicket]] = {}
     for t in tickets:
@@ -157,6 +163,7 @@ def my_queue(
             id=q["id"],
             branch_id=q["branch_id"],
             branch_name=branch_names.get(q["branch_id"], "—"),
+            branch_timezone=branch_timezones.get(q["branch_id"]) or "Asia/Amman",
             queue_date=q["queue_date"],
             tickets=by_queue.get(q["id"], []),
         )
@@ -265,6 +272,7 @@ def my_calendar(
         )
 
     branch_names = _name_map(db, "branches", {r["branch_id"] for r in [*slots, *appointments]})
+    branch_timezones = _name_map(db, "branches", {r["branch_id"] for r in [*slots, *appointments]}, column="timezone")
     service_names = _name_map(db, "services", {r.get("service_id") for r in [*slots, *appointments]})
     patient_rows = (
         db.table("patients")
@@ -284,6 +292,7 @@ def my_calendar(
             MyCalendarSlot(
                 **{k: s[k] for k in ("id", "branch_id", "start_at", "end_at", "duration_minutes", "status")},
                 branch_name=branch_names.get(s["branch_id"], "—"),
+                branch_timezone=branch_timezones.get(s["branch_id"]) or "Asia/Amman",
                 service_name=service_names.get(s.get("service_id")),
             )
             for s in slots
@@ -300,6 +309,7 @@ def my_calendar(
                 patient_name=by_patient.get(a["patient_id"], {}).get("full_name", "—"),
                 patient_phone=by_patient.get(a["patient_id"], {}).get("phone"),
                 branch_name=branch_names.get(a["branch_id"], "—"),
+                branch_timezone=branch_timezones.get(a["branch_id"]) or "Asia/Amman",
                 service_name=service_names.get(a.get("service_id")),
             )
             for a in appointments
@@ -485,6 +495,7 @@ def my_today(
             .order("scheduled_at").execute().data
         )
         branch_names = _name_map(db, "branches", {r["branch_id"] for r in rows})
+        branch_timezones = _name_map(db, "branches", {r["branch_id"] for r in rows}, column="timezone")
         service_names = _name_map(db, "services", {r.get("service_id") for r in rows})
         patients = {
             p["id"]: p
@@ -498,6 +509,7 @@ def my_today(
                 patient_name=patients.get(a["patient_id"], {}).get("full_name", "—"),
                 patient_phone=patients.get(a["patient_id"], {}).get("phone"),
                 branch_name=branch_names.get(a["branch_id"], "—"),
+                branch_timezone=branch_timezones.get(a["branch_id"]) or "Asia/Amman",
                 service_name=service_names.get(a.get("service_id")),
             )
             for a in rows

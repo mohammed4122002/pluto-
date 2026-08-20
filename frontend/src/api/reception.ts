@@ -22,6 +22,7 @@ export type DeskArrival = {
 export type ReceptionDesk = {
   date: string;
   branch_id: string | null;
+  branch_timezone: string | null;
   arrivals: DeskArrival[];
   expected_count: number;
   checked_in_count: number;

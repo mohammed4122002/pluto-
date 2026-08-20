@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listPayments } from "../api/payments";
 import type { Payment } from "../api/payments";
 import { listConversations } from "../api/conversations";
@@ -7,7 +7,9 @@ import { listPatientPackages } from "../api/packages";
 import type { PatientPackage } from "../api/packages";
 import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
-import { formatDateShort, formatDateTimeShort } from "../format";
+import { listBranches } from "../api/branches";
+import type { Branch } from "../api/branches";
+import { branchTimeZoneMap, formatDateShort, formatDateTimeShort } from "../format";
 
 const EXPIRING_WITHIN_DAYS = 3;
 
@@ -25,8 +27,12 @@ export function AlertsPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [expiringPackages, setExpiringPackages] = useState<PatientPackage[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // A submitted receipt or an expiring package is tied to its own branch's
+  // calendar, not the viewer's -- see format.ts's TimeZoneOpt comment.
+  const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
 
   useEffect(() => {
     setLoading(true);
@@ -39,12 +45,14 @@ export function AlertsPage() {
       listConversations(true).catch(() => []),
       listPatientPackages({ expiring_within_days: EXPIRING_WITHIN_DAYS }).catch(() => []),
       listPatients().catch(() => []),
+      listBranches().catch(() => []),
     ])
-      .then(([paymentList, conversationList, packageList, patientList]) => {
+      .then(([paymentList, conversationList, packageList, patientList, branchList]) => {
         setPayments(paymentList);
         setConversations(conversationList);
         setExpiringPackages(packageList);
         setPatients(patientList);
+        setBranches(branchList);
       })
       .catch((err) => setError(err.response?.data?.detail ?? err.message))
       .finally(() => setLoading(false));
@@ -99,7 +107,9 @@ export function AlertsPage() {
                 <td>
                   {p.amount} {p.currency}
                 </td>
-                <td>{p.submitted_at ? formatDateTimeShort(p.submitted_at) : "—"}</td>
+                <td>
+                  {p.submitted_at ? formatDateTimeShort(p.submitted_at, branchTz[p.branch_id ?? ""]) : "—"}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -147,7 +157,7 @@ export function AlertsPage() {
               <tr key={pp.id}>
                 <td>{patientName(pp.patient_id)}</td>
                 <td>{pp.sessions_remaining}</td>
-                <td>{formatDateShort(pp.expires_at)}</td>
+                <td>{formatDateShort(pp.expires_at, branchTz[pp.branch_id])}</td>
               </tr>
             ))}
           </tbody>

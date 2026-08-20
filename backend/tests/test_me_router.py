@@ -131,6 +131,11 @@ def test_queue_returns_only_my_tickets_with_patients_resolved():
     # Resolved server-side — the screen never calls /patients to get this.
     assert tickets[0]["patient_name"] == "مريم"
     assert body["queues"][0]["branch_name"] == "الفرع الرئيسي"
+    # A confirmed time is real-world at that branch, not whatever timezone
+    # the browser reviewing it happens to be in -- confirmed live, a booking
+    # correctly stored as 13:00 Asia/Amman rendered as 12:00 on the
+    # appointments table for a browser one zone off from the branch.
+    assert body["queues"][0]["branch_timezone"] == "Asia/Amman"
     assert body["waiting_count"] == 1
 
 
@@ -141,6 +146,26 @@ def test_calendar_returns_only_my_slots_and_appointments():
     assert [a["patient_name"] for a in body["appointments"]] == ["مريم"]
     assert [s["id"] for s in body["slots"]] == ["dddddddd-dddd-4ddd-8ddd-dddddddddddd"]
     assert body["appointments"][0]["service_name"] == "استشارة"
+    assert body["appointments"][0]["branch_timezone"] == "Asia/Amman"
+    assert body["slots"][0]["branch_timezone"] == "Asia/Amman"
+
+
+def test_branch_timezone_falls_back_when_a_branch_row_has_none_set():
+    # _name_map used r[column], which raised KeyError the moment a selected
+    # column wasn't present on a row -- real Supabase always sends it (null
+    # if unset), but this must degrade the same way rather than 500 if a row
+    # is ever missing it, the same way branch_name's own "—" fallback does.
+    db = _db()
+    db._tables["branches"][0].pop("timezone", None)
+    app = FastAPI()
+    app.include_router(me.router)
+    app.dependency_overrides[get_supabase] = lambda: db
+    app.dependency_overrides[get_current_staff] = lambda: CurrentStaff(
+        id=DOCTOR, full_name="د. سارة", email="s@example.com", role="doctor", permissions=DOCTOR_PERMISSIONS
+    )
+    res = TestClient(app).get("/me/queue", params={"date": "2026-08-06"})
+    assert res.status_code == 200
+    assert res.json()["queues"][0]["branch_timezone"] == "Asia/Amman"
 
 
 def test_calendar_omits_appointments_without_appointment_view():

@@ -27,9 +27,12 @@ const appointmentStatusLabel: Record<string, string> = {
 
 const FINISHED = new Set(["completed", "checked_out", "no_show", "cancelled"]);
 
-function clockTime(iso: string | null) {
+// An appointment time is the branch's own real-world time, not the
+// viewer's -- see format.ts's TimeZoneOpt comment for the live incident
+// that motivated branch-aware formatting.
+function clockTime(iso: string | null, timeZone?: string) {
   if (!iso) return "—";
-  return formatTime(iso);
+  return formatTime(iso, timeZone);
 }
 
 function greeting() {
@@ -69,11 +72,13 @@ export function TodayPage({ staffName, onGoTo }: { staffName: string; onGoTo: (t
       .finally(() => setBusy(false));
   };
 
-  const dateLabel = formatFullDate(new Date());
-
   const focus = today?.now_serving ?? today?.up_next ?? null;
   const isServing = Boolean(today?.now_serving);
   const upcoming = (today?.appointments ?? []).filter((a) => !FINISHED.has(a.status));
+  // Best effort: MyToday has no branch of its own (it's the doctor's whole
+  // day, and today's queue tickets don't carry one either), so "today" is
+  // labelled using whichever branch the day's own appointments are at.
+  const dateLabel = formatFullDate(new Date(), today?.appointments[0]?.branch_timezone);
 
   if (loading) {
     return (
@@ -132,7 +137,7 @@ export function TodayPage({ staffName, onGoTo }: { staffName: string; onGoTo: (t
           <div className="focus-card-label">{isServing ? "عم تكشف على" : "المريض التالي"}</div>
           <div className="focus-card-name">{focus.patient_name}</div>
           <div className="focus-card-meta">
-            رقم {focus.ticket_number} · سجّل حضور {clockTime(focus.checked_in_at)}
+            رقم {focus.ticket_number} · سجّل حضور {clockTime(focus.checked_in_at, today?.appointments[0]?.branch_timezone)}
             {focus.patient_phone && (
               <>
                 {" · "}
@@ -177,7 +182,7 @@ export function TodayPage({ staffName, onGoTo }: { staffName: string; onGoTo: (t
             <ul className="today-list">
               {upcoming.map((a) => (
                 <li key={a.id}>
-                  <span className="today-list-time">{clockTime(a.scheduled_at)}</span>
+                  <span className="today-list-time">{clockTime(a.scheduled_at, a.branch_timezone)}</span>
                   <span className="today-list-main">
                     <strong>{a.patient_name}</strong>
                     <span className="today-list-sub">

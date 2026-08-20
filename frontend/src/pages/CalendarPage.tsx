@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
 import { listStaffDirectory } from "../api/staff";
@@ -43,6 +43,10 @@ export function CalendarPage() {
   const [branchId, setBranchId] = useState("");
   const [doctorId, setDoctorId] = useState("");
   const [date, setDate] = useState(todayIso());
+  // Slot times are the branch's own schedule, not whatever timezone the
+  // browser viewing this calendar happens to be in -- see format.ts's
+  // TimeZoneOpt comment for the live incident this fixes.
+  const branchTz = useMemo(() => branches.find((b) => b.id === branchId)?.timezone, [branches, branchId]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -299,7 +303,7 @@ export function CalendarPage() {
                 }
               >
                 <span className="cal-slot-time">
-                  {formatTime(s.start_at)} - {formatTime(s.end_at)}
+                  {formatTime(s.start_at, branchTz)} - {formatTime(s.end_at, branchTz)}
                 </span>
                 <span className="cal-slot-doctor">{doctor}</span>
                 <span className={`badge ${slotStatusBadgeClass[s.status] ?? "inactive"}`}>

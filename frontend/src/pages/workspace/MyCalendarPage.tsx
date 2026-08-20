@@ -41,8 +41,11 @@ function initial(name: string) {
   return name.trim()[0] ?? "";
 }
 
-function clockTime(iso: string) {
-  return formatTime(iso);
+// An appointment/slot time is the branch's own real-world time, not the
+// viewer's -- see format.ts's TimeZoneOpt comment for the live incident
+// that motivated branch-aware formatting.
+function clockTime(iso: string, timeZone?: string) {
+  return formatTime(iso, timeZone);
 }
 
 function todayIso() {
@@ -156,7 +159,9 @@ export function MyCalendarPage() {
           {timeline.map((entry) =>
             entry.kind === "appointment" ? (
               <div key={`a-${entry.appointment.id}`} className="cal-slot booked">
-                <span className="cal-slot-time">{clockTime(entry.appointment.scheduled_at)}</span>
+                <span className="cal-slot-time">
+                  {clockTime(entry.appointment.scheduled_at, entry.appointment.branch_timezone)}
+                </span>
                 <span className="cal-slot-doctor">{entry.appointment.branch_name}</span>
                 <span className="badge active">
                   {appointmentStatusLabel[entry.appointment.status] ?? entry.appointment.status}
@@ -179,7 +184,7 @@ export function MyCalendarPage() {
               </div>
             ) : (
               <div key={`s-${entry.slot.id}`} className={`cal-slot ${entry.slot.status === "available" ? "available" : ""}`}>
-                <span className="cal-slot-time">{clockTime(entry.slot.start_at)}</span>
+                <span className="cal-slot-time">{clockTime(entry.slot.start_at, entry.slot.branch_timezone)}</span>
                 <span className="cal-slot-doctor">{entry.slot.branch_name}</span>
                 <span className="badge inactive">{slotStatusLabel[entry.slot.status] ?? entry.slot.status}</span>
                 <div className="cal-slot-body">

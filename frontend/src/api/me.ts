@@ -27,6 +27,7 @@ export type MyQueue = {
   id: string;
   branch_id: string;
   branch_name: string;
+  branch_timezone: string;
   queue_date: string;
   tickets: MyQueueTicket[];
 };
@@ -50,6 +51,7 @@ export type MyCalendarAppointment = {
   service_name: string | null;
   branch_id: string;
   branch_name: string;
+  branch_timezone: string;
   reason_for_visit: string | null;
   queue_number: number | null;
   check_in_time: string | null;
@@ -60,6 +62,7 @@ export type MyCalendarSlot = {
   id: string;
   branch_id: string;
   branch_name: string;
+  branch_timezone: string;
   start_at: string;
   end_at: string;
   duration_minutes: number;

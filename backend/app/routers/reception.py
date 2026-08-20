@@ -36,7 +36,10 @@ def _name_map(db: Client, table: str, ids: set, column: str = "name") -> dict:
     if not ids:
         return {}
     rows = db.table(table).select(f"id, {column}").in_("id", list(ids)).execute().data
-    return {r["id"]: r[column] for r in rows}
+    # .get, not [] -- degrades to None instead of raising if a row is ever
+    # missing the selected column, matching how branch_timezone's own
+    # "Asia/Amman" fallback treats an unresolved zone at the call site below.
+    return {r["id"]: r.get(column) for r in rows}
 
 
 def _resolve_branch(current: CurrentStaff, scope: StaffScope, branch_id: str | None) -> str | None:
@@ -68,7 +71,8 @@ def desk(
 ):
     day = day or datetime.now(timezone.utc).date()
     resolved = _resolve_branch(current, scope, branch_id)
-    result = ReceptionDesk(date=day, branch_id=resolved)
+    branch_tz = _name_map(db, "branches", {resolved} if resolved else set(), column="timezone").get(resolved)
+    result = ReceptionDesk(date=day, branch_id=resolved, branch_timezone=branch_tz)
     if not resolved:
         return result
 

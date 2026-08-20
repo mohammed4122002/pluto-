@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
@@ -10,12 +10,16 @@ import { consumePackageSession, createPackage, listPackages, listPatientPackages
 import type { Package, PatientPackage } from "../api/packages";
 import { PatientPicker } from "../components/PatientPicker";
 import { packageStatusBadgeClass as statusBadgeClass, packageStatusLabel as statusLabel } from "../statusLabels";
-import { formatDateShort } from "../format";
+import { branchTimeZoneMap, formatDateShort } from "../format";
 
 
 
 export function PackagesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
+  // A package expires at midnight of its own branch's calendar, not the
+  // viewer's -- see format.ts's TimeZoneOpt comment for the live incident
+  // that motivated branch-aware formatting.
+  const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
@@ -224,7 +228,7 @@ export function PackagesPage() {
                 <td>
                   <span className={`badge ${statusBadgeClass[pp.status]}`}>{statusLabel[pp.status]}</span>
                 </td>
-                <td>{formatDateShort(pp.expires_at)}</td>
+                <td>{formatDateShort(pp.expires_at, branchTz[pp.branch_id])}</td>
                 <td>
                   {pp.status === "active" && pp.sessions_remaining > 0 && (
                     <button onClick={() => handleUseSession(pp.id)}>تسجيل استخدام جلسة</button>
