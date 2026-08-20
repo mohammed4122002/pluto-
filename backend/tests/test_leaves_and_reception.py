@@ -78,7 +78,7 @@ def _db() -> FakeSupabase:
             "queue_tickets": [],
             "channels": [],
             "conversations": [],
-            "branches": [{"id": BRANCH, "name": "فرع عبدون", "is_active": True}],
+            "branches": [{"id": BRANCH, "name": "فرع عبدون", "is_active": True, "timezone": "Asia/Amman"}],
         }
     )
 
@@ -160,6 +160,24 @@ def test_desk_falls_back_to_the_staff_members_own_branch():
     client, _ = _client(reception.router, DESK_PERMISSIONS, role="receptionist")
     body = client.get("/reception/desk", params={"date": TOMORROW.date().isoformat()}).json()
     assert body["branch_id"] == BRANCH
+    # An arrival's scheduled_at is real-world at that branch, not whatever
+    # timezone the front desk's own browser happens to be in -- confirmed
+    # live, a booking correctly stored as 13:00 Asia/Amman rendered as 12:00
+    # for a browser one zone off from the branch.
+    assert body["branch_timezone"] == "Asia/Amman"
+
+
+def test_desk_branch_timezone_is_none_rather_than_a_crash_when_unresolved(monkeypatch):
+    # _name_map used r[column], which raised KeyError the moment a selected
+    # column wasn't present on a row -- real Supabase always sends it (null
+    # if unset), but this must degrade to None the same way, not 500.
+    import app.routers.reception as reception_module
+
+    monkeypatch.setattr(reception_module, "_name_map", lambda *_a, **_k: {})
+    client, _ = _client(reception.router, DESK_PERMISSIONS, role="receptionist")
+    res = client.get("/reception/desk", params={"date": TOMORROW.date().isoformat()})
+    assert res.status_code == 200
+    assert res.json()["branch_timezone"] is None
 
 
 def test_desk_lists_arrivals_with_names_resolved():

@@ -955,6 +955,7 @@ class PaymentWithDetails(Payment):
     patient_phone: str | None = None
     appointment_number: str | None = None
     scheduled_at: datetime | None = None
+    branch_id: UUID | None = None
 
 
 class PaymentReceiptSubmit(BaseModel):
@@ -1389,6 +1390,7 @@ class MyQueue(BaseModel):
     id: UUID
     branch_id: UUID
     branch_name: str
+    branch_timezone: str
     queue_date: date
     tickets: list[MyQueueTicket] = []
 
@@ -1412,6 +1414,7 @@ class MyCalendarAppointment(BaseModel):
     service_name: str | None = None
     branch_id: UUID
     branch_name: str
+    branch_timezone: str
     reason_for_visit: str | None = None
     queue_number: int | None = None
     check_in_time: datetime | None = None
@@ -1422,6 +1425,7 @@ class MyCalendarSlot(BaseModel):
     id: UUID
     branch_id: UUID
     branch_name: str
+    branch_timezone: str
     start_at: datetime
     end_at: datetime
     duration_minutes: int
@@ -1472,6 +1476,7 @@ class SearchAppointmentResult(BaseModel):
     scheduled_at: datetime
     status: AppointmentStatus
     patient_name: str
+    branch_id: UUID
 
 
 class SearchStaffResult(BaseModel):
@@ -1573,6 +1578,7 @@ class ReceptionDesk(BaseModel):
 
     date: date
     branch_id: UUID | None = None
+    branch_timezone: str | None = None
     arrivals: list[DeskArrival] = []
     expected_count: int = 0
     checked_in_count: int = 0

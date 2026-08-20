@@ -69,7 +69,7 @@ def _search_appointments(
 
     query = (
         db.table("appointments")
-        .select("id, scheduled_at, status, patient_id, confirmation_code, appointment_number")
+        .select("id, scheduled_at, status, patient_id, branch_id, confirmation_code, appointment_number")
         .is_("deleted_at", "null")
     )
     if scope.is_self_scoped:
@@ -91,7 +91,11 @@ def _search_appointments(
     matched.sort(key=lambda r: r["scheduled_at"], reverse=True)
     return [
         SearchAppointmentResult(
-            id=r["id"], scheduled_at=r["scheduled_at"], status=r["status"], patient_name=names.get(r["patient_id"], "—")
+            id=r["id"],
+            scheduled_at=r["scheduled_at"],
+            status=r["status"],
+            patient_name=names.get(r["patient_id"], "—"),
+            branch_id=r["branch_id"],
         )
         for r in matched[:_MAX_RESULTS]
     ]

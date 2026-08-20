@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { search } from "../api/search";
 import type { SearchResults } from "../api/search";
+import { listBranches } from "../api/branches";
+import type { Branch } from "../api/branches";
+import { getMyBranches } from "../api/me";
 import { SearchIcon } from "../icons";
-import { formatDateTimeShort } from "../format";
+import { branchTimeZoneMap, formatDateTimeShort } from "../format";
 
 type GlobalSearchBarProps = {
   onNavigate: (key: string) => void;
@@ -17,7 +20,17 @@ export function GlobalSearchBar({ onNavigate, isSelfScoped }: GlobalSearchBarPro
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  // An appointment's scheduled_at is its branch's real-world time, not the
+  // viewer's own -- see format.ts's TimeZoneOpt comment. /branches is
+  // clinic-wide and self-scoped staff (doctors) can't call it, so this uses
+  // whichever list their own permissions actually allow.
+  const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
+
+  useEffect(() => {
+    (isSelfScoped ? getMyBranches() : listBranches()).then(setBranches).catch(() => setBranches([]));
+  }, [isSelfScoped]);
 
   useEffect(() => {
     const q = query.trim();
@@ -97,7 +110,9 @@ export function GlobalSearchBar({ onNavigate, isSelfScoped }: GlobalSearchBarPro
                   onClick={() => go(isSelfScoped ? "my-calendar" : "appointments")}
                 >
                   <span>{a.patient_name}</span>
-                  <span className="global-search-result-meta">{formatDateTimeShort(a.scheduled_at)}</span>
+                  <span className="global-search-result-meta">
+                    {formatDateTimeShort(a.scheduled_at, branchTz[a.branch_id])}
+                  </span>
                 </button>
               ))}
             </div>

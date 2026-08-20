@@ -94,6 +94,7 @@ def list_payments(
         row["patient_phone"] = patient.get("phone")
         row["appointment_number"] = appt.get("appointment_number")
         row["scheduled_at"] = appt.get("scheduled_at")
+        row["branch_id"] = branch_id
         result.append(row)
     return result
 

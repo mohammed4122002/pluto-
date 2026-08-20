@@ -1,8 +1,10 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { applyCoupon, listPayments, refundPayment, rejectPayment, verifyPayment } from "../api/payments";
 import type { Payment, PaymentStatus } from "../api/payments";
 import { createInvoice } from "../api/invoices";
-import { formatDateTimeShort } from "../format";
+import { listBranches } from "../api/branches";
+import type { Branch } from "../api/branches";
+import { branchTimeZoneMap, formatDateTimeShort } from "../format";
 
 const tabs: { key: PaymentStatus; label: string }[] = [
   { key: "receipt_submitted", label: "بانتظار المراجعة" },
@@ -25,6 +27,7 @@ type Panel = { paymentId: string; kind: "reject" | "coupon" | "refund" };
 export function PaymentsPage() {
   const [tab, setTab] = useState<PaymentStatus>("receipt_submitted");
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -32,6 +35,14 @@ export function PaymentsPage() {
   const [textValue, setTextValue] = useState("");
   const [amountValue, setAmountValue] = useState("");
   const [search, setSearch] = useState("");
+  // A payment's scheduled_at is its appointment's real-world time at that
+  // branch, not whatever timezone the browser reviewing it happens to be in
+  // -- see format.ts's TimeZoneOpt comment for the live incident this fixes.
+  const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
+
+  useEffect(() => {
+    listBranches().then(setBranches);
+  }, []);
 
   const load = () => {
     setLoading(true);
@@ -183,7 +194,9 @@ export function PaymentsPage() {
                     <div className="import-hint">{p.patient_phone}</div>
                   </td>
                   <td>{p.appointment_number ?? (p.patient_package_id ? "باقة" : "—")}</td>
-                  <td>{p.scheduled_at ? formatDateTimeShort(p.scheduled_at) : "—"}</td>
+                  <td>
+                    {p.scheduled_at ? formatDateTimeShort(p.scheduled_at, branchTz[p.branch_id ?? ""]) : "—"}
+                  </td>
                   <td>{paymentTypeLabel[p.payment_type] ?? p.payment_type}</td>
                   <td>
                     {p.amount} {p.currency}

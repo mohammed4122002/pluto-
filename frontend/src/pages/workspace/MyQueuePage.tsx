@@ -23,9 +23,12 @@ const ticketTone: Record<string, string> = {
   skipped: "tone-rose",
 };
 
-function clockTime(iso: string | null) {
+// A check-in time is the branch's own real-world time, not the viewer's --
+// see format.ts's TimeZoneOpt comment for the live incident that motivated
+// branch-aware formatting.
+function clockTime(iso: string | null, timeZone?: string) {
   if (!iso) return "—";
-  return formatTime(iso);
+  return formatTime(iso, timeZone);
 }
 
 function todayIso() {
@@ -104,7 +107,8 @@ export function MyQueuePage() {
           <div className="focus-card-label">{inProgress ? "عم تكشف على" : "التالي"}</div>
           <div className="focus-card-name">{(inProgress ?? upNext)!.patient_name}</div>
           <div className="focus-card-meta">
-            رقم {(inProgress ?? upNext)!.ticket_number} · سجّل حضور {clockTime((inProgress ?? upNext)!.checked_in_at)}
+            رقم {(inProgress ?? upNext)!.ticket_number} · سجّل حضور{" "}
+            {clockTime((inProgress ?? upNext)!.checked_in_at, day?.queues[0]?.branch_timezone)}
           </div>
           <div className="focus-card-actions">
             {inProgress ? (
@@ -162,7 +166,7 @@ export function MyQueuePage() {
                 <div className="ticket-patient">{t.patient_name}</div>
                 <div className="ticket-meta">
                   {priorityLabel[t.priority_level] && <span>{priorityLabel[t.priority_level]}</span>}
-                  <span>حضر {clockTime(t.checked_in_at)}</span>
+                  <span>حضر {clockTime(t.checked_in_at, q.branch_timezone)}</span>
                   <span>{q.branch_name}</span>
                 </div>
                 {t.status !== "done" && t.status !== "skipped" && (

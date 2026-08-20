@@ -1,7 +1,13 @@
 import { api } from "./client";
 
 export type SearchPatientResult = { id: string; full_name: string; phone: string | null };
-export type SearchAppointmentResult = { id: string; scheduled_at: string; status: string; patient_name: string };
+export type SearchAppointmentResult = {
+  id: string;
+  scheduled_at: string;
+  status: string;
+  patient_name: string;
+  branch_id: string;
+};
 export type SearchStaffResult = { id: string; full_name: string; role: string };
 
 export type SearchResults = {

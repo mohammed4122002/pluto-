@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
@@ -24,7 +24,7 @@ import { searchSlots } from "../api/slots";
 import type { Slot } from "../api/slots";
 import { PatientPicker } from "../components/PatientPicker";
 import { QUEUE_OWNED_STATUSES, statusBadgeClass, statusLabel } from "../statusLabels";
-import { formatDateTimeShort } from "../format";
+import { branchTimeZoneMap, formatDateTimeShort } from "../format";
 
 // Every status status_transitions can actually produce (confirmed against
 // the live table) -- not just the handful this UI creates directly, since
@@ -91,6 +91,10 @@ type ActionPanel = { appointmentId: string; kind: "reschedule" | "cancel" | "no_
 
 export function AppointmentsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
+  // A confirmed time is a real-world event at that branch, regardless of
+  // which timezone the staff member viewing this table happens to be in --
+  // see format.ts's TimeZoneOpt comment for the live incident this fixes.
+  const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [staff, setStaff] = useState<StaffDirectoryEntry[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -473,7 +477,7 @@ export function AppointmentsPage() {
                     )}
                     <td>{nameOf(staff, appt.staff_id)}</td>
                     <td>{nameOf(services, appt.service_id)}</td>
-                    <td>{formatDateTimeShort(appt.scheduled_at)}</td>
+                    <td>{formatDateTimeShort(appt.scheduled_at, branchTz[appt.branch_id])}</td>
                     <td>
                       <span className={`badge ${statusBadgeClass[appt.status]}`}>
                         {statusLabel[appt.status]}
@@ -521,7 +525,7 @@ export function AppointmentsPage() {
                             <option value="">اختر الموعد الجديد</option>
                             {rescheduleSlots.map((s) => (
                               <option key={s.id} value={s.id}>
-                                {formatDateTimeShort(s.start_at)}
+                                {formatDateTimeShort(s.start_at, branchTz[s.branch_id])}
                               </option>
                             ))}
                           </select>

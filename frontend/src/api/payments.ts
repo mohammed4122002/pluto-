@@ -30,6 +30,7 @@ export type Payment = {
   patient_phone: string | null;
   appointment_number: string | null;
   scheduled_at: string | null;
+  branch_id: string | null;
 };
 
 export type PaymentMethod = {

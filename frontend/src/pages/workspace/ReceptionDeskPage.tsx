@@ -12,8 +12,11 @@ const SETTLED = new Set([
   "cancelled_by_clinic", "cancelled_by_doctor", "no_show", "expired", "rejected",
 ]);
 
-function clockTime(iso: string) {
-  return formatTime(iso);
+// An arrival's scheduled_at is the desk's own branch time, not the
+// viewer's -- see format.ts's TimeZoneOpt comment for the live incident
+// that motivated branch-aware formatting.
+function clockTime(iso: string, timeZone?: string) {
+  return formatTime(iso, timeZone);
 }
 
 function todayIso() {
@@ -186,7 +189,7 @@ export function ReceptionDeskPage() {
             {arrivals.map((a) => (
               <tr key={a.appointment_id} className={SETTLED.has(a.status) ? "row-muted" : undefined}>
                 <td>
-                  {clockTime(a.scheduled_at)}
+                  {clockTime(a.scheduled_at, desk?.branch_timezone ?? undefined)}
                   {isLate(a) && <span className="desk-late">متأخر</span>}
                 </td>
                 <td>

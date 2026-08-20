@@ -16,7 +16,7 @@ import type { DashboardReport } from "../api/reports";
 import { BarChart, Donut, Funnel, Heatmap, Meter, RankedList, Sparkline } from "../components/Charts";
 import type { DonutSlice, HeatmapCell } from "../components/Charts";
 import { bookingSourceLabel, bucketLabel, statusBadgeClass, statusBucket, statusLabel } from "../statusLabels";
-import { formatDayMonth, formatFullDate, formatTime } from "../format";
+import { branchTimeZoneMap, formatDayMonth, formatFullDate, formatTime } from "../format";
 
 type HomePageProps = {
   staffName: string;
@@ -53,8 +53,8 @@ function dayKey(d: Date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function clockTime(iso: string) {
-  return formatTime(iso);
+function clockTime(iso: string, timeZone?: string) {
+  return formatTime(iso, timeZone);
 }
 
 /** Icons are inline so the dashboard adds no network requests and the strokes
@@ -198,6 +198,13 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [staff, setStaff] = useState<StaffDirectoryEntry[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  // A dashboard appointment time is its own branch's real-world time, not
+  // the viewer's -- see format.ts's TimeZoneOpt comment. The "today" header
+  // and heatmap aggregate across branches, so they fall back to the first
+  // branch's zone -- every branch currently shares one, and using any single
+  // consistent zone beats the viewer's own for a clinic-wide label.
+  const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
+  const defaultTz = branches[0]?.timezone;
 
   const [periodDays, setPeriodDays] = useState(7);
   const [branchId, setBranchId] = useState<string>("");
@@ -268,7 +275,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
       days.push({
         label: i === 0 ? "اليوم" : WEEKDAY[d.getDay()],
         value: count,
-        title: `${formatDayMonth(d)}: ${count} موعد`,
+        title: `${formatDayMonth(d, defaultTz)}: ${count} موعد`,
       });
     }
 
@@ -276,7 +283,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
     for (const a of todayList) counts[statusBucket(a.status)] += 1;
 
     return { today: todayList, week: days, buckets: counts };
-  }, [appointments]);
+  }, [appointments, defaultTz]);
 
   const greeting = new Date().getHours() < 12 ? "صباح الخير" : "مساء الخير";
   const patientName = (id: string) => patients.find((p) => p.id === id)?.full_name ?? "—";
@@ -353,7 +360,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
           <p className="page-header-title">
             {greeting}، {staffName}
           </p>
-          <p className="page-header-subtitle">{formatFullDate(new Date())}</p>
+          <p className="page-header-subtitle">{formatFullDate(new Date(), defaultTz)}</p>
         </div>
         <div className="dash-filters">
           <div className="period-pills">
@@ -585,7 +592,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
           <ul className="agenda">
             {today.slice(0, 8).map((a) => (
               <li key={a.id} className="agenda-row">
-                <span className="agenda-time">{clockTime(a.scheduled_at)}</span>
+                <span className="agenda-time">{clockTime(a.scheduled_at, branchTz[a.branch_id])}</span>
                 <span className="agenda-avatar" aria-hidden>
                   {doctorInitial(a.staff_id)}
                 </span>
