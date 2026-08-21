@@ -797,6 +797,20 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 _OPENAI_COOLDOWN_SECONDS = 600
 _openai_unusable_until = 0.0
 
+# Neither OpenAI client below overrode the SDK default (600s) until this was
+# added -- a provider that's slow rather than erroring outright (degraded,
+# not down) would just sit there silently for up to 10 minutes per call, and
+# _run_conversation_turn can make up to _MAX_TOOL_ROUNDS calls in one turn.
+# Nothing about that hang raises an exception, so the Gemini fallback below
+# (which only triggers on a caught exception) never even gets a chance to
+# kick in -- the patient is left with zero reply for however long the slow
+# call takes. Confirmed live: a patient who'd just been told to go to the ER
+# for chest pain asked a routine follow-up question and got no reply for
+# about 20 minutes. 25s is generous for a normal chat turn; past that, the
+# provider is functionally down for this patient and Gemini (or, failing
+# that, a human) should take over rather than leaving them in silence.
+_LLM_REQUEST_TIMEOUT_SECONDS = 25.0
+
 # Errors that mean "OpenAI will keep failing", as opposed to a transient blip
 # worth retrying on the next message.
 _OPENAI_HARD_FAILURES = ("insufficient_quota", "credit_balance_exhausted", "invalid_api_key", "account_deactivated")
@@ -863,7 +877,7 @@ def _get_openai(db: Client = Depends(get_supabase), settings: Settings = Depends
     # No in-band retries: a Gemini fallback is already wired up, so retrying a
     # failing OpenAI call here only adds seconds to the patient's wait before
     # we reach for the thing that actually works.
-    return OpenAI(api_key=api_key, max_retries=0)
+    return OpenAI(api_key=api_key, max_retries=0, timeout=_LLM_REQUEST_TIMEOUT_SECONDS)
 
 
 def _get_gemini_fallback(
@@ -880,7 +894,7 @@ def _get_gemini_fallback(
     if not api_key:
         return None
     model = overrides.get("gemini_model") or settings.gemini_model
-    return OpenAI(api_key=api_key, base_url=GEMINI_BASE_URL), model
+    return OpenAI(api_key=api_key, base_url=GEMINI_BASE_URL, timeout=_LLM_REQUEST_TIMEOUT_SECONDS), model
 
 
 def _load_conversation(db: Client, conversation_id: str) -> dict:
