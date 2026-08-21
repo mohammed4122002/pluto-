@@ -915,6 +915,61 @@ def apply_coupon_code(db: Client, payment_id: str, code: str, patient_id: str) -
     return updated
 
 
+# Terminal statuses no longer occupy the patient's calendar -- everything
+# else (confirmed, requested, checked_in, the various pending_* states, ...)
+# still represents a real commitment of their time that a second booking
+# would collide with.
+_TERMINAL_APPOINTMENT_STATUSES = {
+    "cancelled",
+    "cancelled_by_patient",
+    "cancelled_by_clinic",
+    "cancelled_by_doctor",
+    "rejected",
+    "no_show",
+    "completed",
+    "checked_out",
+    "expired",
+}
+
+
+def _patient_double_booking_conflict(
+    db: Client, patient_id: str, start_utc: datetime, end_utc: datetime
+) -> dict | None:
+    """The patient's own other appointment that overlaps this time, if any --
+    a different doctor's slot search has no way to know this same patient is
+    already booked elsewhere at that hour, so nothing in the slot-locking
+    machinery (which only ever guards one doctor's one slot) catches this on
+    its own. Confirmed live: one conversation booked the same patient into
+    two appointments with two different doctors at the exact same 9:00 slot
+    -- a dermatology consult and a laser session -- and both went through
+    cleanly.
+
+    A generous +/-4 hour window (appointments here run 20-90 minutes) keeps
+    this to one indexed query instead of pushing interval arithmetic through
+    PostgREST's filter API, which has no clean way to express it; the real
+    overlap check happens in Python against that small candidate set."""
+    window_start = (start_utc - timedelta(hours=4)).isoformat()
+    window_end = (end_utc + timedelta(hours=4)).isoformat()
+    rows = (
+        db.table("appointments")
+        .select("scheduled_at, duration_minutes, status, staff(full_name), services(name)")
+        .eq("patient_id", patient_id)
+        .is_("deleted_at", "null")
+        .gte("scheduled_at", window_start)
+        .lt("scheduled_at", window_end)
+        .execute()
+        .data
+    )
+    for row in rows:
+        if row.get("status") in _TERMINAL_APPOINTMENT_STATUSES:
+            continue
+        existing_start = datetime.fromisoformat(row["scheduled_at"].replace("Z", "+00:00"))
+        existing_end = existing_start + timedelta(minutes=row["duration_minutes"])
+        if existing_start < end_utc and existing_end > start_utc:
+            return row
+    return None
+
+
 def _generate_appointment_number() -> str:
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
     return f"APT-{today}-{secrets.token_hex(3).upper()}"
@@ -1090,7 +1145,7 @@ def book_by_doctor_and_time(
 
     slot_rows = (
         db.table("slots")
-        .select("id")
+        .select("id, duration_minutes")
         .eq("branch_id", branch_id)
         .eq("doctor_id", doctor_id)
         .eq("status", "available")
@@ -1107,6 +1162,34 @@ def book_by_doctor_and_time(
         }
 
     slot_id = slot_rows[0]["id"]
+
+    # Skip this check when the booking is explicitly for someone other than
+    # the messaging contact themselves (e.g. "احجزلي لابني") -- book_slot_for_
+    # patient uses this exact signal to decide the same thing, so the two
+    # can't disagree about whose calendar this is.
+    patient_rows = db.table("patients").select("full_name, phone").eq("id", patient_id).limit(1).execute().data
+    patient_row = patient_rows[0] if patient_rows else {}
+    booking_for_someone_else = (
+        bool(visit_for_name and visit_for_name.strip())
+        and not _is_placeholder_name(patient_row.get("full_name"), patient_row.get("phone"))
+        and visit_for_name.strip() != patient_row.get("full_name")
+    )
+    if not booking_for_someone_else:
+        slot_end_utc = requested_utc + timedelta(minutes=slot_rows[0]["duration_minutes"])
+        conflict = _patient_double_booking_conflict(db, patient_id, requested_utc, slot_end_utc)
+        if conflict:
+            conflict_start_local = datetime.fromisoformat(conflict["scheduled_at"].replace("Z", "+00:00")).astimezone(tz)
+            conflict_doctor = (conflict.get("staff") or {}).get("full_name") or "طبيب آخر"
+            conflict_service = (conflict.get("services") or {}).get("name") or "موعد آخر"
+            return {
+                "booked": False,
+                "reason": f"عند المريض موعد آخر متضارب بنفس الوقت تقريباً: {conflict_service} مع "
+                f"{conflict_doctor} الساعة {conflict_start_local.strftime('%H:%M')} — ما بينحجزله "
+                "موعدين بنفس الوقت إلا لو كان هذا الحجز فعلاً لشخص ثاني (زي ابنه أو قريبه)، وعندها "
+                "لازم تمرري visit_for_name باسم الشخص التاني صراحة. اسألي المريض يوضّح قبل ما تكملي.",
+                "alternative_slots": _alternatives_for(db, branch_id, doctor_name, requested_dt, tz),
+            }
+
     service_id = _resolve_service_id(db, doctor_id, service_name)
 
     verified_package_id = None
