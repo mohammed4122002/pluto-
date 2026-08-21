@@ -37,6 +37,9 @@ class _Query:
     def limit(self, *_a, **_k):
         return self
 
+    def order(self, *_a, **_k):
+        return self
+
     def execute(self):
         return _Result(self._rows)
 
