@@ -276,6 +276,10 @@ BASE_INSTRUCTIONS = (
     "cancel_appointment.\n"
     "- أكدي مع المريض صراحة إنه بدو يلغي فعلاً قبل استدعاء cancel_appointment — ما تلغي بمجرد إنه سأل "
     "'بقدر ألغي موعدي؟'.\n"
+    "- بعد ما يأكد إنه بدو يلغي وقبل ما تستدعي cancel_appointment، اسأليه بلطف وبسرعة عن سبب الإلغاء "
+    "(سؤال قصير وحيد، مش استجواب — مثلاً 'تمام، بس لو سمحت شو سبب الإلغاء؟'). لو جاوب، مرري كلامه "
+    "بحقل reason. لو تجاهل السؤال أو رد بشكل عام بدون سبب واضح، كمّلي الإلغاء عادي بعد محاولة وحدة "
+    "بدون ما تلحّي عليه أكتر من مرة، ومرري reason فاضي.\n"
     "- بعد الإلغاء، إذا رجعت النتيجة fee_charged أكبر من صفر، أخبري المريض بوضوح إنه انترتب رسم إلغاء "
     "وبقيمته، لأن الإلغاء صار متأخر حسب سياسة العيادة — لا تخفي هذه المعلومة ولا تعتذري عنها كأنه خطأ "
     "منك.\n"
@@ -1615,6 +1619,9 @@ def _build_system_prompt(
     if about_text:
         parts.append(f"عن العيادة: {about_text}")
 
+    all_branches = list_active_branches(db)
+    is_multi_branch = len(all_branches) > 1
+
     if branch_rows:
         b = branch_rows[0]
         details = [b["name"]]
@@ -1625,10 +1632,29 @@ def _build_system_prompt(
         if b.get("working_hours_note"):
             details.append(f"hours: {b['working_hours_note']}")
         parts.append("الفرع: " + " | ".join(details))
+        if is_multi_branch:
+            # find_doctors/find_available_slots/list_services/book_appointment
+            # all search this one branch only -- there's no per-call branch
+            # override, so a patient asking to check a different branch
+            # mid-conversation (even just to compare, not necessarily to
+            # switch for good) silently keeps searching the old one unless
+            # select_branch actually runs again first. Confirmed live: a
+            # patient asked to check laser-session availability at a second
+            # branch after the first had none, and kept getting told nothing
+            # was available there either, turn after turn -- the branch never
+            # actually changed, so every search was still against the first
+            # branch regardless of which one she named.
+            parts.append(
+                "مهم: لو المريض ذكر اسم فرع تاني غير الفرع المذكور فوق (حتى لو كان مجرد سؤال مقارنة "
+                "زي 'واي فرع تاني عندكم؟' أو 'جربي فرع كذا')، لازم تستدعي select_branch بالفرع الجديد "
+                "فوراً قبل أي استدعاء لـ find_doctors أو find_available_slots أو list_services — هذي "
+                "الأدوات كلها بتبحث بالفرع المذكور فوق وبس، ما في طريقة تانية تبحثي فيها بفرع مختلف "
+                "لمرة وحدة بدون ما تبدّلي الفرع فعلياً. لو نسيتِ هالخطوة، رح تفضلي ترجعي نتائج الفرع "
+                "القديم وتقوليله 'ما في مواعيد' حتى لو الفرع الجديد فعلاً عنده مواعيد متاحة."
+            )
 
     if not branch_selected_explicitly:
-        all_branches = list_active_branches(db)
-        if len(all_branches) > 1:
+        if is_multi_branch:
             lines = [
                 "هذه العيادة عندها أكثر من فرع، والمريض لسا ما حدد صراحة أي فرع بهذه المحادثة "
                 "(الفرع المذكور فوق هو مجرد افتراضي مؤقت، مش اختيار المريض):"

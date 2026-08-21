@@ -164,6 +164,29 @@ def test_multi_branch_clinic_stays_quiet_once_a_branch_was_explicitly_chosen():
     assert "أكثر من فرع" not in prompt
 
 
+# --- system prompt: reminder to actually switch branches, not just search
+# the old one, once a branch is already locked in ----------------------------
+
+
+def test_multi_branch_clinic_reminds_to_reselect_even_after_a_branch_was_chosen():
+    # This is the gap confirmed live: find_available_slots/find_doctors/
+    # list_services only ever search ctx["branch_id"] -- once a branch is
+    # selected, the old single "which branch do you want" block (checked
+    # above) goes quiet for the rest of the conversation, and nothing told
+    # the model that naming a *different* branch later still requires
+    # calling select_branch again before searching it.
+    db = _Db(branches=[BRANCH_A, BRANCH_B])
+    prompt = _build_system_prompt(db, "b1", {}, branch_selected_explicitly=True)
+    assert "select_branch" in prompt
+    assert "فرع تاني" in prompt
+
+
+def test_single_branch_clinic_never_shows_the_reselect_reminder():
+    db = _Db(branches=[BRANCH_A])
+    prompt = _build_system_prompt(db, "b1", {}, branch_selected_explicitly=True)
+    assert "لازم تستدعي select_branch بالفرع الجديد" not in prompt
+
+
 def test_default_argument_matches_every_pre_existing_caller():
     # Every call site that predates this feature doesn't pass
     # branch_selected_explicitly at all -- the default must behave as
