@@ -86,6 +86,7 @@ def generate_slots_for_doctor(
 
     limits_rows = db.table("doctor_limits").select("*").eq("staff_id", staff_id).limit(1).execute().data
     limits = limits_rows[0] if limits_rows else {}
+    buffer_before = limits.get("buffer_before_minutes") or 0
     buffer_after = limits.get("buffer_after_minutes") or 0
     break_start = limits.get("break_start_time")
     break_end = limits.get("break_end_time")
@@ -104,8 +105,15 @@ def generate_slots_for_doctor(
 
         for row in rows:
             slot_minutes = row["slot_duration_minutes"]
-            step = timedelta(minutes=slot_minutes + buffer_after)
-            work_start = datetime.combine(current, _parse_time(row["start_time"]), tzinfo=tz)
+            # buffer_before is prep time the doctor needs ahead of every
+            # patient, not just the first one of the day -- so it shifts the
+            # day's own start (nothing is bookable before the doctor has had
+            # their setup time) and, like buffer_after, widens the gap between
+            # consecutive slots.
+            step = timedelta(minutes=slot_minutes + buffer_before + buffer_after)
+            work_start = datetime.combine(current, _parse_time(row["start_time"]), tzinfo=tz) + timedelta(
+                minutes=buffer_before
+            )
             work_end = datetime.combine(current, _parse_time(row["end_time"]), tzinfo=tz)
 
             cursor = work_start

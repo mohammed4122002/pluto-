@@ -8,7 +8,7 @@ the 26 doctors in the live database.
 """
 
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -17,6 +17,7 @@ from app.services.slots import (  # noqa: E402
     INACTIVE_DOCTOR,
     NO_AVAILABILITY,
     NO_WORKING_DAYS,
+    _iso_day_of_week,
     generate_slots_for_doctor,
 )
 from tests.fake_supabase import FakeSupabase  # noqa: E402
@@ -82,3 +83,34 @@ def test_a_successful_run_reports_no_reason():
     created, reason = generate_slots_for_doctor(db, DOCTOR, BRANCH, future, future)
     assert created > 0
     assert reason is None
+
+
+def test_buffer_before_minutes_delays_the_first_slot_and_widens_the_gap():
+    # doctor_limits.buffer_before_minutes was defined in the schema but never
+    # read by generation -- a doctor who needs 15 minutes of prep before every
+    # patient still got a slot at the exact start of their working hours, and
+    # back-to-back slots with a buffer_after only left a gap on one side.
+    future = date.today() + timedelta(days=7)
+    day = _iso_day_of_week(future)
+    db = FakeSupabase(
+        {
+            "staff": [{"id": DOCTOR, "is_active": True}],
+            "doctor_availability": [_availability(day)],
+            "branches": [{"id": BRANCH, "timezone": "Asia/Amman"}],
+            "doctor_leaves": [],
+            "branch_holidays": [],
+            "doctor_limits": [{"staff_id": DOCTOR, "buffer_before_minutes": 15, "buffer_after_minutes": 5}],
+            "slots": [],
+        }
+    )
+    created, reason = generate_slots_for_doctor(db, DOCTOR, BRANCH, future, future)
+    assert created > 0
+    assert reason is None
+
+    slots = sorted(db.inserts["slots"], key=lambda s: s["start_at"])
+    first_start = datetime.fromisoformat(slots[0]["start_at"])
+    assert first_start.hour == 9 and first_start.minute == 15
+
+    second_start = datetime.fromisoformat(slots[1]["start_at"])
+    first_end = datetime.fromisoformat(slots[0]["end_at"])
+    assert second_start - first_end == timedelta(minutes=15 + 5)

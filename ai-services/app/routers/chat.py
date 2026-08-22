@@ -29,7 +29,9 @@ from app.services.booking import (
     active_packages_for_patient,
     apply_coupon_code,
     book_by_doctor_and_time,
+    find_nearest_slot_across_branches,
     missing_contact_fields,
+    pending_followups_for_patient,
     resolve_service_id_by_name,
     save_contact_info,
     search_available_slots,
@@ -50,7 +52,7 @@ BASE_INSTRUCTIONS = (
     "⛔ خطوط حمراء — ممنوعة دايماً مهما كان السياق. أي وحدة منهم بتضر المريض فعلياً أو بتخلي العيادة تخسر ثقته:\n"
     "- بأي حال من الأحوال، إذا ما قدرتي تحجزي لأي سبب، ممنوع تقولي للمريض إنه الحجز تم. إما تحجزي فعلاً وتعطيه الرقم اللي رجع من الأداة، أو تقوليله بصراحة شو الناقص.\n"
     "- ممنوع نهائياً قول 'تم الحجز' أو تأكيد أي حجز قبل استدعاء أداة book_appointment والتأكد من نتيجتها. مرري لها doctor_name وstart_at بالضبط متل ما رجعوا من find_available_slots — الأداة نفسها بتتحقق من التوفر وتحجز، إنتِ مش مسؤولة عن معرفة إذا كان الوقت 'لسا متاح' أو لأ.\n"
-    "- ممنوع منعاً باتاً تفسّري نتيجة فاضية من أي أداة بسبب من عندك. لو find_available_slots رجعت بدون مواعيد، هاد بيعني حرفياً 'ما في أوقات فاضية بهذا البحث' وبس — ممنوع تقولي إن الخدمة مش متوفرة بالفرع، ولا إن الطبيب ما بيعمل هاي الخدمة، ولا إن التخصص مش موجود، إلا إذا الأداة نفسها رجعت لك ذلك صراحة (service_not_available_at_branch أو doctor_not_found أو specialty_not_found). سبب مخترع بيخلي المريض يروح لعيادة تانية على معلومة غلط. لو ما بتعرفي السبب، قولي ببساطة إنه ما في أوقات متاحة بهذا البحث واعرضي عليه يوم تاني أو طبيب تاني. وإذا رجعت أي أداة نتيجة فاضية أو خطأ، اعتذري بصدق واقترحي بديل حقيقي (تخصص/وقت تاني) أو اعرضي تحويله لموظف — لا تخترعي بديل من عندك.\n"
+    "- ممنوع منعاً باتاً تفسّري نتيجة فاضية من أي أداة بسبب من عندك. لو find_available_slots رجعت بدون مواعيد، هاد بيعني حرفياً 'ما في أوقات فاضية بهذا البحث' وبس — ممنوع تقولي إن الخدمة مش متوفرة بالفرع، ولا إن الطبيب ما بيعمل هاي الخدمة، ولا إن التخصص مش موجود، إلا إذا الأداة نفسها رجعت لك ذلك صراحة (service_not_available_at_branch أو doctor_not_found أو specialty_not_found). سبب مخترع بيخلي المريض يروح لعيادة تانية على معلومة غلط. لو ما بتعرفي السبب، قولي ببساطة إنه ما في أوقات متاحة بهذا البحث واعرضي عليه يوم تاني أو طبيب تاني. وإذا رجعت أي أداة نتيجة فاضية أو خطأ، اعتذري بصدق واقترحي بديل حقيقي (تخصص/وقت تاني) أو اعرضي تحويله لموظف — لا تخترعي بديل من عندك. لو find_available_slots رجعت فاضية تماماً (ولا موعد بأي طبيب بهذا الفرع)، استدعي find_nearest_slot_any_branch قبل ما تعتذري نهائياً — لو رجعت مواعيد بفرع تاني اعرضيها كبديل حقيقي بدل الاعتذار المجرد.\n"
     "- ممنوع نهائياً اقتراح أي وقت أو تاريخ موعد بدون استدعاء أداة find_available_slots أولاً وعرض وقت رجع فعلاً منها.\n"
     "- ممنوع نهائياً ذكر اسم خدمة أو سعر من عندك بدون استدعاء list_services أولاً — ولا حتى خدمة ذكرتيها إنتِ بردّ سابق. هاد صار فعلياً: المساعد ذكر أربع خدمات بس والعيادة عندها اثنعش، وضاع على المريض إنه يعرف بخدمات موجودة فعلاً. ولو سأل سؤال عام متل 'شو الخدمات عندكم' استدعيها بدون query عشان تعرضيله الكل.\n"
     "- ممنوع نهائياً ذكر اسم طبيب أو تخصص من عندك بدون استدعاء أداة find_doctors أولاً. وممنوع الاعتماد على اسم طبيب ذكرتيه إنتِ أو المريض بردود سابقة بنفس المحادثة — قائمة الأطباء ممكن تتغيّر (طبيب يترك العيادة، دوام يتعدّل) بين رسالة وثانية، فلازم تستدعي find_doctors من جديد كل مرة يُسأل فيها 'مين الأطباء' أو قبل ما تأكدي إن طبيب معين لسا موجود، حتى لو ذُكر اسمه قبل بنفس المحادثة.\n"
@@ -315,6 +317,48 @@ TOOLS = [
                     "date_from",
                     "date_to",
                 ],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_nearest_slot_any_branch",
+            "description": (
+                "لما find_available_slots ترجع فاضية لهذا الفرع (ولا موعد أصلاً، مش بس لطبيب معيّن)، "
+                "استدعي هذه الأداة لتشوفي أقرب موعد فعلي بأي فرع تاني بدل ما تقولي للمريض إنه ما في "
+                "مواعيد بشكل عام. ما بتاخد اسم طبيب (الطبيب مرتبط بفرعه، ما إلها معنى بفرع تاني) — "
+                "استخدمي service_name/specialty_query لو محددين. إذا رجعت مواعيد، اعرضي أقرب واحد "
+                "وفرعه بوضوح واسألي المريض إذا حابب تحوّليه لهذا الفرع (استدعي select_branch لو وافق) "
+                "قبل أي حجز فيه. ممنوع تحجزي بفرع تاني بدون ما يوافق المريض صراحة."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "specialty_query": {
+                        "type": "string",
+                        "description": "تخصص أو سبب زيارة ذكره المريض لتضييق البحث، أو نص فاضي.",
+                    },
+                    "service_name": {
+                        "type": "string",
+                        "description": "اسم الخدمة يلي اختارها المريض (متل ما رجعت من list_services بالضبط)، أو نص فاضي.",
+                    },
+                    "doctor_gender": {
+                        "type": "string",
+                        "description": "'male' أو 'female' إذا المريض طلب جنس طبيب محدد صراحة، وإلا نص فاضي.",
+                    },
+                    "doctor_language": {
+                        "type": "string",
+                        "description": "لغة طلبها المريض صراحة يحكي فيها الطبيب، أو نص فاضي.",
+                    },
+                    "max_price": {
+                        "type": "number",
+                        "description": "أعلى سعر ذكره المريض كحد مقبول، أو 0 لعدم وضع حد.",
+                    },
+                },
+                "required": ["specialty_query", "service_name", "doctor_gender", "doctor_language", "max_price"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -1306,6 +1350,28 @@ def _build_system_prompt(
                 "بشكل طبيعي (مش شرط للحجز)."
             )
 
+        # service_sequences (e.g. "check-up 30 days after a cleaning") existed
+        # since the original schema but nothing ever read it -- a patient could
+        # finish the first visit in a recommended chain and never once hear
+        # about the second. Computed here in Python and handed over as a plain
+        # fact rather than a tool the model has to remember to call, since a
+        # proactive nudge is exactly the kind of thing a model skips under load.
+        followups = pending_followups_for_patient(db, patient_id)
+        if followups:
+            lines = [
+                f"- {f['next_service_name']}"
+                + (f" (بعد {f['recommended_gap_days']} يوم من آخر زيارة)" if f.get("recommended_gap_days") else "")
+                for f in followups
+                if f.get("next_service_name")
+            ]
+            if lines:
+                parts.append(
+                    "هذا المريض مؤهل لموعد متابعة موصى به بناءً على زيارة سابقة مكتملة:\n"
+                    + "\n".join(lines)
+                    + "\nاذكريها له بشكل طبيعي ولطيف في مكان مناسب بالمحادثة (مش أول جملة، ومرة وحدة "
+                    "بالمحادثة يكفي) واسأليه إذا حابب يحجزها — ما تفرضيها عليه ولا تكرريها إذا تجاهلها."
+                )
+
     # Which photo the block below is about. Without this the model reached for
     # whichever analysis it saw first in the history notes: live, a hand-rash
     # photo was answered with "the same notes as before about your teeth", and
@@ -1655,6 +1721,16 @@ def _execute_tool(db: Client, ctx: dict, name: str, args: dict) -> dict:
                 max_price=args.get("max_price") or None,
                 date_from=args.get("date_from") or None,
                 date_to=args.get("date_to") or None,
+            )
+        if name == "find_nearest_slot_any_branch":
+            return find_nearest_slot_across_branches(
+                db,
+                exclude_branch_id=ctx["branch_id"],
+                specialty_query=args.get("specialty_query") or None,
+                service_name=args.get("service_name") or None,
+                doctor_gender=args.get("doctor_gender") or None,
+                doctor_language=args.get("doctor_language") or None,
+                max_price=args.get("max_price") or None,
             )
         if name == "save_contact_info":
             if not ctx.get("patient_id"):

@@ -28,9 +28,59 @@ _HOLD_MINUTES = 5
 _CANCELLED_BY_STATUS = {"patient": "cancelled_by_patient", "clinic": "cancelled_by_clinic", "doctor": "cancelled_by_doctor"}
 
 
+# Frees slot capacity -- an appointment in any other status still occupies
+# its seat on that slot. Mirrors the set book_slot() (db/migrations/0069_
+# overbooking.sql) excludes from its own active-booking count.
+_CAPACITY_FREEING_STATUSES = {
+    "cancelled",
+    "cancelled_by_patient",
+    "cancelled_by_clinic",
+    "cancelled_by_doctor",
+    "no_show",
+    "rejected",
+    "expired",
+    "rescheduled",
+}
+
+
+def _status_after_release(db: Client, slot_id: str) -> str:
+    """What a slot's status should become once one of its bookings is
+    released -- 'available' outright for an ordinary (capacity 1) slot, but
+    for one with real capacity (slot_capacity > 1, or overbooking enabled)
+    this must count what's *still* booked on it rather than assuming the one
+    release emptied it entirely. Getting this wrong would reopen a slot that
+    two other patients still hold, or silently trigger a waitlist offer for a
+    seat that was never actually free."""
+    slot_rows = db.table("slots").select("slot_capacity").eq("id", slot_id).limit(1).execute().data
+    capacity = (slot_rows[0].get("slot_capacity") if slot_rows else None) or 1
+
+    settings_rows = db.table("clinic_settings").select("allow_overbooking, max_overbooking").limit(1).execute().data
+    settings = settings_rows[0] if settings_rows else {}
+    max_overbooking = (settings.get("max_overbooking") or 0) if settings.get("allow_overbooking") else 0
+    effective_capacity = capacity + max_overbooking
+
+    active_count = len(
+        [
+            a
+            for a in db.table("appointments").select("status").eq("slot_id", slot_id).execute().data
+            if a["status"] not in _CAPACITY_FREEING_STATUSES
+        ]
+    )
+
+    if effective_capacity <= 1:
+        return "available" if active_count == 0 else "booked"
+    if active_count >= effective_capacity:
+        return "waitlist_only"
+    if active_count >= capacity:
+        return "overbooked"
+    return "available"
+
+
 def release_slot_and_offer_waitlist(db: Client, slot_id: str) -> None:
-    db.table("slots").update({"status": "available", "held_until": None, "held_by_session": None}).eq("id", slot_id).execute()
-    offer_slot_to_top_candidate(db, slot_id)
+    new_status = _status_after_release(db, slot_id)
+    db.table("slots").update({"status": new_status, "held_until": None, "held_by_session": None}).eq("id", slot_id).execute()
+    if new_status == "available":
+        offer_slot_to_top_candidate(db, slot_id)
 
 
 def _find_cancellation_policy(db: Client, branch_id: str, service_id: str | None, doctor_id: str | None) -> dict | None:
@@ -80,6 +130,15 @@ def reschedule_appointment(
         raise HTTPException(status_code=404, detail="الموعد غير موجود")
     old = old_rows[0]
 
+    reschedule_count = old.get("reschedule_count") or 0
+    settings_rows = db.table("clinic_settings").select("max_reschedules_allowed").limit(1).execute().data
+    max_allowed = settings_rows[0].get("max_reschedules_allowed") if settings_rows else None
+    if max_allowed is not None and reschedule_count >= max_allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"وصل هذا الموعد للحد الأقصى لعدد مرات التعديل ({max_allowed}) — الرجاء إلغاء الموعد وحجز موعد جديد.",
+        )
+
     new_slot_rows = db.table("slots").select("*").eq("id", new_slot_id).limit(1).execute().data
     if not new_slot_rows:
         raise HTTPException(status_code=404, detail="الموعد الجديد غير موجود")
@@ -127,6 +186,7 @@ def reschedule_appointment(
                 "slot_id": new_slot_id,
                 "previous_appointment_id": appointment_id,
                 "status": new_status,
+                "reschedule_count": reschedule_count + 1,
                 "appointment_number": generate_appointment_number(),
                 "confirmation_code": generate_confirmation_code(),
             }
