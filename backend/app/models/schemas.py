@@ -281,6 +281,34 @@ class DoctorAvailabilityCreate(BaseModel):
     slot_duration_minutes: int = 30
 
 
+class BranchHoliday(BaseModel):
+    id: UUID
+    branch_id: UUID
+    holiday_date: date
+    reason: str | None = None
+    is_full_day: bool = True
+    start_time: time | None = None
+    end_time: time | None = None
+
+
+class BranchHolidayCreate(BaseModel):
+    branch_id: UUID
+    holiday_date: date
+    reason: str | None = None
+    is_full_day: bool = True
+    # Only read when is_full_day is false -- a half-day closure (an afternoon
+    # off for a national event) rather than the whole day.
+    start_time: time | None = None
+    end_time: time | None = None
+
+
+class BranchHolidayResult(BaseModel):
+    holiday: BranchHoliday
+    # How many already-generated slots this closure took off the market, so
+    # the person declaring it sees the real impact instead of guessing.
+    blocked_slots: int
+
+
 SlotStatus = Literal[
     "available", "temporarily_held", "booked", "blocked",
     "unavailable", "reserved", "overbooked", "waitlist_only",

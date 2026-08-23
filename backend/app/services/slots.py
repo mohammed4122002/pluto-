@@ -229,3 +229,68 @@ def unblock_slots_for_leave(db: Client, leave_id: str) -> int:
         .data
     )
     return len(rows)
+
+
+def _holiday_window(db: Client, branch_id: str, holiday: dict) -> tuple[str, str]:
+    """The [start, end) instants a holiday actually covers, in real UTC terms.
+
+    A holiday is stored as a local calendar date (plus optional local times),
+    but slots are timestamptz -- so "the 3rd of the month" has to be resolved
+    against the branch's own timezone or it lands three hours off in Amman.
+    """
+    branch = db.table("branches").select("timezone").eq("id", branch_id).limit(1).execute().data
+    tz = ZoneInfo((branch[0].get("timezone") if branch else None) or "Asia/Amman")
+    day = date.fromisoformat(str(holiday["holiday_date"]))
+
+    if holiday.get("is_full_day", True) or not (holiday.get("start_time") and holiday.get("end_time")):
+        start = datetime.combine(day, datetime.min.time(), tzinfo=tz)
+        return start.isoformat(), (start + timedelta(days=1)).isoformat()
+
+    start = datetime.combine(day, _parse_time(holiday["start_time"]), tzinfo=tz)
+    end = datetime.combine(day, _parse_time(holiday["end_time"]), tzinfo=tz)
+    return start.isoformat(), end.isoformat()
+
+
+def block_slots_for_holiday(db: Client, holiday_id: str, branch_id: str, holiday: dict) -> int:
+    """Close the booking window for a holiday the clinic just declared.
+
+    Without this, adding a holiday would do nothing at all to the slots that
+    already exist for that day -- generate_slots_for_doctor honors holidays,
+    but only for slots it creates *afterwards*, so a holiday declared for next
+    month would leave every already-generated slot on that day openly
+    bookable. That is the worst kind of half-working feature: the holiday is
+    visibly saved, and patients keep booking straight through it.
+
+    Tagged with the holiday's own id (not a generic reason) so removing the
+    holiday reopens exactly the slots it closed and nothing else -- a slot
+    blocked earlier for a doctor's leave or by an admin stays blocked.
+
+    Only touches slots still 'available': one already booked belongs to a real
+    patient, and cancelling those is reception's call (they may need to phone
+    the patient), not a side effect of adding a date to a calendar.
+    """
+    window_start, window_end = _holiday_window(db, branch_id, holiday)
+    rows = (
+        db.table("slots")
+        .update({"status": "blocked", "block_reason": f"holiday:{holiday_id}"})
+        .eq("branch_id", branch_id)
+        .eq("status", "available")
+        .lt("start_at", window_end)
+        .gt("end_at", window_start)
+        .execute()
+        .data
+    )
+    return len(rows)
+
+
+def unblock_slots_for_holiday(db: Client, holiday_id: str) -> int:
+    """Reopen precisely the slots `block_slots_for_holiday` closed."""
+    rows = (
+        db.table("slots")
+        .update({"status": "available", "block_reason": None})
+        .eq("block_reason", f"holiday:{holiday_id}")
+        .eq("status", "blocked")
+        .execute()
+        .data
+    )
+    return len(rows)
