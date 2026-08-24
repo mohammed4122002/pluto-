@@ -68,6 +68,10 @@ class _Query:
         self._rows = [r for r in self._rows if r.get(column) is not None and r[column] >= value]
         return self
 
+    def gt(self, column: str, value):
+        self._rows = [r for r in self._rows if r.get(column) is not None and r[column] > value]
+        return self
+
     def lt(self, column: str, value):
         self._rows = [r for r in self._rows if r.get(column) is not None and r[column] < value]
         return self

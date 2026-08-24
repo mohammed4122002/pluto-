@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Modal } from "../components/Modal";
 import { listBranches } from "../api/branches";
+import { DoctorCoverPanel } from "../components/DoctorCoverPanel";
 import type { Branch } from "../api/branches";
 import {
   addStaffBranch,
@@ -234,6 +235,7 @@ function EditStaffModal({
   branches,
   specialties,
   services,
+  allStaff,
   onClose,
   onUpdate,
   onDelete,
@@ -242,6 +244,7 @@ function EditStaffModal({
   branches: Branch[];
   specialties: Specialty[];
   services: Service[];
+  allStaff: Staff[];
   onClose: () => void;
   onUpdate: (updated: Staff) => void;
   onDelete: (id: string) => void;
@@ -566,6 +569,12 @@ function EditStaffModal({
                   </button>
                   {generateResult && <span>{generateResult}</span>}
                 </form>
+
+                <DoctorCoverPanel
+                  doctor={doctor}
+                  colleagues={allStaff.filter((s) => s.role === "doctor" && s.is_active)}
+                  branches={doctorBranches}
+                />
               </>
             )}
           </div>
@@ -773,6 +782,7 @@ export function StaffPage() {
           branches={branches}
           specialties={specialties}
           services={services}
+          allStaff={staff}
           onClose={() => setEditingId(null)}
           onUpdate={(updated) => setStaff((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))}
           onDelete={(id) => setStaff((prev) => prev.filter((s) => s.id !== id))}

@@ -2,6 +2,7 @@ import type { AppointmentStatus } from "./api/appointments";
 import type { QueueTicket } from "./api/queue";
 import type { WaitlistEntry } from "./api/waitlist";
 import type { PatientPackage } from "./api/packages";
+import type { Recall } from "./api/recalls";
 
 /** Arabic labels for every appointment status.
  *
@@ -257,3 +258,30 @@ export function labelFor(map: Record<string, string>, key: string | null | undef
   if (!key) return fallback;
   return map[key] ?? fallback;
 }
+
+export const recallStatusLabel: Record<Recall["status"], string> = {
+  pending: "بانتظار موعد الدعوة",
+  invited: "تم إرسال الدعوة",
+  responded: "المريض رد",
+  booked: "حجز موعد",
+  escalated: "محوّل للاتصال",
+  cancelled: "ملغاة",
+};
+
+export const recallStatusBadgeClass: Record<Recall["status"], string> = {
+  pending: "warning",
+  invited: "active",
+  responded: "active",
+  booked: "active",
+  escalated: "warning",
+  cancelled: "inactive",
+};
+
+export const recallReasonLabel: Record<Recall["reason_type"], string> = {
+  specific_date: "تاريخ محدد",
+  after_days: "بعد مدة",
+  medical_result: "نتيجة فحص",
+  treatment_plan: "خطة علاج",
+  vaccination: "مطعوم",
+  periodic_checkup: "فحص دوري",
+};

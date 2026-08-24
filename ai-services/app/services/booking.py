@@ -280,6 +280,83 @@ def save_contact_info(
     return {"full_name": current["full_name"], "phone": current["phone"], "patient_id": patient_id}
 
 
+def pending_followups_for_patient(db: Client, patient_id: str) -> list[dict]:
+    """Follow-up services this patient is due for, per service_sequences —
+    e.g. a completed teeth-cleaning that recommends a check-up 30 days later.
+    service_sequences has existed since the original schema but nothing ever
+    read it (confirmed by grep across the whole codebase and an empty table
+    live), so a patient could complete the first visit in a recommended chain
+    and the assistant would never once mention the second.
+
+    A candidate is "due" once its recommended_gap_days have passed since the
+    anchor visit (or immediately, if no gap is configured), and only while
+    the patient doesn't already have a live appointment for that next
+    service — otherwise this would nag someone who already rebooked."""
+    completed = (
+        db.table("appointments")
+        .select("id, service_id, scheduled_at")
+        .eq("patient_id", patient_id)
+        .eq("status", "completed")
+        .is_("deleted_at", "null")
+        .execute()
+        .data
+    )
+    anchor_service_ids = {row["service_id"] for row in completed if row.get("service_id")}
+    if not anchor_service_ids:
+        return []
+
+    sequences = (
+        db.table("service_sequences")
+        .select("service_id, next_service_id, is_required, recommended_gap_days, services!service_sequences_next_service_id_fkey(name)")
+        .in_("service_id", list(anchor_service_ids))
+        .execute()
+        .data
+    )
+    if not sequences:
+        return []
+
+    already_booked_next = {
+        row["service_id"]
+        for row in db.table("appointments")
+        .select("service_id, status")
+        .eq("patient_id", patient_id)
+        .is_("deleted_at", "null")
+        .execute()
+        .data
+        if row.get("service_id") and row.get("status") not in _TERMINAL_APPOINTMENT_STATUSES
+    }
+
+    # The most recent completed visit for each anchor service -- the gap is
+    # counted from the latest time the patient actually had it done, not the
+    # first time years ago.
+    latest_by_service: dict[str, str] = {}
+    for row in completed:
+        sid = row.get("service_id")
+        if sid and (sid not in latest_by_service or row["scheduled_at"] > latest_by_service[sid]):
+            latest_by_service[sid] = row["scheduled_at"]
+
+    now = datetime.now(timezone.utc)
+    due: list[dict] = []
+    for seq in sequences:
+        next_id = seq["next_service_id"]
+        if next_id in already_booked_next:
+            continue
+        anchor_at = datetime.fromisoformat(latest_by_service[seq["service_id"]].replace("Z", "+00:00"))
+        gap_days = seq.get("recommended_gap_days")
+        if gap_days and now < anchor_at + timedelta(days=gap_days):
+            continue
+        due.append(
+            {
+                "next_service_id": next_id,
+                "next_service_name": (seq.get("services") or {}).get("name"),
+                "is_required": seq["is_required"],
+                "recommended_gap_days": gap_days,
+                "based_on_visit_at": latest_by_service[seq["service_id"]],
+            }
+        )
+    return due
+
+
 def _resolve_doctor_id(db: Client, branch_id: str, doctor_name: str) -> str | None:
     # Plain ILIKE would miss "ايلا" vs "إيلا" (different hamza forms of the
     # same name) — fetch this branch's doctors and compare with
@@ -677,6 +754,50 @@ def search_available_slots(
         alternative_doctors = run_query(use_doctor_id=None)
 
     return {"slots": matches, "alternative_doctors": alternative_doctors}
+
+
+def find_nearest_slot_across_branches(
+    db: Client,
+    *,
+    exclude_branch_id: str,
+    specialty_query: str | None = None,
+    service_name: str | None = None,
+    doctor_gender: str | None = None,
+    doctor_language: str | None = None,
+    max_price: float | None = None,
+    limit: int = 5,
+) -> dict:
+    """The nearest available slots across every OTHER active branch, for when
+    the current branch has none.
+
+    search_available_slots only ever took one branch_id -- when a patient's
+    current branch had nothing, the model's only way to look elsewhere was
+    select_branch, which also silently switches every later query in the
+    conversation to that branch (the exact bug PR #67 fixed for a name
+    switch: this is the same shape, but for "just tell me the soonest
+    appointment anywhere"). doctor_name is deliberately not a filter here --
+    a doctor named at one branch has no meaning at another.
+    """
+    branches = db.table("branches").select("id, name").eq("is_active", True).execute().data
+    results: list[dict] = []
+    for branch in branches:
+        if branch["id"] == exclude_branch_id:
+            continue
+        found = search_available_slots(
+            db,
+            branch["id"],
+            specialty_query=specialty_query,
+            service_name=service_name,
+            doctor_gender=doctor_gender,
+            doctor_language=doctor_language,
+            max_price=max_price,
+            limit=limit,
+        )
+        for slot in found["slots"]:
+            results.append({**slot, "branch_id": branch["id"], "branch_name": branch["name"]})
+
+    results.sort(key=lambda s: s["start_at_clinic_local_time"])
+    return {"slots": results[:limit]}
 
 
 def _resolve_service_id(db: Client, doctor_id: str, service_name: str | None) -> str | None:

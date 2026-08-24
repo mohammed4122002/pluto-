@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { createBranch, listBranches, updateBranch } from "../api/branches";
 import type { Branch, BranchCreate } from "../api/branches";
+import { BranchHolidaysPanel } from "../components/BranchHolidaysPanel";
 
 const emptyForm: BranchCreate = {
   name: "",
@@ -18,6 +19,8 @@ export function BranchesPage() {
 
   const [form, setForm] = useState<BranchCreate>(emptyForm);
   const [saving, setSaving] = useState(false);
+
+  const [holidaysForId, setHolidaysForId] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<BranchCreate>(emptyForm);
@@ -190,12 +193,22 @@ export function BranchesPage() {
                     <button onClick={() => toggleActive(branch)}>
                       {branch.is_active ? "إيقاف" : "تفعيل"}
                     </button>
+                    <button onClick={() => setHolidaysForId(holidaysForId === branch.id ? null : branch.id)}>
+                      {holidaysForId === branch.id ? "إخفاء العطل" : "العطل"}
+                    </button>
                   </td>
                 </tr>
               ),
             )}
           </tbody>
         </table>
+      )}
+
+      {holidaysForId && (
+        <BranchHolidaysPanel
+          branchId={holidaysForId}
+          branchName={branches.find((b) => b.id === holidaysForId)?.name ?? ""}
+        />
       )}
     </div>
   );

@@ -16,6 +16,7 @@ import { ImportPage } from "./pages/ImportPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { WaitlistPage } from "./pages/WaitlistPage";
+import { RecallsPage } from "./pages/RecallsPage";
 import { QueuePage } from "./pages/QueuePage";
 import { PackagesPage } from "./pages/PackagesPage";
 import { CouponsPage } from "./pages/CouponsPage";
@@ -128,6 +129,7 @@ const adminGroups: readonly NavGroup[] = [
       { key: "calendar", label: "التقويم", Icon: CalendarIcon, Component: CalendarPage, requires: "slot.view" },
       { key: "queue", label: "الطابور والانتظار", Icon: QueueIcon, Component: QueuePage, requires: "queue.view" },
       { key: "waitlist", label: "قائمة الانتظار", Icon: WaitlistIcon, Component: WaitlistPage, requires: "waitlist.view" },
+      { key: "recalls", label: "دعوات المراجعة", Icon: WaitlistIcon, Component: RecallsPage, requires: "recall.manage" },
       { key: "payments", label: "المدفوعات", Icon: PaymentIcon, Component: PaymentsPage, requires: "payment.view" },
       { key: "packages", label: "الباقات", Icon: PackageIcon, Component: PackagesPage, requires: "package.view" },
       { key: "coupons", label: "الكوبونات", Icon: CouponIcon, Component: CouponsPage, requires: "coupon.view" },
@@ -215,6 +217,7 @@ const receptionGroups: readonly NavGroup[] = [
       { key: "calendar", label: "التقويم", Icon: CalendarIcon, Component: CalendarPage, requires: "slot.view" },
       { key: "queue", label: "الطابور", Icon: QueueIcon, Component: QueuePage, requires: "queue.view" },
       { key: "waitlist", label: "قائمة الانتظار", Icon: WaitlistIcon, Component: WaitlistPage, requires: "waitlist.view" },
+      { key: "recalls", label: "دعوات المراجعة", Icon: WaitlistIcon, Component: RecallsPage, requires: "recall.manage" },
     ],
   },
   {

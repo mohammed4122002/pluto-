@@ -563,3 +563,32 @@ def test_services_are_listed_per_branch_not_clinic_wide(db, ctx):
     ctx["branch_id"] = IRBID
     names = {s["name"] for s in _execute_tool(db, ctx, "list_services", {"query": ""})["services"]}
     assert names == {"كشفية أطفال"}
+
+
+def test_nearest_slot_any_branch_finds_a_service_missing_from_the_current_branch(db, ctx):
+    # Pediatrics doesn't exist at Amman at all -- find_available_slots there
+    # correctly returns service_not_available_at_branch. Before this tool
+    # existed, that was the end of the road: the model's only way to search
+    # elsewhere was select_branch, which also silently redirects every later
+    # query in the conversation, not just this one lookup.
+    result = _execute_tool(db, ctx, "find_nearest_slot_any_branch", {
+        "specialty_query": "", "service_name": "كشفية أطفال",
+        "doctor_gender": "", "doctor_language": "", "max_price": 0,
+    })
+    assert len(result["slots"]) == 1
+    assert result["slots"][0]["branch_name"] == "عيادة بلوتو - إربد"
+    assert result["slots"][0]["doctor_name"] == "د. لمى الرفاعي"
+
+    # A lookup, not a switch -- the conversation's own branch is untouched.
+    assert ctx["branch_id"] == AMMAN
+
+
+def test_nearest_slot_any_branch_excludes_the_current_branch(db, ctx):
+    # Dermatology is only offered at Amman in this fixture -- searching "any
+    # OTHER branch" for it must come back empty, not hand back Amman's own
+    # slots a second time under a different tool name.
+    result = _execute_tool(db, ctx, "find_nearest_slot_any_branch", {
+        "specialty_query": "", "service_name": "كشفية جلدية عام",
+        "doctor_gender": "", "doctor_language": "", "max_price": 0,
+    })
+    assert result["slots"] == []
