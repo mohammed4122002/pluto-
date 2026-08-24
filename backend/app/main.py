@@ -15,6 +15,7 @@ from app.routers import (
     conversations,
     coupons,
     doctor_availability,
+    doctor_cover,
     holidays,
     escalation_staff,
     imports,
@@ -75,6 +76,7 @@ app.include_router(channels.router)
 app.include_router(conversations.router)
 app.include_router(coupons.router)
 app.include_router(doctor_availability.router)
+app.include_router(doctor_cover.router)
 app.include_router(escalation_staff.router)
 app.include_router(holidays.router)
 app.include_router(imports.router)
