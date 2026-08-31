@@ -46,7 +46,7 @@ logger = logging.getLogger("channels")
 # still clones a dedicated workflow per channel (see the telegram branch
 # below).
 SHARED_N8N_WORKFLOWS: dict[str, tuple[str, str]] = {
-    "whatsapp": ("1EHc8IWCoQbmmYSC", "whatsapp-outbound-send"),
+    "whatsapp": ("epezsHMsWNQBJTiL", "whatsapp-outbound-send"),
     "instagram": ("Mq69unS6cMOOQcv8", "instagram-outbound-send"),
     "messenger": ("Jcb1kYGsL24bSbAx", "messenger-outbound-send"),
     "twilio": ("BUhTP52Fj0o8Qc4m", "twilio-outbound-send"),
