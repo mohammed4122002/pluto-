@@ -1,0 +1,119 @@
+{
+  "name": "PLUTO — Recalls: invitations + escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "b09ba96c-ed5d-4bdd-b26f-a902ebb3b8e5",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clinic-backend-production-4ead.up.railway.app/recalls/process-due",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b6433401-52b4-4b66-964f-63d7cd6bd205",
+      "name": "Send Due Recalls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        220
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID",
+          "name": "PLUTO Service Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clinic-backend-production-4ead.up.railway.app/recalls/escalate-overdue",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a11afdc3-b558-4bae-bc53-f777b40edb07",
+      "name": "Escalate Overdue Recalls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        380
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID",
+          "name": "PLUTO Service Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Sends due recall invitations, then escalates recalls that went overdue without a response.\n\nRuns daily at 08:30 Asia/Amman, hits two endpoints. Without it, recall follow-ups (and their escalation to staff) never happen. Needs the \"PLUTO Service Token\" header credential.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "ec305b4a-7044-470f-b972-01c8ce4799f5",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send Due Recalls",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Escalate Overdue Recalls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": [
+    "pluto"
+  ]
+}

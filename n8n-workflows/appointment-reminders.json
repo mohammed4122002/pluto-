@@ -1,0 +1,87 @@
+{
+  "name": "PLUTO — Appointment Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "9496620f-8374-42b9-9194-19d8d6a0ef9b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clinic-backend-production-4ead.up.railway.app/notifications/process-due",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "bbcab0ba-dc40-4d51-bbf9-fd11bbc8fa18",
+      "name": "Process Due Reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID",
+          "name": "PLUTO Service Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Sends appointment reminders whose send time has arrived.\n\nWithout this workflow running every 5 minutes, patients never get reminded and no-shows go up. Requires the \"PLUTO Service Token\" header-auth credential — the backend runs in permissive mode for now, but will start rejecting calls without it once SERVICE_AUTH_MODE=strict.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "3a4619b7-f698-42b7-94ea-15a9d570cef8",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Due Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": [
+    "pluto"
+  ]
+}

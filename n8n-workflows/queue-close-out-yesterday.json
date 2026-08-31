@@ -1,0 +1,89 @@
+{
+  "name": "PLUTO — Queue: close out yesterday",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 0,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "id": "8699427a-d72a-4b95-9730-169e4a7ba624",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clinic-backend-production-4ead.up.railway.app/queues/process-stale",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "9694c74a-5867-46de-bf55-499959fcbaca",
+      "name": "Close Stale Queue Tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID",
+          "name": "PLUTO Service Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Closes out tickets left open on a queue whose day has ended.\n\nRuns nightly at 00:15 Asia/Amman (after the branch day ends). Without it, yesterday's tickets stay open and pollute today's queue counts. Needs the \"PLUTO Service Token\" header credential.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "26e11ad9-426b-41a8-9c41-0f45448cd327",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Close Stale Queue Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": [
+    "pluto"
+  ]
+}

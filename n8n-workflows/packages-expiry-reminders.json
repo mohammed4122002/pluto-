@@ -1,0 +1,89 @@
+{
+  "name": "PLUTO — Packages: expiry reminders + renewal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "3104a0d8-c859-4192-9ab3-1f1d1d1c1d19",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clinic-backend-production-4ead.up.railway.app/patient-packages/process-expiring",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a51bd4f8-44d4-4cde-9310-d316978b29d1",
+      "name": "Flag Expiring Packages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID",
+          "name": "PLUTO Service Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Flags patient packages approaching their expiry so renewal outreach can happen.\n\nRuns daily at 08:00 Asia/Amman. Without it, packages silently lapse with no renewal nudge. Needs the \"PLUTO Service Token\" header credential.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "929ff795-a8a5-4e77-8f48-ff30a00ddae9",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Flag Expiring Packages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": [
+    "pluto"
+  ]
+}

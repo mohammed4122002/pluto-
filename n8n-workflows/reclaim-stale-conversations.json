@@ -1,0 +1,87 @@
+{
+  "name": "PLUTO — Reclaim Stale Conversations",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "bceb9b41-afd7-4c40-9687-c24ad50dacd2",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://clinic-ai-services-production.up.railway.app/chat/reclaim-stale",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "349c70c7-8fe0-4415-925a-a81fd418143b",
+      "name": "Reclaim Stale Conversations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID",
+          "name": "PLUTO Service Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Reclaims conversations the AI stack left stuck mid-processing (e.g. after a crash or timeout) so they can be picked back up.\n\nRuns every 10 minutes against ai-services (not backend). Without it, a conversation that got interrupted mid-reply just hangs forever. Needs the \"PLUTO Service Token\" header credential.",
+        "height": 180,
+        "width": 460
+      },
+      "id": "f7f9b5c2-4e16-4262-91bf-435ad8d7de03",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Reclaim Stale Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": [
+    "pluto"
+  ]
+}
