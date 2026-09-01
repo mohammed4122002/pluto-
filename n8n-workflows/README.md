@@ -96,6 +96,20 @@ project ref in the URL) before activating a clone built from this template
 file; a channel cloned directly from the live n8n template already has
 these filled in.
 
+**Voice notes.** `Has Voice?` (checked when there's no photo) downloads a
+Telegram voice message via `Download Voice` (the Telegram node's `file`/`get`
+operation on `message.voice.file_id`, using the channel's own bot
+credential — Telegram's trigger-level `download` option only auto-fetches
+photos, never voice) and uploads it to `chat-media` the same way, setting
+`media_type=audio`. This isn't cosmetic: ai-services' `/chat/reply` only
+transcribes a voice note (via Gemini) when it sees `media_type=="audio"` —
+without this branch, a voice message arrives with no `media_url` at all, the
+AI turn sees an empty message, and the model reasonably (if unhelpfully)
+escalates to a human instead of replying. Confirmed live on 2026-09-01: two
+separate conversations went silent within 3 seconds of an inbound message
+with empty `content`/`media_type` — the exact signature of an unhandled
+voice note — before this branch existed.
+
 ### WhatsApp
 
 One workflow serves every branch's WhatsApp number (a channel add in the
@@ -138,6 +152,15 @@ text as the caption — never a plain-text link. Replace the
 `REPLACE_WITH_SUPABASE_*` placeholders the same way as the Telegram
 template before activating a fresh import; the live workflow already has
 them filled in.
+
+**Voice notes.** `Has Voice?` mirrors `Has Image?` for `messages[0].audio`:
+`Get Voice Media URL` → `Download Voice Media` → `Upload Voice To Storage`
+sets `media_type=audio`, the one thing ai-services' `/chat/reply` checks
+before it bothers transcribing a voice note via Gemini. Skipping this branch
+doesn't fail loudly — the voice note just arrives with no `media_url`, the
+AI turn sees an empty message, and the model escalates to a human instead
+of replying, which is exactly the silent-bot behavior this branch fixes
+(same root cause confirmed live on the Telegram side, see above).
 
 ## Live workflow IDs (this n8n instance)
 
