@@ -121,14 +121,23 @@ token. Only the calls *to the backend itself* (`Lookup Channel...`,
 `Send To Backend Inbound`, `Generate AI Reply`) need the `X-Service-Token`
 header described above.
 
-**Known gap — no media handling yet.** Unlike the Telegram template (see
-above), the WhatsApp relay does not download inbound photos, upload them to
-`chat-media`, or pass `media_url`/`media_type` — a symptom photo or payment
-receipt sent over WhatsApp is not analyzed or attached today. It also does
-not relay the AI's QR booking-confirmation `image_url` back as a photo; a
-WhatsApp patient who books gets only the text reply. Both are the same gap
-this session closed for Telegram; nobody has yet asked for the WhatsApp
-side to be built.
+**Media handling (photos + QR booking confirmations):** `Has Image?` (after
+the channel lookup, since downloading requires that channel's own
+`access_token`) fetches an inbound image via the Graph API's media endpoint
+(`GET /{media-id}` for the temporary download URL, then `GET` that URL —
+both need the same bearer token) and uploads it to the Supabase Storage
+`chat-media` bucket, before `Normalize Media` computes `media_url`/
+`media_type` for `/conversations/inbound` and `/chat/reply` — same as
+Telegram, this is what lets a symptom photo get analyzed or a payment
+receipt get attached over WhatsApp. On the way out, `Has QR Image?` checks
+`/chat/reply`'s `image_url`; if present, the QR is fetched, uploaded to
+WhatsApp's own media endpoint (`POST /{phone_number_id}/media`, since the
+Graph API needs media uploaded there first before it can be referenced by
+ID in a message), then sent as a real image message with the AI's reply
+text as the caption — never a plain-text link. Replace the
+`REPLACE_WITH_SUPABASE_*` placeholders the same way as the Telegram
+template before activating a fresh import; the live workflow already has
+them filled in.
 
 ## Live workflow IDs (this n8n instance)
 
