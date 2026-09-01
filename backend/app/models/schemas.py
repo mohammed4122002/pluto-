@@ -864,8 +864,9 @@ class RoutingRuleCreate(BaseModel):
 class InboundMessage(BaseModel):
     channel_id: UUID
     message: str
-    # Legacy shape, still sent by the live n8n workflows — patient_phone is
-    # sometimes a synthetic "tg:{chat_id}" value, not a real phone number.
+    # Legacy shape — the live n8n workflows send external_user_id instead
+    # (see below); kept for older/direct callers that still send a phone
+    # here, sometimes a synthetic "tg:{chat_id}" value rather than a real one.
     patient_phone: str | None = None
     patient_name: str | None = None
     # Preferred shape going forward (PLUTO-COMPLETION-PROMPT.md 1.1) — set

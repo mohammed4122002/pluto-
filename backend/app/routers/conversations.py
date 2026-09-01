@@ -87,14 +87,29 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
     identity = resolve_identity(db, str(payload.channel_id), provider_type, external_user_id, display_name)
 
     patient_id = identity.get("patient_id")
-    if not patient_id and payload.patient_phone:
+    if not patient_id:
         # Real phone -> proper dedup by phone across channels. Legacy
         # synthetic "tg:{chat_id}" values still get a patient record too
         # (booking/appointments require one today), just never treated as a
         # contactable phone number (is_real_phone gates that separately).
-        patient_id = find_or_create_patient_by_phone(db, payload.patient_phone, display_name)
-        phone_to_store = payload.patient_phone if is_real_phone(provider_type, payload.patient_phone) else None
-        link_patient_to_identity(db, identity, patient_id, phone_number=phone_to_store)
+        #
+        # payload.patient_phone is rarely sent by n8n at all -- the live
+        # Telegram/WhatsApp workflows send external_user_id instead, so this
+        # cannot only trigger on patient_phone being present or no patient
+        # (and therefore no patient_id for ai-services' tools) ever gets
+        # created for those channels. WhatsApp's external_user_id already IS
+        # the real phone number (the Graph API's "from" field); Telegram's is
+        # a numeric chat id, so it gets the same synthetic "tg:{chat_id}"
+        # placeholder the legacy n8n payload used to send directly.
+        phone_for_patient = payload.patient_phone
+        if not phone_for_patient and provider_type == "whatsapp":
+            phone_for_patient = external_user_id
+        elif not phone_for_patient and provider_type == "telegram":
+            phone_for_patient = f"tg:{external_user_id}"
+        if phone_for_patient:
+            patient_id = find_or_create_patient_by_phone(db, phone_for_patient, display_name)
+            phone_to_store = phone_for_patient if is_real_phone(provider_type, phone_for_patient) else None
+            link_patient_to_identity(db, identity, patient_id, phone_number=phone_to_store)
 
     conversation_rows = (
         db.table("conversations")
