@@ -16,17 +16,26 @@ In n8n: **Workflows → Import from File**, pick one of the JSON files here.
 
 ## Before activating any of them
 
-1. Create an **HTTP Custom Auth (Templated)** credential in n8n named
-   `PLUTO Service Token`. In the credential's template, set:
-   `{"headers": {"X-Service-Token": "<the value>"}}`, where `<the value>`
-   matches the backend/ai-services `SERVICE_TOKEN` env var. (n8n rejects a
-   *new* plain HTTP Header Auth credential on the HTTP Request node — the
-   templated type is the one it accepts for new credentials; the header it
-   sends is identical either way.)
-2. Each imported workflow references that credential by name but not by ID
-   (`REPLACE_WITH_PLUTO_SERVICE_TOKEN_CREDENTIAL_ID` placeholder) — after
-   import, open each `HTTP Request` node and re-select the credential from
-   the dropdown so n8n binds it to the real credential ID in your instance.
+This n8n instance's `httpRequest` node will not accept a *newly created*
+`httpTemplatedCustomAuth`/Custom Auth credential from its own UI, so the
+live workflows do **not** use an n8n credential for backend/ai-services auth
+at all. Instead, every `HTTP Request` node calling the backend or
+ai-services sends a static `X-Service-Token` header with the token value
+pasted directly into the node's `headerParameters`, and `authentication` set
+to `none`. Some files in this directory still show the older
+`genericCredentialType`/`httpTemplatedCustomAuth` pattern from before this
+was worked around — if you import one of those, either recreate the
+`PLUTO Service Token` credential the old way (if your instance accepts it)
+or just replace `authentication: "genericCredentialType"` with
+`authentication: "none"` and add the `X-Service-Token` header manually,
+matching `clinic-telegram-bot-template.json` (already updated).
+
+1. On each `HTTP Request` node calling the backend or ai-services, set the
+   `X-Service-Token` header value to the backend/ai-services `SERVICE_TOKEN`
+   env var.
+2. Some exports here also still carry pre-migration Railway URLs — update
+   any `clinic-backend-*`/`clinic-ai-services-*` URL to your current Railway
+   domains before activating.
 3. Activate the workflow.
 
 ## Scheduled workflows (cron)
@@ -69,6 +78,24 @@ N8N_TELEGRAM_TEMPLATE_WORKFLOW_ID=<id> -s clinic-backend`, then
 channel from the dashboard clones + activates a bot automatically — nothing
 else to do per-channel.
 
+**Media handling (photos + QR booking confirmations):** the template now
+downloads inbound Telegram photos (`Telegram Trigger`'s
+`additionalFields.download`), uploads them to the Supabase Storage
+`chat-media` bucket via `Upload Photo To Storage`, and passes the resulting
+public URL as `media_url`/`media_type` to both `/conversations/inbound` and
+`/chat/reply` — this is what lets ai-services' `describe_patient_photo`
+analyze a symptom photo, and lets the backend attach a photo as a payment
+receipt via `attach_receipt_from_inbound_media`. On the way out, if
+`/chat/reply` just confirmed a booking it returns an `image_url` (a QR
+code); `Has QR Image?` → `Fetch QR Image` → `Send QR Photo` fetches it with
+the service token and relays it back to the patient as a real Telegram
+photo (never as a raw link). Replace the `REPLACE_WITH_SUPABASE_*`
+placeholders in `Upload Photo To Storage` (`apikey`/`Authorization` headers,
+using the Supabase **service role** key — never the anon key — and the
+project ref in the URL) before activating a clone built from this template
+file; a channel cloned directly from the live n8n template already has
+these filled in.
+
 ### WhatsApp
 
 One workflow serves every branch's WhatsApp number (a channel add in the
@@ -91,8 +118,17 @@ workflow looks up each channel's own decrypted `access_token` from backend
 `GET /channels?identifier=<phone_number_id>` (service-token protected) on
 every message, since every branch has its own WhatsApp Business number and
 token. Only the calls *to the backend itself* (`Lookup Channel...`,
-`Send To Backend Inbound`, `Generate AI Reply`) need the `PLUTO Service
-Token` credential wired in.
+`Send To Backend Inbound`, `Generate AI Reply`) need the `X-Service-Token`
+header described above.
+
+**Known gap — no media handling yet.** Unlike the Telegram template (see
+above), the WhatsApp relay does not download inbound photos, upload them to
+`chat-media`, or pass `media_url`/`media_type` — a symptom photo or payment
+receipt sent over WhatsApp is not analyzed or attached today. It also does
+not relay the AI's QR booking-confirmation `image_url` back as a photo; a
+WhatsApp patient who books gets only the text reply. Both are the same gap
+this session closed for Telegram; nobody has yet asked for the WhatsApp
+side to be built.
 
 ## Live workflow IDs (this n8n instance)
 
@@ -107,4 +143,5 @@ Token` credential wired in.
 | PLUTO — Weekly Report | `ogTBuTVXlJm70ckt` |
 | PLUTO — Reclaim Stale Conversations | `8c9rmh1lO59gNSF1` |
 | Clinic Telegram Bot (template) | `yPDRT8AQbBKxvENf` — set as `N8N_TELEGRAM_TEMPLATE_WORKFLOW_ID` |
+| Clinic Telegram Bot — @mohammed_n8n_helper2_bot (live clone, channel `e7483410-747f-4166-a658-271815e81468`) | `yyd4VGNgwoFYNZM6` |
 | PLUTO — WhatsApp Channel Relay | `epezsHMsWNQBJTiL` — already wired into `SHARED_N8N_WORKFLOWS["whatsapp"]` |
