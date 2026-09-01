@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -63,3 +64,11 @@ def encrypt_secret(value: str) -> str:
 
 def decrypt_secret(value: str) -> str:
     return _fernet().decrypt(value.encode()).decode()
+
+
+def hash_reset_token(token: str) -> str:
+    """A reset token is a single high-entropy random value used once and
+    within minutes, unlike a password -- a fast deterministic hash (rather
+    than bcrypt's slow, salted one) is the right tool, and lets lookup match
+    by hash directly instead of fetching every unexpired token to compare."""
+    return hashlib.sha256(token.encode()).hexdigest()

@@ -36,3 +36,9 @@ export const changePassword = (oldPassword: string, newPassword: string) =>
   api
     .post<{ changed: boolean }>("/auth/change-password", { old_password: oldPassword, new_password: newPassword })
     .then((res) => res.data);
+
+export const forgotPassword = (email: string) =>
+  api.post<{ message: string }>("/auth/forgot-password", { email }).then((res) => res.data);
+
+export const resetPassword = (token: string, newPassword: string) =>
+  api.post<{ reset: boolean }>("/auth/reset-password", { token, new_password: newPassword }).then((res) => res.data);

@@ -1191,6 +1191,15 @@ class SetPasswordRequest(BaseModel):
     new_password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
 class StaffBotSettings(BaseModel):
     """The one clinic-wide bot, admin-configured (settings/staff_bot_settings.py)."""
 

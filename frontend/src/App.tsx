@@ -36,6 +36,7 @@ import { TodayPage } from "./pages/workspace/TodayPage";
 import { AccountPage } from "./pages/workspace/AccountPage";
 import { ReceptionDeskPage } from "./pages/workspace/ReceptionDeskPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { getSetupStatus } from "./api/setup";
 import { getMe } from "./api/auth";
 import type { StaffMe } from "./api/auth";
@@ -433,6 +434,9 @@ function App() {
   const [initialized, setInitialized] = useState<boolean | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [staff, setStaff] = useState<StaffMe | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("reset_token"),
+  );
 
   useEffect(() => {
     getSetupStatus()
@@ -454,6 +458,16 @@ function App() {
 
   if (initialized === null || !authChecked) return null;
   if (!initialized) return <SetupWizard onDone={() => setInitialized(true)} />;
+  if (resetToken)
+    return (
+      <ResetPasswordPage
+        token={resetToken}
+        onDone={() => {
+          window.history.replaceState(null, "", window.location.pathname);
+          setResetToken(null);
+        }}
+      />
+    );
   if (!staff) return <LoginPage onLoggedIn={setStaff} />;
   return (
     <Dashboard
