@@ -372,6 +372,14 @@ def _summary_of(db: Client, conversation_id: UUID) -> ConversationSummary:
     )
     channel = row.pop("channels")
     patient = row.pop("patients")
+    if patient is None:
+        # Same data-integrity gap as list_conversations/get_conversation --
+        # a PATCH that otherwise succeeded must not 500 on rendering its own
+        # response just because no patient is linked yet.
+        logger.warning("conversation %s has no linked patient", row["id"])
+        raise HTTPException(
+            status_code=409, detail="هذه المحادثة غير مرتبطة بمريض بعد — لسا ما وصل رقم أو اسم حقيقي."
+        )
     return ConversationSummary(
         **row,
         channel_type=channel["channel_type"],

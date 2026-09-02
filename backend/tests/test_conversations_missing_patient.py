@@ -33,7 +33,7 @@ CONVERSATION_LINKED = "66666666-6666-4666-8666-666666666666"
 PATIENT_ID = "77777777-7777-4777-8777-777777777777"
 BRANCH_ID = "88888888-8888-4888-8888-888888888888"
 
-ADMIN_PERMISSIONS = {"conversation.view": {None}}
+ADMIN_PERMISSIONS = {"conversation.view": {None}, "conversation.update": {None}}
 
 
 def _db() -> FakeSupabase:
@@ -119,6 +119,19 @@ def test_get_conversation_on_a_linked_row_still_works():
     body = res.json()
     assert body["patient_name"] == "سارة"
     assert body["patient_phone"] == "0791234567"
+
+
+def test_patch_on_an_orphaned_conversation_returns_a_clean_409():
+    db = _db()
+    res = _client(db).patch(f"/conversations/{CONVERSATION_ORPHAN}", json={"needs_attention": True})
+    assert res.status_code == 409
+
+
+def test_patch_on_a_linked_conversation_still_works():
+    db = _db()
+    res = _client(db).patch(f"/conversations/{CONVERSATION_LINKED}", json={"needs_attention": True})
+    assert res.status_code == 200
+    assert res.json()["patient_name"] == "سارة"
 
 
 def test_reused_open_conversation_gets_its_patient_id_backfilled():
