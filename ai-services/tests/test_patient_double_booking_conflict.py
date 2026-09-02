@@ -24,10 +24,13 @@ from app.services.booking import (  # noqa: E402
 
 
 class _Query:
-    def __init__(self, rows):
+    def __init__(self, rows, recorder: list | None = None):
         self._rows = list(rows)
+        self._recorder = recorder
 
-    def select(self, *_a, **_k):
+    def select(self, columns, *_a, **_k):
+        if self._recorder is not None:
+            self._recorder.append(columns)
         return self
 
     def eq(self, column, value):
@@ -71,9 +74,10 @@ class _Result:
 class _Db:
     def __init__(self, tables):
         self._tables = tables
+        self.select_calls: list[str] = []
 
     def table(self, name):
-        return _Query(self._tables.get(name, []))
+        return _Query(self._tables.get(name, []), recorder=self.select_calls)
 
 
 BRANCH = "branch-1"
@@ -135,6 +139,20 @@ def test_conflict_helper_flags_an_overlapping_appointment():
     )
     assert conflict is not None
     assert conflict["staff"]["full_name"] == "د. سارة الخطيب"
+
+
+def test_conflict_query_disambiguates_the_staff_embed():
+    """appointments has three FKs into staff (staff_id, created_by,
+    last_modified_by) -- confirmed live: an unqualified staff(...) embed
+    makes PostgREST reject the whole query with PGRST201 ("more than one
+    relationship was found"), which book_appointment's generic exception
+    handler turned into a vague "technical problem" apology on every single
+    booking attempt. The select must name the exact FK it wants."""
+    db = _db()
+    _patient_double_booking_conflict(db, PATIENT, _NEW_START, _NEW_START + timedelta(minutes=30))
+    appointments_selects = [c for c in db.select_calls if "scheduled_at" in c]
+    assert appointments_selects, "expected a select on appointments"
+    assert "staff!appointments_staff_id_fkey(full_name)" in appointments_selects[0]
 
 
 def test_conflict_helper_ignores_cancelled_appointments():

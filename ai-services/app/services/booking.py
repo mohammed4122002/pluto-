@@ -1073,7 +1073,13 @@ def _patient_double_booking_conflict(
     window_end = (end_utc + timedelta(hours=4)).isoformat()
     rows = (
         db.table("appointments")
-        .select("scheduled_at, duration_minutes, status, staff(full_name), services(name)")
+        # staff!appointments_staff_id_fkey, not bare staff(...): appointments
+        # has three FKs into staff (staff_id, created_by, last_modified_by),
+        # so an unqualified embed is ambiguous and PostgREST rejects the
+        # query outright (PGRST201) -- confirmed live, every booking attempt
+        # failed here with a generic "technical problem" apology and the
+        # patient never actually got booked.
+        .select("scheduled_at, duration_minutes, status, staff!appointments_staff_id_fkey(full_name), services(name)")
         .eq("patient_id", patient_id)
         .is_("deleted_at", "null")
         .gte("scheduled_at", window_start)
