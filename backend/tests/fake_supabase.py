@@ -24,8 +24,16 @@ class _Query:
         self._pending_update: dict | None = None
         self._pending_delete = False
         self._pending_insert: list[dict] | None = None
+        self._single = False
 
     def select(self, *_columns):
+        return self
+
+    def single(self):
+        # Real supabase-py returns .data as one dict, not a list -- callers
+        # like GET /conversations/{id} do `row.pop("channels")` straight off
+        # the result, which a list has no such method for.
+        self._single = True
         return self
 
     def order(self, column: str, desc: bool = False, **_kwargs):
@@ -112,6 +120,8 @@ class _Query:
             # failed to delete looked identical to one that worked.
             doomed = {id(row) for row in self._rows}
             self._backing[:] = [row for row in self._backing if id(row) not in doomed]
+        if self._single:
+            return SimpleNamespace(data=self._rows[0] if self._rows else None)
         return SimpleNamespace(data=self._rows)
 
 

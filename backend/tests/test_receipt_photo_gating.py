@@ -39,6 +39,7 @@ def _db(mode: str) -> FakeSupabase:
                     "mode": mode,
                     "patient_channel_identity_id": IDENTITY_ID,
                     "status": "open",
+                    "patient_id": PATIENT_ID,
                 }
             ],
             "messages": [],

@@ -113,7 +113,7 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
 
     conversation_rows = (
         db.table("conversations")
-        .select("id, mode")
+        .select("id, mode, patient_id")
         .eq("patient_channel_identity_id", identity["id"])
         .eq("status", "open")
         .execute()
@@ -122,6 +122,16 @@ def handle_inbound_message(payload: InboundMessage, db: Client = Depends(get_sup
     if conversation_rows:
         conversation_id = conversation_rows[0]["id"]
         mode = conversation_rows[0]["mode"]
+        if patient_id and conversation_rows[0]["patient_id"] != patient_id:
+            # An already-open conversation started before this identity had a
+            # patient linked (e.g. the very first message, before any contact
+            # info or phone was known) never gets its own patient_id revisited
+            # afterwards otherwise -- confirmed live: the identity picked up a
+            # patient on a later message, but the conversation row itself
+            # stayed permanently null, which crashed the dashboard's
+            # conversation list (it embeds patients(...) by patient_id and
+            # assumes it's always present).
+            db.table("conversations").update({"patient_id": patient_id}).eq("id", conversation_id).execute()
     else:
         created = (
             db.table("conversations")
@@ -233,6 +243,13 @@ def list_conversations(
         if allowed is not None and channel["branch_id"] not in allowed:
             continue
         patient = row.pop("patients")
+        if patient is None:
+            # A conversation with no patient linked yet (a data-integrity gap,
+            # not something the dashboard should ever 500 over) embeds as
+            # patients: null rather than {} -- one such row must not take
+            # down the whole list for every other conversation.
+            logger.warning("conversation %s has no linked patient; omitting from list", row["id"])
+            continue
         summaries.append(
             ConversationSummary(
                 **row,
@@ -266,6 +283,15 @@ def get_conversation(
     channel = row.pop("channels")
     assert_branch_access(current, "conversation.view", channel["branch_id"])
     patient = row.pop("patients")
+    if patient is None or row.get("patient_id") is None:
+        # Same data-integrity gap as list_conversations, surfaced as a clear
+        # error instead of a raw 500 -- patient_id is otherwise non-optional
+        # on ConversationDetail, and the dashboard has no real patient to
+        # show or act on here yet.
+        logger.warning("conversation %s has no linked patient", row["id"])
+        raise HTTPException(
+            status_code=409, detail="هذه المحادثة غير مرتبطة بمريض بعد — لسا ما وصل رقم أو اسم حقيقي."
+        )
     messages = (
         db.table("messages")
         .select("id, conversation_id, direction, sender_type, content, created_at")
