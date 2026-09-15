@@ -6,7 +6,8 @@ export type PaymentStatus =
   | "verified"
   | "rejected"
   | "refunded"
-  | "partially_refunded";
+  | "partially_refunded"
+  | "cancelled";
 
 export type Payment = {
   id: string;

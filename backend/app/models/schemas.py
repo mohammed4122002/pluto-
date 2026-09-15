@@ -975,7 +975,9 @@ class AiProviderSettingsUpdate(BaseModel):
 
 
 PaymentMethodType = Literal["mobile_cash", "bank_transfer", "cash", "other"]
-PaymentStatus = Literal["pending", "receipt_submitted", "verified", "rejected", "refunded", "partially_refunded"]
+PaymentStatus = Literal[
+    "pending", "receipt_submitted", "verified", "rejected", "refunded", "partially_refunded", "cancelled"
+]
 PaymentType = Literal["deposit", "full", "balance", "package", "cancellation_fee"]
 
 
