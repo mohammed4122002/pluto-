@@ -224,6 +224,18 @@ def _settle_cancellation_fee(db: Client, appointment: dict, fee: float) -> dict:
     instead of charging it as a brand-new bill next to an untouched deposit.
     Kept as a separate copy because ai-services and backend are two
     independently-deployed apps that don't share a Python package."""
+    # A deposit/receipt-review request still open when the appointment is
+    # cancelled has nothing left to ask for -- left as 'pending'/
+    # 'receipt_submitted' it both misrepresents any pending-payments view
+    # and stays eligible for find_pending_receipt_payment to match against a
+    # later, unrelated photo from the same patient (confirmed live: a chat
+    # cancellation before the deposit was ever paid left a 10 JOD "pending"
+    # payment attached to a cancelled appointment). Void it before settling
+    # what was actually collected.
+    db.table("payments").update({"status": "cancelled"}).eq("appointment_id", appointment["id"]).in_(
+        "status", ["pending", "receipt_submitted"]
+    ).execute()
+
     collected = (
         db.table("payments")
         .select("*")

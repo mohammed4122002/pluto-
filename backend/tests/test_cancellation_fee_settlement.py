@@ -108,6 +108,33 @@ def test_settlement_ignores_unverified_and_prior_fee_payments():
     # Neither the unverified deposit nor a prior cancellation_fee row counts
     # as money in hand to net against.
     assert result == {"fee_charged": 5.0, "fee_pending": 5.0, "refunded": 0.0}
+    # The unverified deposit request is void now -- nothing left to collect
+    # for it -- rather than staying 'pending' forever.
+    pending_row = next(p for p in db._tables["payments"] if p["id"] == "pay-pending")
+    assert pending_row["status"] == "cancelled"
+    # A payment already settled (verified/refunded/...) is untouched by the
+    # void step -- only still-open requests are voided.
+    fee_row = next(p for p in db._tables["payments"] if p["id"] == "pay-fee")
+    assert fee_row["status"] == "verified"
+
+
+def test_settlement_voids_a_pending_deposit_never_collected():
+    """The exact shape confirmed live: a chat cancellation before the patient
+    ever paid the deposit left a 10 JOD 'pending' payment attached to a
+    cancelled appointment forever -- both misrepresenting any pending-
+    payments view and staying eligible for a later, unrelated photo from the
+    same patient to be matched against it as a receipt."""
+    db = _db([{**_verified_payment(10), "id": "pay-pending", "status": "pending"}])
+    result = settle_appointment_fee(db, _appointment(), 0.0, STAFF)
+    assert result == {"fee_charged": 0.0, "fee_pending": 0.0, "refunded": 0.0}
+    assert db._tables["payments"][0]["status"] == "cancelled"
+    assert "refunds" not in db.inserts
+
+
+def test_settlement_voids_a_receipt_awaiting_review_too():
+    db = _db([{**_verified_payment(10), "id": "pay-pending", "status": "receipt_submitted"}])
+    settle_appointment_fee(db, _appointment(), 0.0, STAFF)
+    assert db._tables["payments"][0]["status"] == "cancelled"
 
 
 def test_automated_refund_can_be_attributed_to_no_staff():

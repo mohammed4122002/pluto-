@@ -382,6 +382,17 @@ def settle_appointment_fee(db: Client, appointment: dict, fee: float, processed_
     processed_by may be None: this runs from contexts with no staff member
     present at all (the AI chatbot cancelling on the patient's behalf), and
     that's a legitimate "settled automatically" attribution, not a bug."""
+    # A deposit/receipt-review request still sitting open when the
+    # appointment ends (cancel or no-show) has nothing left to ask for --
+    # left as 'pending'/'receipt_submitted' it both misrepresents any
+    # pending-payments view and stays eligible for find_pending_receipt_
+    # payment/attach_receipt_from_inbound_media to match against a later,
+    # unrelated photo from the same patient. Void it before settling what
+    # was actually collected.
+    db.table("payments").update({"status": "cancelled"}).eq("appointment_id", appointment["id"]).in_(
+        "status", ["pending", "receipt_submitted"]
+    ).execute()
+
     collected = (
         db.table("payments")
         .select("*")
