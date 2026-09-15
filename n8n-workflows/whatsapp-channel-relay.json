@@ -115,12 +115,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [2480, 368],
-      "disabled": true,
       "parameters": {
         "method": "POST",
         "url": "={{ \"REPLACE_WITH_SUPABASE_PROJECT_URL/storage/v1/object/chat-media/\" + $(\"Extract WhatsApp Message\").item.json.from_wa_id + \"-\" + $(\"Extract WhatsApp Message\").item.json.message_id + \".jpg\" }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "={{ $(\"Get Media URL\").item.json.mime_type }}" }] },
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "={{ $(\"Get Media URL\").item.json.mime_type }}" }
+          ]
+        },
         "sendBody": true,
         "contentType": "binaryData",
         "inputDataFieldName": "data",
@@ -200,12 +205,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [2480, 656],
-      "disabled": true,
       "parameters": {
         "method": "POST",
         "url": "={{ \"REPLACE_WITH_SUPABASE_PROJECT_URL/storage/v1/object/chat-media/\" + $(\"Extract WhatsApp Message\").item.json.from_wa_id + \"-\" + $(\"Extract WhatsApp Message\").item.json.message_id + \".ogg\" }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "={{ $(\"Get Voice Media URL\").item.json.mime_type }}" }] },
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "={{ $(\"Get Voice Media URL\").item.json.mime_type }}" }
+          ]
+        },
         "sendBody": true,
         "contentType": "binaryData",
         "inputDataFieldName": "data",
@@ -395,7 +405,7 @@
       "typeVersion": 1,
       "position": [240, 640],
       "parameters": {
-        "content": "## PLUTO — WhatsApp Channel Relay (SHARED across every branch's WhatsApp number)\nOne workflow, two entry points:\n1. WhatsApp Trigger (native n8n node) — Meta calls the app-level webhook Meta manages automatically via the WhatsApp OAuth credential; n8n handles the GET verify handshake internally, no manual IF/Respond nodes needed. It looks up the right clinic channel by phone_number_id (calling backend GET /channels?identifier=), then relays to /conversations/inbound and, if mode=ai, /chat/reply, then sends the reply straight to the Graph API using that channel's own decrypted access_token — never a static n8n credential, since every branch has its own WhatsApp number/token.\n2. Outbound Send Webhook — backend calls this (staff replies, reminders, recalls...) with {recipient, message, channel_identifier}; same per-channel token lookup, then sends via Graph API.\n\nBEFORE USE:\n- This node OWNS the Meta webhook subscription for the WhatsApp app tied to its credential. Do NOT activate any other workflow with a WhatsApp Trigger node on the same credential/app — Meta only allows one active subscriber and the last one activated wins. (This migration from a manual Webhook+verify-handshake node to this native trigger fixed exactly that bug: a stray second workflow, 'My workflow', had been silently hijacking the subscription. It has since been archived.)\n- Needs the \"PLUTO Service Token\" credential (template) wired to every \"Lookup Channel...\"/\"Send To Backend Inbound\"/\"Generate AI Reply\" HTTP Request node.\n- Update backend/app/routers/channels.py SHARED_N8N_WORKFLOWS[\"whatsapp\"] to (this workflow's id, \"whatsapp-outbound-send\")."
+        "content": "## PLUTO — WhatsApp Channel Relay (SHARED across every branch's WhatsApp number)\nOne workflow, two entry points:\n1. WhatsApp Trigger (native n8n node) — Meta calls the app-level webhook Meta manages automatically via the WhatsApp OAuth credential; n8n handles the GET verify handshake internally, no manual IF/Respond nodes needed. It looks up the right clinic channel by phone_number_id (calling backend GET /channels?identifier=), then relays to /conversations/inbound and, if mode=ai, /chat/reply, then sends the reply straight to the Graph API using that channel's own decrypted access_token — never a static n8n credential, since every branch has its own WhatsApp number/token.\n2. Outbound Send Webhook — backend calls this (staff replies, reminders, recalls...) with {recipient, message, channel_identifier}; same per-channel token lookup, then sends via Graph API.\n\nBEFORE USE:\n- This node OWNS the Meta webhook subscription for the WhatsApp app tied to its credential. Do NOT activate any other workflow with a WhatsApp Trigger node on the same credential/app — Meta only allows one active subscriber and the last one activated wins. (This migration from a manual Webhook+verify-handshake node to this native trigger fixed exactly that bug: a stray second workflow, 'My workflow', had been silently hijacking the subscription. It has since been archived.)\n- Needs the \"PLUTO Service Token\" credential (template) wired to every \"Lookup Channel...\"/\"Send To Backend Inbound\"/\"Generate AI Reply\" HTTP Request node.\n- Replace REPLACE_WITH_SUPABASE_PROJECT_URL and REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY on \"Upload Photo To Storage\"/\"Upload Voice To Storage\" with the real project URL and current service_role key before activating — these nodes were shipped disabled with no auth for a while, which meant Normalize Media still built a media_url pointing at a file that was never actually uploaded, so every WhatsApp photo/voice note silently failed vision/transcription with a 400 (confirmed live 2026-09-15, fixed same day). Never commit the real key here — this file only ever holds the placeholder.\n- Update backend/app/routers/channels.py SHARED_N8N_WORKFLOWS[\"whatsapp\"] to (this workflow's id, \"whatsapp-outbound-send\")."
       }
     }
   ],

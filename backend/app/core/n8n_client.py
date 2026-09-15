@@ -65,6 +65,8 @@ def clone_telegram_workflow(template_id: str, *, name: str, credential_id: str, 
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "channel"
     outbound_path = f"telegram-outbound-{slug}-{channel_id[:8]}"
 
+    settings = get_settings()
+
     nodes = []
     for node in template["nodes"]:
         node = dict(node)
@@ -77,6 +79,23 @@ def clone_telegram_workflow(template_id: str, *, name: str, credential_id: str, 
                     assignment["value"] = channel_id
         if node["name"] == "Outbound Send Webhook":
             node["parameters"]["path"] = outbound_path
+        if node["name"] in ("Upload Photo To Storage", "Upload Voice To Storage"):
+            # The template carries whatever Supabase key was pasted in by hand
+            # at build time -- rewrite it to the backend's own current
+            # SUPABASE_SERVICE_KEY on every clone instead of trusting that,
+            # so a rotated/stale key baked into the template can't silently
+            # break media uploads on every new channel (confirmed live once:
+            # a legacy key here meant photo/voice uploads 400'd for a channel
+            # cloned from this template while text messages worked fine).
+            headers = node["parameters"]["headerParameters"]["parameters"]
+            for header in headers:
+                if header["name"] == "apikey":
+                    header["value"] = settings.supabase_service_key
+                elif header["name"] == "Authorization":
+                    header["value"] = f"Bearer {settings.supabase_service_key}"
+            node["parameters"]["url"] = node["parameters"]["url"].replace(
+                "https://ylvowifrvhkgtvxllghg.supabase.co", settings.supabase_url.rstrip("/")
+            )
         nodes.append(node)
 
     payload = {

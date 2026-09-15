@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Gemini's own documented, reliable way to accept image input.
 _GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
-# Classifies a patient's photo into one of three lanes, on purpose, rather
+# Classifies a patient's photo into one of five lanes, on purpose, rather
 # than always producing the same kind of output:
 #
 # - "urgent": looks like something that needs real, prompt medical attention
@@ -27,81 +27,158 @@ _GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models
 #   is to say so plainly and push toward urgent care / escalation -- never a
 #   calm "here are matching services" card, which would read as the clinic
 #   treating an emergency as routine business.
-# - "analysis": a visible, non-emergency concern worth a structured read --
-#   skin (acne, pigmentation, enlarged pores, dryness/oiliness, dark
-#   circles, mild wrinkles/scarring), hair (hair loss, dandruff, thinning),
-#   or a minor burn/wound/rash that doesn't look urgent. Named with common,
-#   non-alarming terms and an approximate severity, always paired with an
-#   explicit "this is indicative, not a diagnosis" framing downstream.
-# - "none": not medical/cosmetic at all (a payment receipt, a plain selfie,
-#   an unclear photo) -- unchanged from before.
-#
-# The model still never claims a real diagnosis in either "urgent" or
-# "analysis" mode; the difference from a plain description is being allowed
-# to name common, low-stakes concerns by their everyday name (the same way a
-# patient would describe themselves: "عندي حبوب" not "primary inflammatory
-# acne vulgaris"), which patients and clinics alike expect from this kind of
-# feature -- BASE_INSTRUCTIONS in chat.py still repeats the
-# never-a-real-diagnosis rule on the booking-assistant side, since a system
-# prompt only constrains the model it's attached to.
-_VISION_SYSTEM_PROMPT = (
+# - "analysis": a visible, non-emergency concern that plausibly falls under
+#   one of *this clinic's own* specialties (see _build_vision_prompt) --
+#   worth a structured read, named with common, non-alarming terms and an
+#   approximate severity, always paired with an explicit "this is
+#   indicative, not a diagnosis" framing downstream.
+# - "out_of_scope": a visible medical concern, but one that plausibly falls
+#   *outside* every specialty this clinic actually offers (e.g. an eye
+#   problem at a clinic with no ophthalmology). Its own class rather than a
+#   flavour of "analysis" or "none": a patient photographing a real concern
+#   deserves an honest "that's not something we treat here", not a service
+#   card built from whatever this clinic happens to sell, and not silence
+#   either.
+# - "receipt": proof of payment (a receipt, an invoice, a bank/wallet
+#   transfer screenshot). Its own class rather than a flavour of "none": the
+#   two need opposite handling -- a receipt goes straight to
+#   submit_payment_receipt, while "none" means we don't know what the
+#   patient sent and have to ask.
+# - "none": not medical/cosmetic at all (a payment receipt is its own class
+#   above, so this is left for a plain selfie, a product photo, an unclear
+#   photo) -- the model still never claims a real diagnosis in "urgent",
+#   "analysis", or "out_of_scope"; the difference from a plain description
+#   is being allowed to name common, low-stakes concerns by their everyday
+#   name (the same way a patient would describe themselves: "عندي حبوب" not
+#   "primary inflammatory acne vulgaris"), which patients and clinics alike
+#   expect from this kind of feature -- BASE_INSTRUCTIONS in chat.py still
+#   repeats the never-a-real-diagnosis rule on the booking-assistant side,
+#   since a system prompt only constrains the model it's attached to.
+_VISION_SYSTEM_PROMPT_INTRO = (
     "إنتِ تحلّلين صورة أرسلها مريض لعيادة، لمساعدة مساعدة حجز آلية تقترح عليه أنسب خدمة وتشجعه يحجز — "
     "مش تشخيص طبي نهائي أو رأي طبيب بأي شكل من الأشكال.\n\n"
-    "أول كلمة بردّك، بالضبط، لازم تكون وحدة من هاي الأربع (بحروف إنجليزية كبيرة، بدون أي شي قبلها)، "
+    "أول كلمة بردّك، بالضبط، لازم تكون وحدة من هاي الخمس (بحروف إنجليزية كبيرة، بدون أي شي قبلها)، "
     "وبعدها سطر جديد فيه التفاصيل:\n\n"
     "URGENT — لو الصورة تبيّن شي بيحتاج عناية طبية عاجلة فعلاً: حرق كبير أو عميق المظهر، نزيف واضح، "
-    "تشوّه أو انتفاخ شديد ومقلق، جرح يبدو ملتهب أو متقيّح بشكل واضح. بعدها اكتبي وصف شكلي محايد بجملة "
-    "أو جملتين بس (بدون اسم حالة أو تشخيص)، مثال: 'صورة يد فيها احمرار وتقشّر واسع يمتد لعدة أصابع، "
-    "المظهر يوحي بحرق واسع النطاق'.\n\n"
-    "ANALYSIS — لو الصورة تبيّن مسألة ظاهرة مش طارئة: بشرة (حب شباب، تصبغات أو بقع، مسام واسعة، جفاف "
-    "أو دهنية زايدة، هالات سوداء، تجاعيد أو ترهل خفيف، ندبات خفيفة)، شعر (تساقط، قشرة، ترقّق)، أو حرق/جرح/"
-    "طفح جلدي بسيط المظهر ومش مقلق. اكتبي تحليل قصير منظم بالعربي بالضبط بهذا الشكل (احذفي أي سطر "
+    "تشوّه أو انتفاخ شديد ومقلق، جرح يبدو ملتهب أو متقيّح بشكل واضح — بغض النظر عن تخصصات العيادة "
+    "تحت، حالة طارئة تستاهل تنبيه المريض دايماً. بعدها اكتبي وصف شكلي محايد بجملة أو جملتين بس "
+    "(بدون اسم حالة أو تشخيص)، مثال: 'صورة يد فيها احمرار وتقشّر واسع يمتد لعدة أصابع، المظهر يوحي "
+    "بحرق واسع النطاق'.\n\n"
+)
+
+_VISION_SYSTEM_PROMPT_ANALYSIS_TEMPLATE = (
+    "ANALYSIS — لو الصورة تبيّن مسألة ظاهرة مش طارئة، **وتقع منطقياً ضمن واحد أو أكتر من تخصصات "
+    "هاي العيادة المذكورة تحت**: اكتبي تحليل قصير منظم بالعربي بالضبط بهذا الشكل (احذفي أي سطر "
     "معلومته مش واضحة من الصورة):\n"
+    "النوع: [تصنيف تقريبي مناسب لنوع الصورة والتخصص — مثلاً 'بشرة دهنية/مختلطة' أو 'بداية تساقط شعر' "
+    "أو 'حرق سطحي محدود' أو 'التهاب لثة ظاهر' أو 'انتفاخ حوالين مفصل الكاحل']\n"
+    "الحالة العامة: [وصف قصير جداً]\n"
+    "ملاحظات:\n"
+    "- [ملاحظة] ([خفيفة/متوسطة])\n"
+    "- ...\n"
+    "استخدمي بس مصطلحات شائعة غير مقلقة طبياً متل الأمثلة فوق — ممنوع نهائياً اسم مرض طبي رسمي "
+    "(إكزيما، صدفية، فطريات، التهاب بكتيري...) أو درجة حرق طبية رسمية (درجة أولى/تانية/تالتة) أو أي "
+    "كلام يوحي بتشخيص فعلي. هاي ملاحظات شكلية تقريبية بس، مش تشخيص — ولو في أي شك إنه المستوى أخطر من "
+    "'متوسطة'، صنّفيها URGENT بدل هيك.\n\n"
+    "OUT_OF_SCOPE — لو الصورة تبيّن جزء من جسم إنسان عليه شي غير طبيعي ظاهر بالعين (نفس معايير "
+    "ANALYSIS)، بس نوع الحالة **وبشكل واضح برّا كل تخصصات هاي العيادة المذكورة تحت** — مثلاً مشكلة "
+    "بالعين وما في تخصص عيون بالقائمة، أو مشكلة مسالك بولية وما في تخصص بولية. اكتبي وصف شكلي محايد "
+    "قصير بجملة وحدة بس (بدون اسم حالة أو تشخيص)، مثال: 'صورة تبيّن احمرار وانتفاخ حوالين العين'. "
+    "**لا تصنّفي OUT_OF_SCOPE إلا لو كنتِ متأكدة إنها فعلاً برّا كل التخصصات المذكورة تحت** — لو في "
+    "احتمال معقول إنها تدخل ضمن أي تخصص من تخصصات العيادة، صنّفيها ANALYSIS بدل هيك، ولو الشدة تستاهل "
+    "عناية عاجلة صنّفيها URGENT بغض النظر عن التخصصات (نفس قاعدة URGENT فوق).\n\n"
+    "تخصصات هاي العيادة:\n{specialties_block}\n\n"
+)
+
+_VISION_SYSTEM_PROMPT_ANALYSIS_UNSCOPED = (
+    "ANALYSIS — لو الصورة تبيّن مسألة ظاهرة مش طارئة: بشرة (حب شباب، تصبغات أو بقع، مسام واسعة، جفاف "
+    "أو دهنية زايدة، هالات سوداء، تجاعيد أو ترهل خفيف، ندبات خفيفة)، شعر (تساقط، قشرة، ترقّق)، أسنان "
+    "ولثة (التهاب لثة ظاهر، تسوّس واضح)، أو حرق/جرح/طفح جلدي/انتفاخ مفصل بسيط المظهر ومش مقلق. اكتبي "
+    "تحليل قصير منظم بالعربي بالضبط بهذا الشكل (احذفي أي سطر معلومته مش واضحة من الصورة):\n"
     "النوع: [تصنيف تقريبي مناسب لنوع الصورة — مثلاً 'بشرة دهنية/مختلطة' أو 'بداية تساقط شعر' أو 'حرق "
     "سطحي محدود']\n"
     "الحالة العامة: [وصف قصير جداً]\n"
     "ملاحظات:\n"
     "- [ملاحظة] ([خفيفة/متوسطة])\n"
     "- ...\n"
-    "استخدمي بس مصطلحات شائعة غير مقلقة طبياً متل الأمثلة فوق — ممنوع نهائياً اسم مرض جلدي طبي حقيقي "
+    "استخدمي بس مصطلحات شائعة غير مقلقة طبياً متل الأمثلة فوق — ممنوع نهائياً اسم مرض طبي رسمي "
     "(إكزيما، صدفية، فطريات، التهاب بكتيري...) أو درجة حرق طبية رسمية (درجة أولى/تانية/تالتة) أو أي "
     "كلام يوحي بتشخيص فعلي. هاي ملاحظات شكلية تقريبية بس، مش تشخيص — ولو في أي شك إنه المستوى أخطر من "
     "'متوسطة'، صنّفيها URGENT بدل هيك.\n\n"
+)
+
+_VISION_SYSTEM_PROMPT_TAIL = (
     "RECEIPT — لو الصورة إثبات دفع: إيصال أو فاتورة، سكرين شوت من تطبيق بنك أو محفظة إلكترونية "
     "(كليك/زين كاش/أوركاش...)، إشعار حوالة، أو صورة بوصة كاشير. العلامات: مبلغ ورقم مرجعي/عملية، "
     "تاريخ ووقت، اسم بنك أو محفظة أو متجر، كلمات متل 'تم التحويل' أو 'ناجحة' أو 'المبلغ'. بعدها ما "
     "تكتبي شي إضافي.\n\n"
     "NONE — لو الصورة مو طبية ولا تجميلية ولا إثبات دفع إطلاقاً (صورة شخصية عادية بدون أي شي ظاهر "
     "يستدعي تحليل، منتج، مستند مش واضح، صورة غير واضحة). بعدها ما تكتبي شي إضافي.\n\n"
-    "مهم: لو الصورة فيها أي جزء من جسم إنسان (يد، وجه، جلد، شعر...) وعليه أي شي غير طبيعي ظاهر بالعين "
-    "(احمرار، تورم، تغيّر لون، تقشّر، طفح، جرح، بقعة غريبة...) — حتى لو بسيط، حتى لو مو متأكدة شو "
-    "بالضبط، حتى لو الصورة شكلها احترافية أو product photography — صنّفيها ANALYSIS أو URGENT حسب "
-    "شدتها، ولا تصنّفيها NONE أبداً. NONE محجوزة بس للصور اللي فعلاً ما فيها أي جزء جسم غير طبيعي "
-    "الشكل ولا هي إثبات دفع (سيلفي عادي، منتج، مستند...). الخطأ الأخطر هون إنك تفوّتي صورة فيها إصابة "
-    "أو مشكلة حقيقية وتصنّفيها NONE — مش إنك تحللي صورة سليمة بالغلط.\n\n"
+    "مهم: لو الصورة فيها أي جزء من جسم إنسان (يد، وجه، جلد، شعر، أسنان، مفصل...) وعليه أي شي غير "
+    "طبيعي ظاهر بالعين (احمرار، تورم، تغيّر لون، تقشّر، طفح، جرح، بقعة غريبة...) — حتى لو بسيط، حتى "
+    "لو مو متأكدة شو بالضبط، حتى لو الصورة شكلها احترافية أو product photography — صنّفيها {analysis_or_scope_label} حسب "
+    "شدتها وتخصصات العيادة، ولا تصنّفيها NONE أبداً. NONE محجوزة بس للصور اللي فعلاً ما فيها أي جزء "
+    "جسم غير طبيعي الشكل ولا هي إثبات دفع (سيلفي عادي، منتج، مستند...). الخطأ الأخطر هون إنك تفوّتي "
+    "صورة فيها إصابة أو مشكلة حقيقية وتصنّفيها NONE — مش إنك تحللي صورة سليمة بالغلط.\n\n"
     "وبنفس الوقت، ممنوع تخلطي بين الاتنين بالاتجاه التاني: صورة فيها ورق أو شاشة فيها أرقام ومبالغ "
     "وما فيها ولا جزء من جسم إنسان هي RECEIPT (أو NONE لو مش واضحة إنها دفع)، وممنوع تحلليها كأنها "
     "حالة جلدية. القرار الأول اللي لازم تاخديه: في بالصورة جزء من جسم إنسان أو لأ؟ إذا في → URGENT "
-    "أو ANALYSIS. إذا ما في → RECEIPT أو NONE."
+    "أو {analysis_or_scope_label}. إذا ما في → RECEIPT أو NONE."
 )
 
 
-def describe_patient_photo(api_key: str, model: str, image_url: str) -> tuple[str | None, str | None, str | None]:
-    """Classifies and (for "urgent"/"analysis") describes a photo a patient
-    sent, for the booking assistant to relay and act on.
+def _build_vision_prompt(specialty_names: list[str] | None) -> str:
+    """Builds the vision system prompt, scoped to this clinic's own active
+    specialties when known.
+
+    specialty_names comes straight from the `specialties` table (see
+    chat.py's caller) so a clinic offering only, say, dermatology and
+    orthodontics gets a model that stays in that lane -- and, just as
+    importantly, one that can tell a patient plainly when a photographed
+    concern (an eye problem, a urinary complaint) falls outside every
+    specialty this particular clinic actually has, instead of either
+    forcing it into a mismatched service card or staying silent about it.
+
+    specialty_names=None (or empty) falls back to the previous, unscoped
+    behavior -- broad common skin/hair/dental/joint concerns, no
+    OUT_OF_SCOPE lane at all -- for a clinic that hasn't set up its
+    specialties yet, or a caller that doesn't have DB access to fetch them.
+    Never a reason a photo goes unanalyzed."""
+    if specialty_names:
+        specialties_block = "\n".join(f"- {name}" for name in specialty_names)
+        analysis_section = _VISION_SYSTEM_PROMPT_ANALYSIS_TEMPLATE.format(specialties_block=specialties_block)
+        label = "ANALYSIS أو OUT_OF_SCOPE"
+    else:
+        analysis_section = _VISION_SYSTEM_PROMPT_ANALYSIS_UNSCOPED
+        label = "ANALYSIS"
+    return _VISION_SYSTEM_PROMPT_INTRO + analysis_section + _VISION_SYSTEM_PROMPT_TAIL.format(
+        analysis_or_scope_label=label
+    )
+
+
+def describe_patient_photo(
+    api_key: str, model: str, image_url: str, specialty_names: list[str] | None = None
+) -> tuple[str | None, str | None, str | None]:
+    """Classifies and (for "urgent"/"analysis"/"out_of_scope") describes a
+    photo a patient sent, for the booking assistant to relay and act on.
 
     Downloads the image itself and sends it inline (base64 + mime type) to
     Gemini's generateContent endpoint, rather than handing Gemini a remote
     URL to fetch — see the module comment above for why.
 
+    specialty_names should be this clinic's active specialty names (see
+    _build_vision_prompt) so ANALYSIS/OUT_OF_SCOPE reflect what this
+    specific clinic actually offers rather than a fixed skin/hair-only
+    guess. Pass None if that lookup isn't available for some reason -- the
+    photo still gets analyzed, just without the out-of-scope distinction.
+
     Returns (kind, text, failure_reason).
 
-    - ("urgent" | "analysis", text, None) on a successful classification.
+    - ("urgent" | "analysis" | "out_of_scope", text, None) on a successful
+      classification.
     - ("receipt", None, None) when it's proof of payment (a receipt, an
       invoice, a bank/wallet transfer screenshot). Its own class rather
-      than a flavour of "none": the two need opposite handling — a receipt
-      goes straight to submit_payment_receipt, while "none" means we don't
-      know what the patient sent and have to ask.
+      than a flavour of "none" — see the module docstring above.
     - (None, None, None) when Gemini explicitly classified the photo as
       "none" (an unrelated selfie, a product, an unclear photo) -- a real,
       positive classification, not a failure.
@@ -121,12 +198,13 @@ def describe_patient_photo(api_key: str, model: str, image_url: str) -> tuple[st
         logger.exception("failed to download patient photo from %s", image_url)
         return None, None, f"image download failed: {exc}"
 
+    prompt = _build_vision_prompt(specialty_names)
     try:
         response = httpx.post(
             _GENERATE_CONTENT_URL.format(model=model),
             params={"key": api_key},
             json={
-                "systemInstruction": {"parts": [{"text": _VISION_SYSTEM_PROMPT}]},
+                "systemInstruction": {"parts": [{"text": prompt}]},
                 "contents": [
                     {
                         "parts": [
@@ -167,6 +245,8 @@ def describe_patient_photo(api_key: str, model: str, image_url: str) -> tuple[st
         return "urgent", body or text, None
     if marker == "ANALYSIS":
         return "analysis", body or text, None
+    if marker == "OUT_OF_SCOPE":
+        return "out_of_scope", body or text, None
     # No recognizable marker (a model that ignored the format) -- treat the
     # whole reply as a plain, non-urgent description rather than dropping a
     # real analysis on the floor over a formatting slip.

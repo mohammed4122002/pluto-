@@ -46,6 +46,11 @@ def test_submit_payment_receipt_is_removed_for_an_urgent_photo():
     assert "submit_payment_receipt" not in _tool_names(tools)
 
 
+def test_submit_payment_receipt_is_removed_for_an_out_of_scope_photo():
+    tools = _select_tools({}, photo_kind="out_of_scope")
+    assert "submit_payment_receipt" not in _tool_names(tools)
+
+
 def test_submit_payment_receipt_stays_available_for_a_genuine_receipt_photo():
     tools = _select_tools({}, photo_kind="receipt")
     assert "submit_payment_receipt" in _tool_names(tools)
@@ -90,7 +95,7 @@ def _photo_prompt(kind, description="النوع: طفح جلدي بسيط"):
 
 
 def test_the_prompt_also_forbids_the_receipt_tool_by_name_for_medical_photos():
-    for kind in ("analysis", "urgent"):
+    for kind in ("analysis", "urgent", "out_of_scope"):
         prompt = _photo_prompt(kind)
         assert "ممنوع نهائياً تستدعي submit_payment_receipt" in prompt, kind
 

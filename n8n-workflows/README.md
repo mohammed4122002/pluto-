@@ -206,6 +206,20 @@ text as the caption — never a plain-text link. Replace the
 template before activating a fresh import; the live workflow already has
 them filled in.
 
+**Incident, 2026-09-15:** `Upload Photo To Storage`/`Upload Voice To
+Storage` shipped `disabled: true` with no auth headers at all, but
+`Normalize Media` unconditionally built a `chat-media` public URL as if the
+upload had happened. Every WhatsApp photo and voice note was silently
+failing — ai-services got a `media_url` that 404/400'd on download, logged
+`classification_failed`/`transcription_failed` to `audit_log`, and the
+patient got a generic "couldn't hear/see that, can you type it instead?"
+regardless of what they actually sent. Fixed by enabling both nodes and
+adding the `apikey`/`Authorization` headers they were missing (same static-
+header pattern as everywhere else on this instance — see "Before activating
+any of them"). **If a fresh import of this file still has the photo/voice
+branches silently failing, check these two nodes aren't disabled and have
+real values in place of `REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY` first.**
+
 **Voice notes.** `Has Voice?` mirrors `Has Image?` for `messages[0].audio`:
 `Get Voice Media URL` → `Download Voice Media` → `Upload Voice To Storage`
 sets `media_type=audio`, the one thing ai-services' `/chat/reply` checks

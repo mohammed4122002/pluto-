@@ -14,7 +14,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.routers.chat import BASE_INSTRUCTIONS  # noqa: E402
-from app.services.vision import _VISION_SYSTEM_PROMPT  # noqa: E402
+from app.services.vision import _build_vision_prompt  # noqa: E402
+
+_VISION_SYSTEM_PROMPT = _build_vision_prompt(None)
 
 
 def test_describing_symptoms_shown_in_a_photo_is_still_not_an_escalation_trigger():

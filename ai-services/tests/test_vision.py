@@ -119,11 +119,13 @@ def test_a_receipt_is_its_own_classification_not_a_none(mock_get, mock_post):
 def test_the_prompt_makes_body_vs_no_body_the_first_decision(mock_get, mock_post):
     # Pins the rule that keeps the two apart in both directions: a photo of
     # a body part is never a receipt, and a page of numbers is never a skin
-    # condition.
-    from app.services.vision import _VISION_SYSTEM_PROMPT
+    # condition. Checked in both unscoped and specialty-scoped form.
+    from app.services.vision import _build_vision_prompt
 
-    assert "في بالصورة جزء من جسم إنسان أو لأ؟" in _VISION_SYSTEM_PROMPT
-    assert "RECEIPT" in _VISION_SYSTEM_PROMPT
+    for specialties in (None, ["جلدية", "أسنان عام"]):
+        prompt = _build_vision_prompt(specialties)
+        assert "في بالصورة جزء من جسم إنسان أو لأ؟" in prompt
+        assert "RECEIPT" in prompt
 
 
 @patch("app.services.vision.httpx.post")
@@ -183,8 +185,50 @@ def test_the_prompt_still_explicitly_bans_real_disease_names():
     # pins that the system prompt still explicitly forbids real diagnostic
     # terms even in "analysis" mode, so a future edit can't silently drop
     # that guardrail while expanding what the model is allowed to name.
-    from app.services.vision import _VISION_SYSTEM_PROMPT
+    from app.services.vision import _build_vision_prompt
 
-    assert "ممنوع نهائياً اسم مرض جلدي طبي حقيقي" in _VISION_SYSTEM_PROMPT
-    for term in ["إكزيما", "صدفية", "فطريات"]:
-        assert term in _VISION_SYSTEM_PROMPT
+    for specialties in (None, ["جلدية", "أسنان عام"]):
+        prompt = _build_vision_prompt(specialties)
+        assert "ممنوع نهائياً اسم مرض طبي رسمي" in prompt
+        for term in ["إكزيما", "صدفية", "فطريات"]:
+            assert term in prompt
+
+
+@patch("app.services.vision.httpx.post")
+@patch("app.services.vision.httpx.get")
+def test_out_of_scope_response_is_parsed_with_its_body(mock_get, mock_post):
+    mock_get.return_value = _fake_get_response()
+    mock_post.return_value = _fake_gemini_response(text="OUT_OF_SCOPE\nصورة تبيّن احمرار وانتفاخ حوالين العين")
+    kind, text, failure_reason = describe_patient_photo(
+        "api-key", "m", "https://example.test/photo.jpg", specialty_names=["جلدية", "أسنان عام"]
+    )
+    assert kind == "out_of_scope"
+    assert "العين" in text
+    assert failure_reason is None
+
+
+@patch("app.services.vision.httpx.post")
+@patch("app.services.vision.httpx.get")
+def test_no_specialties_means_no_out_of_scope_lane_at_all(mock_get, mock_post):
+    # Backward-compatible fallback: a caller that can't look up this
+    # clinic's specialties (or one that hasn't configured any yet) gets the
+    # old unscoped behavior, not a model that's been told it has zero
+    # specialties and everything is out of scope.
+    from app.services.vision import _build_vision_prompt
+
+    assert "OUT_OF_SCOPE" not in _build_vision_prompt(None)
+    assert "OUT_OF_SCOPE" not in _build_vision_prompt([])
+
+
+@patch("app.services.vision.httpx.post")
+@patch("app.services.vision.httpx.get")
+def test_specialty_list_is_actually_injected_into_the_prompt_sent(mock_get, mock_post):
+    mock_get.return_value = _fake_get_response()
+    mock_post.return_value = _fake_gemini_response(text="ANALYSIS\nوصف")
+    describe_patient_photo(
+        "api-key", "m", "https://example.test/photo.jpg", specialty_names=["عظام", "أنف وأذن وحنجرة"]
+    )
+    sent_prompt = mock_post.call_args.kwargs["json"]["systemInstruction"]["parts"][0]["text"]
+    assert "عظام" in sent_prompt
+    assert "أنف وأذن وحنجرة" in sent_prompt
+    assert "OUT_OF_SCOPE" in sent_prompt

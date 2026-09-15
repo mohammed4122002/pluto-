@@ -242,3 +242,36 @@ def test_receipt_hint_is_suppressed_when_photo_is_urgent_even_if_flag_is_set():
         image_without_medical_description=True,
     )
     assert "استدعي submit_payment_receipt مباشرة" not in prompt
+
+
+# --- out_of_scope (visible concern, but outside this clinic's specialties) --
+
+
+def test_out_of_scope_description_is_included_verbatim():
+    text = "صورة تبيّن احمرار وانتفاخ حوالين العين"
+    prompt = _prompt(photo_description=text, photo_kind="out_of_scope")
+    assert text in prompt
+
+
+def test_out_of_scope_block_says_its_not_this_clinics_specialty():
+    prompt = _prompt(photo_description="صورة تبيّن احمرار وانتفاخ حوالين العين", photo_kind="out_of_scope")
+    assert "برّا تخصصات عيادتنا" in prompt
+
+
+def test_out_of_scope_block_forbids_escalating_just_for_this():
+    prompt = _prompt(photo_description="صورة تبيّن احمرار وانتفاخ حوالين العين", photo_kind="out_of_scope")
+    assert "needs_human=false" in prompt
+
+
+def test_out_of_scope_never_shows_the_routine_analysis_card_layout():
+    # An out-of-scope photo must never get the "here's a matching service"
+    # treatment this clinic's own analysis card gives -- that would imply
+    # the clinic treats something it doesn't.
+    prompt = _prompt(photo_description="صورة تبيّن احمرار وانتفاخ حوالين العين", photo_kind="out_of_scope")
+    assert "🔹 *النوع:*" not in prompt
+    assert "✨ *خدمات مناسبة لك:*" not in prompt
+
+
+def test_out_of_scope_also_forbids_the_receipt_tool_by_name():
+    prompt = _prompt(photo_description="صورة تبيّن احمرار وانتفاخ حوالين العين", photo_kind="out_of_scope")
+    assert "ممنوع نهائياً تستدعي submit_payment_receipt" in prompt

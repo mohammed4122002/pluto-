@@ -1167,6 +1167,24 @@ def _transcribe_voice_note_for_turn(
     return text, True
 
 
+def _active_specialty_names(db: Client) -> list[str]:
+    """This clinic's own active specialties (specialties.name_ar), for
+    scoping vision.py's photo classification to what this specific
+    deployment actually treats -- see describe_patient_photo's own
+    docstring for why this must be looked up per clinic rather than
+    hardcoded to one specialty's vocabulary (skin/hair, say) the way this
+    used to be. Returns [] (never raises) on any DB hiccup, which
+    describe_patient_photo already treats as "scope unknown, analyze
+    without an out-of-scope lane" -- a lookup failure must never be why a
+    photo goes unanalyzed."""
+    try:
+        rows = db.table("specialties").select("name_ar").eq("is_active", True).execute().data
+    except Exception:
+        logger.exception("failed to load active specialties for photo classification scope")
+        return []
+    return [r["name_ar"] for r in rows if r.get("name_ar")]
+
+
 def _photo_description_for_turn(
     db: Client,
     conversation_id: str,
@@ -1182,13 +1200,15 @@ def _photo_description_for_turn(
 
     Returns (description, kind, image_without_medical_description).
 
-    kind is "urgent" or "analysis" (see describe_patient_photo) whenever
-    description is set — _build_system_prompt uses it to pick between the
-    "push toward urgent care" block and the "structured analysis card"
-    block, since those need very different handling and must never be
-    conflated. kind is also "receipt" (with no description) when the photo
-    is proof of payment, which routes straight to submit_payment_receipt
-    instead of either medical block.
+    kind is "urgent", "analysis", or "out_of_scope" (see
+    describe_patient_photo, scoped to this clinic's own active specialties
+    via _active_specialty_names) whenever description is set —
+    _build_system_prompt uses it to pick between the "push toward urgent
+    care" block, the "structured analysis card" block, and the "polite,
+    that's not something we treat here" block, since those need very
+    different handling and must never be conflated. kind is also "receipt"
+    (with no description) when the photo is proof of payment, which routes
+    straight to submit_payment_receipt instead of any of the above.
 
     image_without_medical_description is only True when vision actually ran
     and *explicitly* classified the photo as not medical/cosmetic at all —
@@ -1209,7 +1229,9 @@ def _photo_description_for_turn(
     if not image_row or not fallback:
         return None, None, False
     vision_client, vision_model = fallback
-    kind, text, failure_reason = describe_patient_photo(vision_client.api_key, vision_model, image_row["media_url"])
+    kind, text, failure_reason = describe_patient_photo(
+        vision_client.api_key, vision_model, image_row["media_url"], specialty_names=_active_specialty_names(db)
+    )
     if failure_reason:
         try:
             db.table("audit_log").insert(
@@ -1386,7 +1408,7 @@ def _build_system_prompt(
             "صورة أسنان قديمة وصورة جلد جديدة). كل صورة جديدة بتاخد ردّها الكامل من التحليل المذكور "
             "تحت لحالها، حتى لو المريض بعت عشر صور قبلها."
         )
-    if photo_kind in ("urgent", "analysis"):
+    if photo_kind in ("urgent", "analysis", "out_of_scope"):
         parts.append(
             "هاي الصورة **مصنّفة طبياً/تجميلياً**، مش إيصال دفع — ممنوع نهائياً تستدعي "
             "submit_payment_receipt أو تذكري كلمة 'إيصال' أو 'دفعة' بردّك على هالصورة، حتى لو في "
@@ -1452,6 +1474,19 @@ def _build_system_prompt(
                 "والملاحظات عادي، وبدل كارت الخدمات اسأليه أي فرع أقرب إله، وأول ما يحدد استدعي "
                 "select_branch وبعدها list_services واقترحي عليه الخدمة الأنسب."
             )
+    elif photo_description and photo_kind == "out_of_scope":
+        parts.append(
+            "المريض بعت صورة مع رسالته الأخيرة، ووصفها المرئي (وصف شكلي محايد، مش تشخيص طبي): "
+            f"{photo_description}. هاي الحالة **برّا تخصصات عيادتنا الحالية** — مش URGENT ولا "
+            "ANALYSIS ضمن خدماتنا.\n"
+            "نفس استثناء التصعيد المذكور بقاعدة ANALYSIS ينطبق هون: ممنوع تصعّدي هالرد "
+            "(needs_human=false) لمجرد إنه سؤال عن حالة ظاهرة بصورة — مش طلب استشارة طبية فعلية.\n"
+            "ردّي بأسلوب ودّي وصريح: اذكري بجملة وحدة إنه هذا النوع مش من ضمن تخصصات عيادتنا "
+            "الحالية (بدون ما تسمّي مرض أو تشخيص)، اعتذري بلطف، وانصحيه يراجع عيادة أو تخصص مناسب "
+            "لحالته. ممنوع تخترعي اسم عيادة تانية أو تحويل محدد. بعدها اسأليه بجملة قصيرة إذا حاب "
+            "مساعدة بأي من خدماتنا الفعلية (بدون فرض ولا استدعاء list_services تلقائياً — بس لو "
+            "سأل عن خدماتنا، جاوبيه عادي)."
+        )
     elif photo_kind == "receipt":
         parts.append(
             "المريض بعت صورة مع رسالته الأخيرة، والصورة إثبات دفع (إيصال أو فاتورة أو سكرين شوت حوالة "
@@ -1601,7 +1636,7 @@ def _select_tools(ch_settings: dict, photo_kind: str | None = None) -> list[dict
     # the analysis-card instructions actually written for this branch. The
     # instruction not to do this already exists in the receipt block of the
     # prompt; it does nothing for a turn that never reaches that block.
-    if photo_kind in ("analysis", "urgent"):
+    if photo_kind in ("analysis", "urgent", "out_of_scope"):
         tools = [t for t in tools if t["function"]["name"] != "submit_payment_receipt"]
     return tools
 
@@ -2358,8 +2393,8 @@ def _previous_photo_note(db: Client, conversation_id: str) -> str | None:
 def _suppress_medical_escalation_on_analysed_photo(
     photo_kind: str | None, needs_human: bool, escalation_category: str
 ) -> tuple[bool, str]:
-    """A photo the vision model classified as "analysis" must not be handed
-    off as a request for medical advice.
+    """A photo the vision model classified as "analysis" (or "out_of_scope")
+    must not be handed off as a request for medical advice.
 
     BASE_INSTRUCTIONS tells the model to escalate "a request for a
     consultation, diagnosis, or real medical opinion" -- and a photo of a
@@ -2373,11 +2408,16 @@ def _suppress_medical_escalation_on_analysed_photo(
 
     The prompt states the exception too, but the model has overridden it
     repeatedly, so the guarantee lives here. Deliberately narrow: only a
-    "medical" escalation on an analysis photo is dropped. An urgent photo
-    is a different classification entirely and still escalates, and a
-    complaint or a payment dispute raised in the same message keeps its own
-    category -- those are not what this feature replaces."""
-    if photo_kind == "analysis" and needs_human and escalation_category == MEDICAL:
+    "medical" escalation on an analysis (or out-of-scope) photo is dropped.
+    An urgent photo is a different classification entirely and still
+    escalates, and a complaint or a payment dispute raised in the same
+    message keeps its own category -- those are not what this feature
+    replaces. "out_of_scope" gets the same treatment as "analysis" for the
+    same reason: a photo of a condition this clinic simply doesn't treat is
+    still not a request for medical advice from this clinic's staff -- it
+    needs the polite "that's not something we treat here" reply, not a
+    human handoff nobody here can act on either."""
+    if photo_kind in ("analysis", "out_of_scope") and needs_human and escalation_category == MEDICAL:
         return False, escalation_category
     return needs_human, escalation_category
 

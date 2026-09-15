@@ -37,6 +37,12 @@ def test_an_urgent_photo_still_escalates():
     assert _suppress_medical_escalation_on_analysed_photo("urgent", True, MEDICAL) == (True, MEDICAL)
 
 
+def test_a_medical_escalation_on_an_out_of_scope_photo_is_also_dropped():
+    # Same reasoning as "analysis": a condition this clinic doesn't treat is
+    # still not a request for medical advice from this clinic's own staff.
+    assert _suppress_medical_escalation_on_analysed_photo("out_of_scope", True, MEDICAL) == (False, MEDICAL)
+
+
 def test_a_complaint_raised_alongside_a_photo_still_escalates():
     # The feature replaces "answer this photo", not "handle my complaint".
     assert _suppress_medical_escalation_on_analysed_photo("analysis", True, ADMINISTRATIVE) == (True, ADMINISTRATIVE)
