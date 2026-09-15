@@ -1,14 +1,49 @@
 # n8n workflows — reference exports
 
 Source of truth lives in the n8n instance itself; these JSON files are
-importable reference exports of what's built there. Re-export and commit
-here after any change made directly in n8n's UI, so this directory stays in
-sync.
+importable reference exports of what's built there.
 
-All 10 workflows below were also created directly in the live n8n instance
-via the n8n MCP server (see "Live workflow IDs"). Importing these JSON files
-is only needed to rebuild them on a *different* n8n instance, or to recover
+All workflows below were also created directly in the live n8n instance via
+the n8n MCP server (see "Live workflow IDs"). Importing these JSON files is
+only needed to rebuild them on a *different* n8n instance, or to recover
 one that got deleted.
+
+## Automated backups
+
+`scripts/backup_n8n_workflows.py`, run daily by
+`.github/workflows/n8n-backup.yml` (and on demand via that workflow's
+"Run workflow" button), pulls every workflow from the live instance through
+n8n's REST API and rewrites this directory to match — so a workflow edited
+by hand in n8n's UI never silently drifts out of the repo and gets lost if
+the instance is ever wiped or migrated. It also maintains `manifest.json`
+(workflow id → filename → active/archived state), which is what keeps
+filenames stable across runs instead of re-slugifying names every time.
+
+The script **redacts** any value that looks like a live secret (a
+`X-Service-Token`/`Authorization`/`apikey` header, or a handful of known
+Code-node variable names) before writing a file, replacing it with a
+`<REDACTED-by-backup-script>` placeholder — several nodes on this instance
+carry a real token pasted directly into the node instead of an n8n
+credential (see "Before activating any of them" below for why), and a
+verbatim export would otherwise commit that secret to git history
+permanently.
+
+To run it yourself: get an API key from n8n → Settings → n8n API → Create
+an API Key, then
+
+```bash
+N8N_API_BASE_URL=https://your-n8n-instance.com/api/v1 \
+N8N_REST_API_KEY=n8n_api_... \
+python3 scripts/backup_n8n_workflows.py
+```
+
+For the scheduled GitHub Action to run, set `N8N_API_BASE_URL` and
+`N8N_REST_API_KEY` as repository secrets (Settings → Secrets and variables
+→ Actions) — it's disabled/no-ops without them, just fails the run.
+
+Two workflows are deliberately excluded from automated backup even though
+they exist on the instance — see "⚠️ Two workflows that aren't PLUTO at
+all" further down.
 
 ## Import
 
@@ -115,17 +150,35 @@ voice note — before this branch existed.
 One workflow serves every branch's WhatsApp number (a channel add in the
 dashboard just points at it — see `SHARED_N8N_WORKFLOWS["whatsapp"]` in
 `backend/app/routers/channels.py`, already updated to this workflow's live
-ID). Before it can receive real messages:
+ID). Inbound messages come in through n8n's **native WhatsApp Trigger node**
+(`n8n-nodes-base.whatsAppTrigger`), not a manual Webhook + Meta
+verify-handshake IF-chain — n8n handles the GET verification challenge
+itself, using the credential, so there's no verify-token string to paste
+anywhere. Before it can receive real messages:
 
-1. Pick a secret string as the Meta webhook verify token, and replace
-   `REPLACE_WITH_YOUR_VERIFY_TOKEN` in both the "Is Verification Request?"
-   → wait, in **"Verify Token OK?"** IF node (there's only one occurrence to
-   edit) with that string.
-2. In Meta App Dashboard → WhatsApp → Configuration → Webhook, register:
-   - Callback URL: this workflow's `whatsapp-webhook` production webhook URL
-   - Verify token: the same string from step 1
-   - Subscribe to the `messages` field
-3. Activate the workflow.
+1. Create a "WhatsApp OAuth" (`whatsAppTriggerApi`) credential in n8n,
+   connected to the clinic's Meta developer app / WhatsApp Business Account.
+2. Wire that credential onto this workflow's **"WhatsApp Trigger"** node.
+3. Activate the workflow. Activating it is what registers the Meta webhook
+   subscription for that app — there's no separate step in the Meta App
+   Dashboard.
+
+**This node owns the single Meta webhook subscription for its app.** Meta
+allows exactly one active subscriber per WhatsApp app; if any other n8n
+workflow is ever activated with a WhatsApp Trigger node on the *same*
+credential/app, it silently steals the subscription and real inbound
+messages stop reaching this workflow — no error, no active-workflow
+warning, just messages going nowhere. This is exactly what happened on
+2026-09-15: a stray workflow called "My workflow" (two nodes, WhatsApp
+Trigger → Send message, built directly in the n8n UI) got activated on the
+same credential and hijacked the subscription for hours before anyone
+noticed real WhatsApp messages weren't arriving. The fix was this
+workflow's own migration from a manual Webhook node to this native trigger
+(so it's the one and only workflow using that credential), plus archiving
+"My workflow" (`rCTOmPjJJ7CX0aJq` — still in `manifest.json` as an audit
+record, no JSON file). **Never build a second workflow with a WhatsApp
+Trigger node on this credential** — if you need to prototype something,
+duplicate this whole workflow and swap the credential/webhook path instead.
 
 Per-message auth to the Graph API is **not** a static n8n credential — the
 workflow looks up each channel's own decrypted `access_token` from backend
@@ -164,16 +217,57 @@ of replying, which is exactly the silent-bot behavior this branch fixes
 
 ## Live workflow IDs (this n8n instance)
 
-| Workflow | ID |
-| --- | --- |
-| PLUTO — Appointment Reminders | `CJZliJ5zDTkEA0A4` |
-| PLUTO — Waitlist: expire offers | `wlvW4xAg61tQjpnq` |
-| PLUTO — Appointments: expire past unconfirmed | `RMEmQkWUe6gW00CH` |
-| PLUTO — Queue: close out yesterday | `cZCqMSq3or55ze0v` |
-| PLUTO — Packages: expiry reminders + renewal | `EftJSD0pX0aFLldT` |
-| PLUTO — Recalls: invitations + escalation | `UMEAJjZhKqyHrmMg` |
-| PLUTO — Weekly Report | `ogTBuTVXlJm70ckt` |
-| PLUTO — Reclaim Stale Conversations | `8c9rmh1lO59gNSF1` |
-| Clinic Telegram Bot (template) | `yPDRT8AQbBKxvENf` — set as `N8N_TELEGRAM_TEMPLATE_WORKFLOW_ID` |
-| Clinic Telegram Bot — @mohammed_n8n_helper2_bot (live clone, channel `e7483410-747f-4166-a658-271815e81468`) | `yyd4VGNgwoFYNZM6` |
-| PLUTO — WhatsApp Channel Relay | `epezsHMsWNQBJTiL` — already wired into `SHARED_N8N_WORKFLOWS["whatsapp"]` |
+The authoritative version of this table is `manifest.json` (id → file →
+active/archived state), kept current by the backup script below. This table
+is a human-readable summary of the same 14 workflows currently on the
+instance.
+
+| Workflow | ID | Status |
+| --- | --- | --- |
+| PLUTO — Appointment Reminders | `CJZliJ5zDTkEA0A4` | active |
+| PLUTO — Waitlist: expire offers | `wlvW4xAg61tQjpnq` | active |
+| PLUTO — Appointments: expire past unconfirmed | `RMEmQkWUe6gW00CH` | active |
+| PLUTO — Queue: close out yesterday | `cZCqMSq3or55ze0v` | active |
+| PLUTO — Packages: expiry reminders + renewal | `EftJSD0pX0aFLldT` | active |
+| PLUTO — Recalls: invitations + escalation | `UMEAJjZhKqyHrmMg` | active |
+| PLUTO — Weekly Report | `ogTBuTVXlJm70ckt` | active |
+| PLUTO — Reclaim Stale Conversations | `8c9rmh1lO59gNSF1` | active |
+| Clinic Telegram Bot (template) | `yPDRT8AQbBKxvENf` — set as `N8N_TELEGRAM_TEMPLATE_WORKFLOW_ID` | inactive (template, never activate) |
+| Clinic Telegram Bot — @mohammed_n8n_helper2_bot (live clone, channel `e7483410-747f-4166-a658-271815e81468`) | `yyd4VGNgwoFYNZM6` | active |
+| PLUTO — WhatsApp Channel Relay | `epezsHMsWNQBJTiL` — already wired into `SHARED_N8N_WORKFLOWS["whatsapp"]` | active |
+| My workflow | `rCTOmPjJJ7CX0aJq` | **archived** — caused the WhatsApp hijack bug above, kept only as an audit record |
+| Clinica Chatbot - Telegram Bot | `3gRTx27gDGJXtwfV` | inactive, **not part of PLUTO** — see below |
+| Clinica Chatbot - Inbound Events (Telegram Delivery) | `4KMyTwNMyGlsXqWA` | active, **not part of PLUTO** — see below |
+
+### ⚠️ Two workflows that aren't PLUTO at all
+
+`Clinica Chatbot - Telegram Bot` and `Clinica Chatbot - Inbound Events
+(Telegram Delivery)` talk to a completely different backend
+(`clinica.softmedica.net`, a different clinic — "عيادة النور") and were
+found on this n8n instance during the 2026-09-15 cleanup. They are **not**
+referenced anywhere in this repo, backend, or ai-services. Left alone, they
+are actively risky, not just clutter:
+
+- `Clinica Chatbot - Telegram Bot`'s Telegram Trigger node uses the exact
+  same bot credential (`@mohammed_n8n_helper2_bot`, id `TXnICQfJs1fSbOZ3`)
+  as PLUTO's real `Clinic Telegram Bot — @mohammed_n8n_helper2_bot` channel
+  workflow. Telegram allows one webhook per bot token — if this workflow is
+  ever activated, it hijacks the PLUTO Telegram channel's inbound messages
+  exactly the way "My workflow" hijacked WhatsApp above. It's currently
+  **inactive**, which is the only reason there's no live conflict right now.
+- Its "الإعدادات" (Settings) Code node has a live Clinica API secret,
+  signing key, and Telegram bot token pasted directly in plaintext —
+  readable by anyone with access to view/edit this n8n instance's
+  workflows.
+- Neither workflow is referenced by `manifest.json`'s backup file list on
+  purpose — exporting them into this repo would mean committing those live
+  secrets to git history, and they don't belong in a PLUTO clinic template
+  regardless.
+
+**This needs a decision from whoever owns this n8n instance**, not an
+assumption baked into automation: either this is a real second client
+("Clinica" / "عيادة النور") that happens to share this n8n server and
+Telegram bot — in which case it needs its **own** Telegram bot token to stop
+colliding with PLUTO, and its secrets moved out of a plaintext Code node
+and into n8n credentials — or it's leftover test/demo content and should be
+deleted outright. Until that's decided, leave `3gRTx27gDGJXtwfV` inactive.

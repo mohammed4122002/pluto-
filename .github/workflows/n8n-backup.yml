@@ -1,0 +1,44 @@
+name: n8n workflow backup
+
+# Keeps n8n-workflows/ in sync with what's actually live in n8n, so a
+# workflow edited by hand in the n8n UI (as most of them are -- see
+# n8n-workflows/README.md) doesn't silently drift out of the repo and get
+# lost if the n8n instance is ever wiped or migrated.
+
+on:
+  schedule:
+    # 03:00 UTC daily -- outside clinic hours for every timezone this
+    # template has been deployed in so far.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Export workflows from n8n
+        env:
+          N8N_API_BASE_URL: ${{ secrets.N8N_API_BASE_URL }}
+          N8N_REST_API_KEY: ${{ secrets.N8N_REST_API_KEY }}
+        run: python3 scripts/backup_n8n_workflows.py
+
+      - name: Commit changes if any
+        run: |
+          git config user.name "pluto-n8n-backup[bot]"
+          git config user.email "actions@users.noreply.github.com"
+          git add n8n-workflows/
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git commit -m "chore(n8n): sync workflow backups from live instance"
+          git push

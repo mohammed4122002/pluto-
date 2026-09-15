@@ -1,0 +1,90 @@
+{
+  "8c9rmh1lO59gNSF1": {
+    "file": "reclaim-stale-conversations.json",
+    "name": "PLUTO — Reclaim Stale Conversations",
+    "active": true,
+    "archived": false
+  },
+  "3gRTx27gDGJXtwfV": {
+    "file": null,
+    "name": "Clinica Chatbot - Telegram Bot",
+    "active": false,
+    "archived": false,
+    "note": "NOT part of PLUTO -- a different product (clinica.softmedica.net / \"عيادة النور\"), reuses the same Telegram bot credential as the real PLUTO Telegram channel (risk of the same webhook-hijack bug the WhatsApp workflow had), and embeds live secrets in plaintext in a Code node. Deliberately excluded from this repo's backups -- flagged to the clinic owner for a keep/delete decision instead of assumed. See n8n-workflows/README.md."
+  },
+  "4KMyTwNMyGlsXqWA": {
+    "file": null,
+    "name": "Clinica Chatbot - Inbound Events (Telegram Delivery)",
+    "active": true,
+    "archived": false,
+    "note": "Same as 3gRTx27gDGJXtwfV -- not part of PLUTO, excluded from backups pending an owner decision."
+  },
+  "CJZliJ5zDTkEA0A4": {
+    "file": "appointment-reminders.json",
+    "name": "PLUTO — Appointment Reminders",
+    "active": true,
+    "archived": false
+  },
+  "EftJSD0pX0aFLldT": {
+    "file": "packages-expiry-reminders.json",
+    "name": "PLUTO — Packages: expiry reminders + renewal",
+    "active": true,
+    "archived": false
+  },
+  "RMEmQkWUe6gW00CH": {
+    "file": "appointments-expire-unconfirmed.json",
+    "name": "PLUTO — Appointments: expire past unconfirmed",
+    "active": true,
+    "archived": false
+  },
+  "UMEAJjZhKqyHrmMg": {
+    "file": "recalls-invitations-escalation.json",
+    "name": "PLUTO — Recalls: invitations + escalation",
+    "active": true,
+    "archived": false
+  },
+  "cZCqMSq3or55ze0v": {
+    "file": "queue-close-out-yesterday.json",
+    "name": "PLUTO — Queue: close out yesterday",
+    "active": true,
+    "archived": false
+  },
+  "epezsHMsWNQBJTiL": {
+    "file": "whatsapp-channel-relay.json",
+    "name": "PLUTO — WhatsApp Channel Relay",
+    "active": true,
+    "archived": false
+  },
+  "ogTBuTVXlJm70ckt": {
+    "file": "weekly-report.json",
+    "name": "PLUTO — Weekly Report",
+    "active": true,
+    "archived": false
+  },
+  "rCTOmPjJJ7CX0aJq": {
+    "file": null,
+    "name": "My workflow",
+    "active": false,
+    "archived": true,
+    "note": "Caused the WhatsApp webhook hijack bug (native WhatsApp Trigger node competing with the real relay workflow for Meta's single webhook subscription on the same app). Archived 2026-09-15 once epezsHMsWNQBJTiL was migrated to own that trigger properly. Kept in the manifest only, as an audit record -- no JSON file."
+  },
+  "wlvW4xAg61tQjpnq": {
+    "file": "waitlist-expire-offers.json",
+    "name": "PLUTO — Waitlist: expire offers",
+    "active": true,
+    "archived": false
+  },
+  "yPDRT8AQbBKxvENf": {
+    "file": "clinic-telegram-bot-template.json",
+    "name": "Clinic Telegram Bot",
+    "active": false,
+    "archived": false
+  },
+  "yyd4VGNgwoFYNZM6": {
+    "file": null,
+    "name": "Clinic Telegram Bot - @mohammed_n8n_helper2_bot",
+    "active": true,
+    "archived": false,
+    "note": "A live per-channel clone of the Telegram template (channel e7483410), not a template itself -- clones like this are created automatically by backend/app/core/n8n_client.py and aren't individually tracked in n8n-workflows/. Its Upload Photo/Voice To Storage nodes carry a Supabase service_role key pasted directly into the node -- confirm it's the current post-rotation key (see README known-issues note) next time this channel's media handling is touched."
+  }
+}
