@@ -29,7 +29,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-backend-production-4ead.up.railway.app/reports/send-weekly",
+        "url": "https://clinic-backend-production-99be.up.railway.app/reports/send-weekly",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {

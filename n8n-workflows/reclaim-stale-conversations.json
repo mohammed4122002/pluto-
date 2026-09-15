@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-ai-services-production.up.railway.app/chat/reclaim-stale",
+        "url": "https://clinic-ai-services-production-7936.up.railway.app/chat/reclaim-stale",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {

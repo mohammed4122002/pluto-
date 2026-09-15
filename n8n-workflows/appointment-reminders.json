@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-backend-production-4ead.up.railway.app/notifications/process-due",
+        "url": "https://clinic-backend-production-99be.up.railway.app/notifications/process-due",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {

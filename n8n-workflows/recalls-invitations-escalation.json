@@ -26,7 +26,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-backend-production-4ead.up.railway.app/recalls/process-due",
+        "url": "https://clinic-backend-production-99be.up.railway.app/recalls/process-due",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -51,7 +51,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-backend-production-4ead.up.railway.app/recalls/escalate-overdue",
+        "url": "https://clinic-backend-production-99be.up.railway.app/recalls/escalate-overdue",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {

@@ -71,8 +71,8 @@ needs `VITE_API_BASE_URL`.
 separately (Hostinger) and calls these over the public internet — it can't
 reach `localhost`, which is why a real deployment exists at all.
 
-- backend: https://clinic-backend-production-4ead.up.railway.app
-- ai-services: https://clinic-ai-services-production.up.railway.app
+- backend: https://clinic-backend-production-99be.up.railway.app
+- ai-services: https://clinic-ai-services-production-7936.up.railway.app
 
 Redeploy after a change: `cd backend && railway up -s clinic-backend -y` (same
 pattern for `ai-services`). Env vars are managed with `railway variables

@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-backend-production-4ead.up.railway.app/waitlist/process-expired",
+        "url": "https://clinic-backend-production-99be.up.railway.app/waitlist/process-expired",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {

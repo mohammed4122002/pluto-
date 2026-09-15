@@ -26,7 +26,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://clinic-backend-production-4ead.up.railway.app/patient-packages/process-expiring",
+        "url": "https://clinic-backend-production-99be.up.railway.app/patient-packages/process-expiring",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
