@@ -141,32 +141,42 @@ one shared workflow for that provider type).
   work." Building the missing workflows needs real Instagram/Messenger/
   Twilio developer credentials this session didn't have.
 
+## Photo analysis: specialty-scoped, not one-size-fits-all
+
+`ai-services/app/services/vision.py`'s classification prompt used to be
+hardcoded to skin/hair/burn conditions only — a leftover from when this
+template's only real deployment looked like a dermatology/cosmetics
+clinic. PLUTO turned out to be a genuine multi-specialty clinic (dentistry,
+internal medicine/cardiology, dermatology/cosmetics, ENT/orthopedics,
+OB/pediatrics — see the `specialties` table), so a photo of, say, a
+swollen gum or joint was getting no useful read at all, and a photo of
+something no specialty here covers (an eye problem, with no ophthalmology
+offered) had no way to say so.
+
+Fixed by building the prompt fresh on every call from the clinic's own
+active `specialties` (`chat.py`'s `_active_specialty_names(db)` →
+`vision.py`'s `_build_vision_prompt`), and adding a fifth classification,
+`out_of_scope`: a visible concern that plausibly falls outside every
+specialty this clinic actually offers gets an honest "that's not something
+we treat here" reply (own prompt branch in `_build_system_prompt`, own
+tool exclusion, own escalation suppression — mirroring how `analysis`
+already works) instead of a mismatched service card or silence. Falls back
+to the old unscoped behavior when no specialties are configured, so a
+newly-deployed clinic that hasn't set up its specialty list yet still gets
+photos analyzed, just without the out-of-scope distinction.
+
+**For a future clinic with a different specialty list**: nothing to
+configure — this is fully data-driven from `specialties.name_ar`/
+`is_active`. Keep that table accurate and the vision prompt follows it
+automatically.
+
 ## Known gaps / things to verify next time this area is touched
 
 - **Instagram/Messenger/Twilio channels are unfinished** — see above.
   Either build the three missing n8n workflows (mirroring the WhatsApp
   relay's shared-workflow pattern) before offering these provider types in
   the dashboard, or hide them from the channel-type picker until they are.
-- **WhatsApp's own photo/voice storage-upload nodes are disabled**
-  (`Upload Photo To Storage`/`Upload Voice To Storage` in
-  `whatsapp-channel-relay.json`, `disabled: true` on the live workflow).
-  `Normalize Media` still constructs a `chat-media` public URL as if the
-  upload happened. Telegram's equivalent nodes are enabled. Worth
-  confirming whether WhatsApp media actually lands in Storage today (via a
-  real test message with a photo) or whether this is a live gap where
-  ai-services gets a `media_url` that 404s.
-- **A live Supabase `service_role` JWT is pasted in plaintext** inside the
-  `Clinic Telegram Bot — @mohammed_n8n_helper2_bot` workflow's
-  `Upload Photo To Storage`/`Upload Voice To Storage` nodes (and in the
-  `clinic-telegram-bot-template.json` reference file). It's dated
-  2026-07-13. Given the service_role key leak this deployment already
-  fixed once (rotated to a new `sb_secret_...` key), confirm this
-  particular embedded JWT is the *current* key and not the revoked one —
-  if it's stale, Telegram photo/voice uploads have been silently failing.
-  This session could not verify key validity directly (credential-probing
-  network calls are blocked by design) — needs a real test message or a
-  direct look at the Supabase dashboard's active-keys list.
 - **Two unrelated "Clinica" workflows share PLUTO's Telegram bot
-  credential** — see the ⚠️ section in `n8n-workflows/README.md`. Needs an
-  owner decision (separate bot token + move off plaintext secrets, or
-  delete).
+  credential** — see the ⚠️ section in `n8n-workflows/README.md`. Confirmed
+  with the clinic owner (2026-09-15): known, deliberately left alone for
+  now — do not touch, delete, or modify either workflow.
