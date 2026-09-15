@@ -190,7 +190,7 @@ def describe_patient_photo(
       on this distinction).
     """
     try:
-        image_response = httpx.get(image_url, timeout=20)
+        image_response = httpx.get(image_url, timeout=30)
         image_response.raise_for_status()
         image_bytes = image_response.content
         mime_type = (image_response.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
@@ -219,7 +219,14 @@ def describe_patient_photo(
                 ],
                 "generationConfig": {"maxOutputTokens": 280, "temperature": 0.2},
             },
-            timeout=30,
+            # Confirmed live 2026-09-15: a real WhatsApp photo (phone-camera
+            # size, base64-inflated ~33% over the wire) timed out against
+            # Gemini at the old 30s -- generationConfig here is small
+            # (maxOutputTokens=280) so this is upload + model latency, not a
+            # runaway response. 60s matches the margin the n8n "Generate AI
+            # Reply" node already needed for the same reason (see its own
+            # 120s timeout) without still cutting it close.
+            timeout=60,
         )
         response.raise_for_status()
         data = response.json()

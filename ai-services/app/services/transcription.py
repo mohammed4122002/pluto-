@@ -42,7 +42,7 @@ def transcribe_voice_message(api_key: str, model: str, audio_url: str) -> tuple[
     diagnostic string for audit_log (never shown to the patient).
     """
     try:
-        response = httpx.get(audio_url, timeout=20)
+        response = httpx.get(audio_url, timeout=30)
         response.raise_for_status()
         audio_bytes = response.content
     except Exception as exc:
@@ -68,7 +68,12 @@ def transcribe_voice_message(api_key: str, model: str, audio_url: str) -> tuple[
                     }
                 ]
             },
-            timeout=30,
+            # Same margin bump as vision.py's Gemini call, same reason:
+            # confirmed live, a real photo timed out against Gemini at 30s
+            # once it actually reached this call (upload + model latency
+            # for a phone-camera-size file over the wire, not a runaway
+            # response) -- a voice note faces the identical upload path.
+            timeout=60,
         )
         gemini_response.raise_for_status()
         data = gemini_response.json()
