@@ -706,6 +706,50 @@ def _is_retryable_provider_error(exc: Exception) -> bool:
     return any(marker in text for marker in _RETRYABLE_MARKERS)
 
 
+# Confirmed live 2026-09-15: vision.py classified a photo successfully
+# (kind="analysis", a real structured description) and _build_system_prompt
+# injected it exactly as instructed -- but the reply the patient actually got
+# was a generic "I can't open/view your photos, please describe your issue in
+# writing instead" apology that never touched the analysis at all. The model
+# (this was OpenAI, which never sees the image itself -- only the text
+# description ai-services' separate Gemini call produced) has a strong
+# trained reflex to disclaim image access, apparently strong enough to
+# override an explicit instruction not to. The prompt now forbids this
+# explicitly (see the "تحذير حاسم" block above); this is the belt-and-braces
+# code-level catch for when it still happens, matching how this codebase
+# already handles "the prompt says so but the model overrides it anyway" for
+# medical escalation on an analysed photo -- see
+# _suppress_medical_escalation_on_analysed_photo.
+_PHOTO_VIEW_REFUSAL_PHRASES = (
+    "ما قدرت أفتح",
+    "ما بقدر أفتح",
+    "مش قادر أفتح",
+    "مش عم بقدر أفتح",
+    "ما عم بقدر أفتح",
+    "ما عندي وصول للصور",
+    "ما بقدر أشوف الصور",
+    "ما بقدر أحلل الصور",
+    "ما بقدر أقرأ الصور",
+    "ما بقدر افتح الصور",
+    "can't view",
+    "cannot view",
+    "can't see the image",
+    "cannot see the image",
+    "can't open the image",
+    "no access to images",
+)
+
+
+def _reply_falsely_claims_it_cannot_see_the_photo(reply: str) -> bool:
+    """Deliberately loose phrase matching over a strict regex: a false
+    positive here just costs one harmless retry; a false negative lets a
+    patient-facing wrong reply through uncorrected, which is the worse
+    failure by far."""
+    reply = reply or ""
+    lowered = reply.lower()
+    return any(phrase in reply or phrase.lower() in lowered for phrase in _PHOTO_VIEW_REFUSAL_PHRASES)
+
+
 def _load_provider_overrides(db: Client) -> dict:
     """Lets clinic staff change the OpenAI/Gemini key from the dashboard
     (backend's /settings/ai-providers) without a redeploy — checked on every
@@ -1414,6 +1458,13 @@ def _build_system_prompt(
             "submit_payment_receipt أو تذكري كلمة 'إيصال' أو 'دفعة' بردّك على هالصورة، حتى لو في "
             "شكوى أو نزاع دفع سابق بنفس المحادثة. هذا الرد يخص الصورة وبس — أي موضوع سابق (شكوى، "
             "دفعة، حجز) خلّيه لحاله، لا تخلطيه بتحليل الصورة."
+        )
+        parts.append(
+            "تحذير حاسم: ممنوع منعاً باتاً تقولي للمريض إنك ما قدرتي تفتحي/تشوفي/تقري/تحللي "
+            "صورته، أو إنك ما عندك وصول للصور، أو أي جملة مشابهة — نظام منفصل شافها وحللها فعلاً "
+            "قبل ما توصلك رسالتك، والتحليل المذكور تحت هو نتيجة هالتحليل الحقيقي، مش افتراض ولا "
+            "تخمين. ردّك لازم يستخدم هالتحليل مباشرة متل ما هو موضح بالتعليمات تحت — ممنوع تتجاهليه "
+            "وتردي برد عام يطلب من المريض يوصف حالته بالكتابة، هاد بالضبط الخطأ الممنوع هون."
         )
 
     if photo_description and photo_kind == "urgent":
@@ -2340,6 +2391,29 @@ def generate_reply(
         # The model never classified anything on this path, and reception can
         # triage upward -- pulling a doctor out of clinic cannot be undone.
         escalation_category = ADMINISTRATIVE
+
+    if photo_kind in ("urgent", "analysis", "out_of_scope") and _reply_falsely_claims_it_cannot_see_the_photo(reply):
+        try:
+            db.table("audit_log").insert(
+                {
+                    "entity_type": "ai_chat_turn",
+                    "entity_id": payload.conversation_id,
+                    "action": "photo_view_refusal_retried",
+                    "reason": f"photo_kind={photo_kind}, first reply: {reply[:300]}",
+                    "channel": "ai-services",
+                }
+            ).execute()
+        except Exception:
+            logger.exception("failed to record photo-view-refusal retry in audit_log")
+        try:
+            reply, needs_human, escalation_category = _run_conversation_turn(
+                client, system_prompt, history, tools, db, ctx, fallback
+            )
+        except Exception:
+            # The first reply, however wrong, is still a real answer the
+            # patient can act on (worst case: they retype their symptoms) --
+            # better than surfacing a crash from a best-effort retry.
+            logger.exception("retry after photo-view-refusal failed for conversation_id=%s", payload.conversation_id)
 
     needs_human, escalation_category = _suppress_medical_escalation_on_analysed_photo(
         photo_kind, needs_human, escalation_category
