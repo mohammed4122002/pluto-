@@ -92,6 +92,38 @@ def find_doctors(db: Client, branch_id: str, specialty_query: str | None = None)
     return results
 
 
+def find_doctor_across_branches(db: Client, exclude_branch_id: str, doctor_name_query: str) -> list[dict]:
+    """A named doctor's own real record, searched across every OTHER active
+    branch -- for when find_doctors at the current branch came back without
+    them and the model needs to know whether they're somewhere else entirely,
+    not just confirm they're missing here.
+
+    Without this the model's only way to check "does this doctor exist at
+    all" was calling find_doctors branch-by-branch and stopping once it got
+    tired of empty results, then answering as if every branch had been
+    checked. Confirmed live: asked about "د. ليان", find_doctors came back
+    empty at the current branch and at one other the model tried by hand,
+    and it told the patient flatly "ما في دكتورة بهذا الاسم عنا بكل
+    الفروع" (no doctor by this name at any of our branches) -- while she
+    was real, active, and bookable at a third branch nobody checked. Named,
+    not specialty-scoped, on purpose: mirrors find_nearest_slot_any_branch's
+    shape for the same reason -- a doctor's own name has no meaning at a
+    branch that doesn't employ her, so cross-branch search is what "does
+    this doctor exist" actually needs."""
+    query = (doctor_name_query or "").strip()
+    if not query:
+        return []
+    branches = db.table("branches").select("id, name").eq("is_active", True).execute().data
+    results = []
+    for branch in branches:
+        if branch["id"] == exclude_branch_id:
+            continue
+        for doctor in find_doctors(db, branch["id"]):
+            if fuzzy_contains(doctor["full_name"], query) or fuzzy_contains(query, doctor["full_name"]):
+                results.append({**doctor, "branch_id": branch["id"], "branch_name": branch["name"]})
+    return results
+
+
 def list_services(db: Client, branch_id: str, query: str | None = None) -> list[dict]:
     """The clinic's real service catalogue, optionally narrowed to what the
     patient asked about.

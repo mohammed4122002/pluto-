@@ -197,7 +197,12 @@ def test_booking_explicitly_for_someone_else_is_not_blocked(monkeypatch):
 
     def fake_book_slot_for_patient(db, *, slot_id, patient_id, visit_for_name, notes, service_id=None, patient_package_id=None):
         called["visit_for_name"] = visit_for_name
-        return {"id": "appt-new", "appointment_number": "APT-1", "confirmation_code": "AB12"}
+        return {
+            "id": "appt-new",
+            "appointment_number": "APT-1",
+            "confirmation_code": "AB12",
+            "scheduled_at": _NEW_START.isoformat(),
+        }
 
     monkeypatch.setattr(booking, "book_slot_for_patient", fake_book_slot_for_patient)
 
@@ -218,13 +223,18 @@ def test_booking_explicitly_for_someone_else_is_not_blocked(monkeypatch):
 def test_booking_with_no_conflict_proceeds_normally(monkeypatch):
     import app.services.booking as booking
 
+    later_start = _NEW_START + timedelta(hours=6)
     monkeypatch.setattr(
         booking,
         "book_slot_for_patient",
-        lambda *a, **k: {"id": "appt-new", "appointment_number": "APT-1", "confirmation_code": "AB12"},
+        lambda *a, **k: {
+            "id": "appt-new",
+            "appointment_number": "APT-1",
+            "confirmation_code": "AB12",
+            "scheduled_at": later_start.isoformat(),
+        },
     )
 
-    later_start = _NEW_START + timedelta(hours=6)
     db = _db()
     db._tables["slots"][0]["start_at"] = later_start.isoformat()
 

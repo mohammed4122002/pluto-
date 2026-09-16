@@ -1337,4 +1337,14 @@ def book_by_doctor_and_time(
         service_id=service_id,
         patient_package_id=verified_package_id,
     )
+    # Same reasoning as search_available_slots' "day" field: appointment's
+    # own scheduled_at is raw UTC, and the confirmation card needs a local
+    # weekday/date the model must never compute itself (see _day_label's own
+    # comment for the live incident that already burned this once for slot
+    # listings -- the booking confirmation card asks for "اليوم والتاريخ" the
+    # exact same way and would hit the identical failure for any date beyond
+    # today).
+    scheduled_local = datetime.fromisoformat(appointment["scheduled_at"].replace("Z", "+00:00")).astimezone(tz)
+    appointment["day"] = _day_label(scheduled_local, datetime.now(timezone.utc).astimezone(tz))
+    appointment["scheduled_at_clinic_local_time"] = scheduled_local.isoformat()
     return {"booked": True, **appointment}

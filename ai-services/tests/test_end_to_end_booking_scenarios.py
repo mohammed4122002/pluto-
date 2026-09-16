@@ -21,6 +21,7 @@ fixed separately:
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -417,11 +418,33 @@ def test_a_patient_can_go_from_branch_choice_to_a_confirmed_booking(db, ctx):
     assert result["booked"] is True
     assert result["appointment_number"]
 
+    # The confirmation card's own weekday/date must come from here, never
+    # from the model recomputing it -- confirmed live, it got this wrong for
+    # a future date (see test_the_confirmation_never_asks_the_model_to_compute_the_weekday).
+    assert result["day"]
+    assert DAY.astimezone(ZoneInfo("Asia/Amman")).date().isoformat() in result["day"]
+    confirmed_local = datetime.fromisoformat(result["scheduled_at_clinic_local_time"])
+    assert confirmed_local.astimezone(timezone.utc) == DAY
+
     booked = db.tables["appointments"].rows
     assert len(booked) == 1
     assert booked[0]["patient_id"] == PATIENT
     slot = next(s for s in db.tables["slots"].rows if s["id"] == "slot-sara-9")
     assert slot["status"] == "booked"
+
+
+def test_the_confirmation_never_asks_the_model_to_compute_the_weekday(db, ctx):
+    # Same incident as the slot-listing one, for the booking confirmation
+    # card instead: book_appointment's own result must carry a ready-to-use
+    # "day" label (and the already-converted local time), because the model
+    # cannot be trusted to work out a future date's weekday itself -- it got
+    # this exact thing wrong live, pairing "today"'s weekday name with
+    # tomorrow's date number.
+    _register(db, ctx)
+    result = _book(db, ctx, "د. سارة الخطيب", DAY.isoformat(), "كشفية جلدية عام")
+    assert result["booked"] is True
+    assert "day" in result and result["day"]
+    assert "scheduled_at_clinic_local_time" in result
 
 
 def test_booking_needs_no_confirmation_code_step(db, ctx):
@@ -592,3 +615,38 @@ def test_nearest_slot_any_branch_excludes_the_current_branch(db, ctx):
         "doctor_gender": "", "doctor_language": "", "max_price": 0,
     })
     assert result["slots"] == []
+
+
+# --- scenario 5: a named doctor missing from this branch ---------------------
+
+
+def test_find_doctors_at_the_current_branch_does_not_see_a_doctor_at_another(db, ctx):
+    doctors = _execute_tool(db, ctx, "find_doctors", {"specialty_query": ""})["doctors"]
+    assert "د. لمى الرفاعي" not in {d["full_name"] for d in doctors}
+
+
+def test_find_doctor_any_branch_finds_her_at_the_branch_that_actually_has_her(db, ctx):
+    # The exact live incident: asked by name, find_doctors at the current
+    # branch (Amman) comes back without her -- before this existed, the
+    # model's only way to check further was calling find_doctors branch by
+    # branch, and it gave up and told the patient she didn't exist at all
+    # while she was real, active, and bookable at Irbid.
+    result = _execute_tool(db, ctx, "find_doctor_any_branch", {"doctor_name": "لمى"})
+    assert len(result["doctors"]) == 1
+    assert result["doctors"][0]["full_name"] == "د. لمى الرفاعي"
+    assert result["doctors"][0]["branch_name"] == "عيادة بلوتو - إربد"
+
+    # A lookup, not a switch -- same contract as find_nearest_slot_any_branch.
+    assert ctx["branch_id"] == AMMAN
+
+
+def test_find_doctor_any_branch_matches_a_partial_or_titled_name(db, ctx):
+    for query in ("الرفاعي", "د. لمى الرفاعي", "لمى الرفاعي"):
+        result = _execute_tool(db, ctx, "find_doctor_any_branch", {"doctor_name": query})
+        assert len(result["doctors"]) == 1, query
+        assert result["doctors"][0]["full_name"] == "د. لمى الرفاعي"
+
+
+def test_find_doctor_any_branch_comes_back_empty_for_a_genuinely_unknown_name(db, ctx):
+    result = _execute_tool(db, ctx, "find_doctor_any_branch", {"doctor_name": "زياد قسيم"})
+    assert result["doctors"] == []
