@@ -1,6 +1,7 @@
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 from supabase import Client
@@ -41,7 +42,10 @@ def send_notification_for_appointment(db: Client, appointment_id: str, schedule:
     try:
         appt = (
             db.table("appointments")
-            .select("*, patients(full_name, phone), staff!appointments_staff_id_fkey(full_name), branches(name)")
+            .select(
+                "*, patients(full_name, phone), staff!appointments_staff_id_fkey(full_name), "
+                "branches(name, timezone)"
+            )
             .eq("id", appointment_id)
             .limit(1)
             .execute()
@@ -74,7 +78,15 @@ def send_notification_for_appointment(db: Client, appointment_id: str, schedule:
             db.table("notification_log").insert(log_row).execute()
             return
 
-        scheduled_at = datetime.fromisoformat(appt["scheduled_at"])
+        # scheduled_at comes back from Postgres as UTC -- every reminder
+        # showed the patient a raw UTC clock time 3 hours behind their real
+        # Asia/Amman appointment time until this converted it first (the
+        # same branches.timezone lookup already used correctly for slot
+        # computation in backend/app/services/slots.py and for the booking
+        # confirmation text ai-services sends -- this was the one spot that
+        # had been missed).
+        branch_timezone = (appt.get("branches") or {}).get("timezone") or "Asia/Amman"
+        scheduled_at = datetime.fromisoformat(appt["scheduled_at"]).astimezone(ZoneInfo(branch_timezone))
         message = render_template(
             template["body_template"],
             {
