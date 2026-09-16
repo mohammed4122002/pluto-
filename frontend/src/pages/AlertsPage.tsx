@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { listPayments } from "../api/payments";
 import type { Payment } from "../api/payments";
 import { listConversations } from "../api/conversations";
@@ -9,7 +10,21 @@ import { listPatients } from "../api/patients";
 import type { Patient } from "../api/patients";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
-import { branchTimeZoneMap, formatDateShort, formatDateTimeShort } from "../format";
+import { branchTimeZoneMap, formatDateShort, formatDateTimeShort, formatMoney, formatNumber } from "../format";
+import { AlertIcon, CheckCircleIcon, InboxIcon, PackageIcon, PaymentIcon } from "../icons";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  DataTable,
+  EmptyState,
+  PageBody,
+  PageHeader,
+  StatCard,
+  StatGrid,
+} from "../ui";
+import type { Column } from "../ui";
 
 const EXPIRING_WITHIN_DAYS = 3;
 
@@ -29,14 +44,15 @@ export function AlertsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Router navigation, not a location assignment: these links stay inside the
+  // app shell instead of reloading the whole bundle.
+  const navigate = useNavigate();
   // A submitted receipt or an expiring package is tied to its own branch's
   // calendar, not the viewer's -- see format.ts's TimeZoneOpt comment.
   const branchTz = useMemo(() => branchTimeZoneMap(branches), [branches]);
 
   useEffect(() => {
     setLoading(true);
-    setError(null);
     // Each section needs a different permission (payment.view/conversation.view/
     // package.view) -- a staff member missing one of those shouldn't blank the
     // whole page, just show fewer sections.
@@ -54,115 +70,202 @@ export function AlertsPage() {
         setPatients(patientList);
         setBranches(branchList);
       })
-      .catch((err) => setError(err.response?.data?.detail ?? err.message))
       .finally(() => setLoading(false));
   }, []);
 
   const patientName = (id: string) => patients.find((p) => p.id === id)?.full_name ?? "—";
+  const total = payments.length + conversations.length + expiringPackages.length;
 
-  if (loading) return <div className="page">جاري التحميل...</div>;
+  const paymentColumns: Column<Payment>[] = [
+    {
+      key: "patient",
+      header: "المريض",
+      primary: true,
+      cell: (p) => <span className="font-semibold text-heading">{p.patient_name ?? patientName(p.patient_id)}</span>,
+    },
+    {
+      key: "amount",
+      header: "المبلغ",
+      align: "end",
+      sortValue: (p) => p.amount,
+      cell: (p) => <span className="font-bold text-heading tabular-nums">{formatMoney(p.amount, p.currency)}</span>,
+    },
+    {
+      key: "submitted",
+      header: "أُرسلت بتاريخ",
+      sortValue: (p) => p.submitted_at,
+      cell: (p) => (
+        <span className="whitespace-nowrap tabular-nums">
+          {p.submitted_at ? formatDateTimeShort(p.submitted_at, branchTz[p.branch_id ?? ""]) : "—"}
+        </span>
+      ),
+    },
+  ];
+
+  const conversationColumns: Column<ConversationSummary>[] = [
+    {
+      key: "patient",
+      header: "المريض",
+      primary: true,
+      cell: (c) => <span className="font-semibold text-heading">{c.patient_name}</span>,
+    },
+    {
+      key: "channel",
+      header: "القناة",
+      cell: (c) => <Badge tone="brand">{channelLabel[c.channel_type] ?? c.channel_type}</Badge>,
+    },
+    {
+      key: "last",
+      header: "آخر رسالة",
+      cell: (c) => <span className="line-clamp-1 text-[13px] text-muted">{c.last_message_preview ?? "—"}</span>,
+    },
+  ];
+
+  const packageColumns: Column<PatientPackage>[] = [
+    {
+      key: "patient",
+      header: "المريض",
+      primary: true,
+      cell: (pp) => <span className="font-semibold text-heading">{patientName(pp.patient_id)}</span>,
+    },
+    {
+      key: "remaining",
+      header: "الجلسات المتبقية",
+      align: "end",
+      sortValue: (pp) => pp.sessions_remaining,
+      cell: (pp) => <span className="font-bold text-heading tabular-nums">{formatNumber(pp.sessions_remaining)}</span>,
+    },
+    {
+      key: "expires",
+      header: "تنتهي بتاريخ",
+      sortValue: (pp) => pp.expires_at,
+      cell: (pp) => (
+        <span className="whitespace-nowrap tabular-nums">
+          {formatDateShort(pp.expires_at, branchTz[pp.branch_id])}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="page">
-      {error && <p className="error">{error}</p>}
+    <PageBody>
+      <PageHeader
+        eyebrow="التشغيل اليومي"
+        title="التنبيهات"
+        description="لمحة سريعة على كل شي محتاج انتباهك الآن — بدون ما تتنقل بين الصفحات."
+      />
 
-      <div className="page-header">
-        <div>
-          <p className="page-header-title">التنبيهات</p>
-          <p className="page-header-subtitle">لمحة سريعة على كل شي محتاج انتباهك الآن — بدون ما تتنقلي بين الصفحات.</p>
-        </div>
-      </div>
+      <StatGrid className="xl:grid-cols-3">
+        <StatCard
+          index={0}
+          label="دفعات بانتظار المراجعة"
+          value={payments.length}
+          icon={<PaymentIcon />}
+          tone="amber"
+          loading={loading}
+        />
+        <StatCard
+          index={1}
+          label="محادثات محتاجة موظف"
+          value={conversations.length}
+          icon={<InboxIcon />}
+          tone="rose"
+          loading={loading}
+        />
+        <StatCard
+          index={2}
+          label="باقات قاربت على الانتهاء"
+          value={expiringPackages.length}
+          icon={<PackageIcon />}
+          tone="teal"
+          loading={loading}
+          hint={`خلال ${EXPIRING_WITHIN_DAYS} أيام`}
+        />
+      </StatGrid>
 
-      <div className="stat-grid">
-        <div className="stat-card">
-          <div className="stat-card-value">{payments.length}</div>
-          <div className="stat-card-label">دفعات بانتظار المراجعة</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-value">{conversations.length}</div>
-          <div className="stat-card-label">محادثات محتاجة موظف</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card-value">{expiringPackages.length}</div>
-          <div className="stat-card-label">باقات قاربت على الانتهاء</div>
-        </div>
-      </div>
-
-      <h2>دفعات بانتظار المراجعة ({payments.length})</h2>
-      {payments.length === 0 ? (
-        <p className="section-empty">ولا دفعة بانتظار المراجعة.</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>المريض</th>
-              <th>المبلغ</th>
-              <th>أُرسلت بتاريخ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map((p) => (
-              <tr key={p.id}>
-                <td>{p.patient_name ?? patientName(p.patient_id)}</td>
-                <td>
-                  {p.amount} {p.currency}
-                </td>
-                <td>
-                  {p.submitted_at ? formatDateTimeShort(p.submitted_at, branchTz[p.branch_id ?? ""]) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {!loading && total === 0 && (
+        <Card>
+          <EmptyState
+            icon={<CheckCircleIcon />}
+            title="ما في شي محتاج انتباهك"
+            description="كل الدفعات مراجَعة، ما في محادثة محوّلة، وولا باقة قاربت على الانتهاء."
+          />
+        </Card>
       )}
 
-      <h2>محادثات محتاجة موظف ({conversations.length})</h2>
-      {conversations.length === 0 ? (
-        <p className="section-empty">ولا محادثة محتاجة تدخّل بشري الآن.</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>المريض</th>
-              <th>القناة</th>
-              <th>آخر رسالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {conversations.map((c) => (
-              <tr key={c.id}>
-                <td>{c.patient_name}</td>
-                <td>{channelLabel[c.channel_type] ?? c.channel_type}</td>
-                <td>{c.last_message_preview ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {(loading || payments.length > 0) && (
+        <section className="flex flex-col gap-3">
+          <CardHeader
+            icon={<PaymentIcon />}
+            title="دفعات بانتظار المراجعة"
+            subtitle={`${formatNumber(payments.length)} دفعة`}
+            actions={
+              <Button size="sm" onClick={() => navigate("/payments")}>
+                فتح المدفوعات
+              </Button>
+            }
+          />
+          <DataTable
+            rows={payments}
+            columns={paymentColumns}
+            getRowKey={(p) => p.id}
+            loading={loading}
+            skeletonRows={3}
+            initialSort={{ key: "submitted", dir: "asc" }}
+          />
+        </section>
       )}
 
-      <h2>باقات قاربت على الانتهاء (خلال {EXPIRING_WITHIN_DAYS} أيام) ({expiringPackages.length})</h2>
-      {expiringPackages.length === 0 ? (
-        <p className="section-empty">ولا باقة قاربت على الانتهاء.</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>المريض</th>
-              <th>الجلسات المتبقية</th>
-              <th>تنتهي بتاريخ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {expiringPackages.map((pp) => (
-              <tr key={pp.id}>
-                <td>{patientName(pp.patient_id)}</td>
-                <td>{pp.sessions_remaining}</td>
-                <td>{formatDateShort(pp.expires_at, branchTz[pp.branch_id])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {(loading || conversations.length > 0) && (
+        <section className="flex flex-col gap-3">
+          <CardHeader
+            icon={<InboxIcon />}
+            title="محادثات محتاجة موظف"
+            subtitle={`${formatNumber(conversations.length)} محادثة`}
+            actions={
+              <Button size="sm" onClick={() => navigate("/inbox")}>
+                فتح المحادثات
+              </Button>
+            }
+          />
+          <DataTable
+            rows={conversations}
+            columns={conversationColumns}
+            getRowKey={(c) => c.id}
+            loading={loading}
+            skeletonRows={3}
+          />
+        </section>
       )}
-    </div>
+
+      {(loading || expiringPackages.length > 0) && (
+        <section className="flex flex-col gap-3">
+          <CardHeader
+            icon={<PackageIcon />}
+            title={`باقات قاربت على الانتهاء خلال ${EXPIRING_WITHIN_DAYS} أيام`}
+            subtitle={`${formatNumber(expiringPackages.length)} باقة`}
+            actions={
+              <Button size="sm" onClick={() => navigate("/packages")}>
+                فتح الباقات
+              </Button>
+            }
+          />
+          <DataTable
+            rows={expiringPackages}
+            columns={packageColumns}
+            getRowKey={(pp) => pp.id}
+            loading={loading}
+            skeletonRows={3}
+            initialSort={{ key: "expires", dir: "asc" }}
+          />
+        </section>
+      )}
+
+      {!loading && total > 0 && (
+        <p className="px-1 text-center text-xs text-faint">
+          <AlertIcon className="mb-0.5 inline size-3.5" /> التنبيهات بتتحدّث كل ما تفتح الصفحة.
+        </p>
+      )}
+    </PageBody>
   );
 }

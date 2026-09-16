@@ -29,6 +29,7 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "./App.css" layer(legacy);
+@import "./styles/legacy-uplift.css";
 
 @source "./";
 
@@ -121,10 +122,16 @@
   --radius-lg: 15px;
   --radius-xl: 22px;
 
-  --sans: "IBM Plex Sans Arabic", "Cairo", "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
-  --display: "IBM Plex Sans Arabic", "Cairo", system-ui, sans-serif;
+  /* Readex Pro draws its Arabic and its Latin as one family, so a name and a
+     phone number in the same row share a weight and a rhythm instead of
+     looking like two fonts pushed together. Its counters stay open at 12-13px,
+     which is where a dense table lives. The slight negative tracking claws
+     back the width its generous default spacing costs in a six-column row. */
+  --sans: "Readex Pro", "Tajawal", "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
+  --display: "Readex Pro", "Tajawal", system-ui, sans-serif;
 
   font: 15px/1.65 var(--sans);
+  letter-spacing: -0.006em;
   color-scheme: light;
   color: var(--text);
   background: var(--bg);
