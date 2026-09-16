@@ -39,3 +39,41 @@ def test_none_is_still_explicitly_reserved_for_non_body_photos():
     # The bias must narrow NONE, not remove it -- a genuine receipt/selfie
     # must still classify as NONE for the receipt-matching path to work.
     assert "NONE محجوزة بس للصور اللي فعلاً ما فيها أي جزء جسم غير طبيعي" in _VISION_SYSTEM_PROMPT
+
+
+# --- dermatology/cosmetics/dental: offer a photo instead of escalating -----
+#
+# Confirmed live: a patient described pregnancy stretch marks by text ("شو
+# علاجكو؟") with no photo attached, and the model escalated it as a real
+# medical-advice request ("شو الدواء المناسب؟" is explicitly listed as an
+# escalation trigger) -- technically correct under the old rule, but not
+# what a booking assistant for a clinic that already has a working photo-
+# analysis feature should do: it should offer the photo option instead of
+# punting a routine skin/cosmetic/dental question straight to a human.
+
+
+def test_a_treatment_question_for_skin_cosmetics_or_dental_does_not_escalate_without_a_photo():
+    assert "استثناء لجلدية/تجميل/أسنان بس" in BASE_INSTRUCTIONS
+    assert "سؤال عن علاج/دواء/تشخيص لحالة بشرة/شعر/أسنان بدون صورة" in BASE_INSTRUCTIONS
+    assert "ممنوع تصعّدي" in BASE_INSTRUCTIONS.split("استثناء لجلدية/تجميل/أسنان بس")[1][:200]
+
+
+def test_the_exception_is_scoped_to_dermatology_cosmetics_dental_only():
+    # Other specialties (internal medicine, cardiology, ENT, orthopedics,
+    # pediatrics, OB) keep escalating a real treatment/diagnosis question --
+    # this feature only exists for the specialties the photo-analysis
+    # feature actually covers well.
+    assert "باقي التخصصات تبقى تصعّد عادي" in BASE_INSTRUCTIONS
+
+
+def test_a_declined_photo_gets_a_service_name_not_a_diagnosis_or_medication():
+    assert "list_services بس (مش اسم دواء أو تشخيص)" in BASE_INSTRUCTIONS
+
+
+def test_first_mention_of_dermatology_cosmetics_or_dental_proactively_offers_a_photo():
+    assert "أول مرة" in BASE_INSTRUCTIONS
+    assert "يرسل صورة حالته لتشخيص مبدئي وأنسب" in BASE_INSTRUCTIONS
+    # Only once per conversation, and not forced on a patient who already
+    # sent a photo or already named the exact service they want.
+    assert "مرة وحدة بالمحادثة بس" in BASE_INSTRUCTIONS
+    assert "ولا تفرضيها لو أصلاً بعت صورة أو حدد الخدمة" in BASE_INSTRUCTIONS
