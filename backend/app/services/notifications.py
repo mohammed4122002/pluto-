@@ -152,12 +152,25 @@ def get_due_reminders(db: Client) -> list[dict]:
         window_start = now - offset - timedelta(minutes=_DUE_WINDOW_MINUTES / 2)
         window_end = now - offset + timedelta(minutes=_DUE_WINDOW_MINUTES / 2)
 
+        # "after_appointment" (the post-visit rating request, "شكراً لزيارتك
+        # اليوم! كيف كانت تجربتك؟") must only ever go to a patient the clinic
+        # actually saw -- confirmed live 2026-09-16: a booking that was only
+        # ever "confirmed" (the patient never checked in, no doctor ever saw
+        # them -- queue.py's apply_status_transition(..., "completed", ...)
+        # is what a staff member marking the consultation done actually sets)
+        # still got asked to rate a visit that never happened, once enough
+        # time passed after its scheduled_at. "before_appointment" reminders
+        # have the opposite, correct concern -- an upcoming booking that's
+        # merely confirmed is exactly what should be reminded about.
+        eligible_statuses = (
+            ["completed"] if schedule["trigger_type"] == "after_appointment" else ["confirmed", "patient_confirmed"]
+        )
         candidates = (
             db.table("appointments")
             .select("id, scheduled_at, status")
             .gte("scheduled_at", window_start.isoformat())
             .lt("scheduled_at", window_end.isoformat())
-            .in_("status", ["confirmed", "patient_confirmed", "completed"])
+            .in_("status", eligible_statuses)
             .execute()
             .data
         )
