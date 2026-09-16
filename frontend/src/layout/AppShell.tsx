@@ -48,6 +48,13 @@ export function AppShell({
   // screen, so leaving it open would hide the page it just navigated to.
   useEffect(() => setMobileOpen(false), [location.pathname]);
 
+  // A long nav scrolls, and the active row can land under the account block
+  // at the bottom -- so it is brought into view whenever the route changes.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+  }, [location.pathname]);
+
   const toggleCollapsed = () => {
     setCollapsed((v) => {
       localStorage.setItem(COLLAPSE_KEY, v ? "0" : "1");
@@ -91,22 +98,24 @@ export function AppShell({
 
       <aside
         className={cn(
-          "fixed inset-y-0 start-0 z-40 flex flex-col border-e border-line bg-surface transition-[width,transform] duration-200",
-          collapsed ? "lg:w-[76px]" : "lg:w-[264px]",
-          "w-[280px]",
+          "fixed inset-y-0 start-0 z-40 flex flex-col bg-surface shadow-[var(--hairline)] transition-[width,transform] duration-250",
+          collapsed ? "lg:w-[78px]" : "lg:w-[268px]",
+          "w-[286px]",
           mobileOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
         )}
       >
-        <div className={cn("flex items-center gap-3 px-4 py-4", collapsed && "lg:justify-center lg:px-2")}>
+        <div className={cn("flex items-center gap-3 px-4 py-5", collapsed && "lg:justify-center lg:px-2")}>
           <span
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-[image:var(--accent-gradient)] text-lg font-extrabold text-white shadow-[var(--shadow-btn)]"
+            className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-[image:var(--accent-gradient)] font-display text-lg font-bold text-white shadow-[var(--accent-glow)]"
             aria-hidden="true"
           >
             ع
           </span>
           <span className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
-            <span className="block truncate text-sm font-extrabold text-heading">لوحة العيادة</span>
-            <span className="block truncate text-xs text-muted">{roleLabel[staff.role] ?? staff.role}</span>
+            <span className="block truncate font-display text-[15px] font-bold tracking-tight text-heading">
+              لوحة العيادة
+            </span>
+            <span className="block truncate text-[11.5px] text-muted">{roleLabel[staff.role] ?? staff.role}</span>
           </span>
           <button
             type="button"
@@ -122,13 +131,17 @@ export function AppShell({
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 pb-3" aria-label="القائمة الرئيسية">
+        <nav
+          ref={navRef}
+          className="flex-1 overflow-y-auto px-3 pb-3 [mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent)]"
+          aria-label="القائمة الرئيسية"
+        >
           {sections.map((section, i) => (
             <div key={section.label ?? `s${i}`} className="mb-1">
               {section.label && (
                 <div
                   className={cn(
-                    "px-3 pt-4 pb-1.5 text-[11px] font-bold tracking-wide text-faint",
+                    "px-3 pt-5 pb-2 text-[10.5px] font-bold tracking-[0.12em] text-faint uppercase",
                     collapsed && "lg:hidden",
                   )}
                 >
@@ -146,10 +159,11 @@ export function AppShell({
                       title={item.label}
                       className={({ isActive }) =>
                         cn(
-                          "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 font-sans text-[13.5px] font-semibold no-underline transition",
+                          "group relative flex items-center gap-3 rounded-[12px] px-3 py-2.5 font-sans text-[13.5px] font-semibold no-underline",
+                          "transition duration-150",
                           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
                           isActive
-                            ? "bg-brand-bg text-brand"
+                            ? "bg-brand-bg text-brand shadow-[var(--hairline)]"
                             : "text-fg hover:bg-hover hover:text-heading",
                           collapsed && "lg:justify-center lg:px-0",
                         )
@@ -160,8 +174,8 @@ export function AppShell({
                           <span
                             aria-hidden="true"
                             className={cn(
-                              "absolute inset-y-1.5 start-0 w-1 rounded-e-full bg-brand transition-opacity",
-                              isActive ? "opacity-100" : "opacity-0",
+                              "absolute inset-y-2 start-0 w-[3px] rounded-e-full bg-[image:var(--accent-gradient)] transition-all duration-200",
+                              isActive ? "opacity-100" : "opacity-0 group-hover:opacity-40",
                             )}
                           />
                           <item.Icon className="size-[19px] shrink-0" />
@@ -194,7 +208,7 @@ export function AppShell({
       </aside>
 
       <div className={cn("flex min-h-svh flex-col transition-[padding] duration-200", collapsed ? "lg:ps-[76px]" : "lg:ps-[264px]")}>
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-line bg-[var(--surface-translucent)] px-4 py-3 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-0 border-b border-line bg-[var(--surface-translucent)] px-4 backdrop-blur-xl sm:px-6">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
@@ -219,7 +233,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        <main className="mx-auto w-full max-w-[1460px] flex-1 px-4 py-6 sm:px-7 sm:py-7">
           {/* Keyed by path so navigating away from a crashed screen clears it. */}
           <ErrorBoundary key={location.pathname}>
             <Outlet />
@@ -266,7 +280,7 @@ function AccountMenu({
     "flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-3 py-2 font-sans text-[13.5px] font-semibold text-fg transition hover:bg-hover hover:text-heading";
 
   return (
-    <div ref={ref} className="relative border-t border-line p-3">
+    <div ref={ref} className="relative m-3 mt-0 rounded-[15px] bg-surface-2/60 p-1.5 shadow-[var(--hairline)]">
       {open && (
         <div className="absolute inset-x-3 bottom-[calc(100%-0.25rem)] z-10 animate-pop-in rounded-xl border border-line bg-surface p-1.5 shadow-[var(--shadow-md)]">
           <NavLink to="/account" onClick={() => setOpen(false)} className={cn(item, "no-underline")}>
@@ -297,11 +311,11 @@ function AccountMenu({
         }}
         aria-expanded={open}
         className={cn(
-          "flex w-full cursor-pointer appearance-none items-center gap-3 rounded-xl border border-transparent bg-transparent p-2 text-start font-sans transition hover:border-line hover:bg-surface-2",
-          open && "border-line bg-surface-2",
+          "flex w-full cursor-pointer appearance-none items-center gap-3 rounded-[13px] border-0 bg-transparent p-2 text-start font-sans transition hover:bg-surface-2",
+          open && "bg-surface-2 shadow-[var(--hairline)]",
         )}
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-bg text-sm font-bold text-brand">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[image:var(--accent-gradient)] font-display text-sm font-bold text-white">
           {initial(staff.full_name)}
         </span>
         <span className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>

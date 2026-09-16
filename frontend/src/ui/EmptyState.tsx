@@ -30,15 +30,16 @@ export function EmptyState({
       )}
     >
       {icon && (
-        <span
-          className="mb-1 grid size-14 place-items-center rounded-2xl bg-brand-bg text-brand [&_svg]:size-7"
-          aria-hidden="true"
-        >
-          {icon}
+        <span className="relative mb-2 grid size-20 place-items-center" aria-hidden="true">
+          <span className="absolute inset-0 rounded-full bg-brand-bg/50" />
+          <span className="absolute inset-[10px] rounded-full bg-brand-bg" />
+          <span className="relative grid size-11 place-items-center rounded-full bg-surface text-brand shadow-[var(--shadow-sm)] [&_svg]:size-5">
+            {icon}
+          </span>
         </span>
       )}
-      <h3 className="text-base font-bold text-heading">{title}</h3>
-      {description && <p className="max-w-sm text-sm text-muted">{description}</p>}
+      <h3 className="font-display text-[15px] font-bold tracking-tight text-heading">{title}</h3>
+      {description && <p className="max-w-sm text-[13px] leading-6 text-muted">{description}</p>}
       {action && <div className="mt-2 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
   );

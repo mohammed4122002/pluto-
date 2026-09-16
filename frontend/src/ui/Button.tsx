@@ -19,11 +19,11 @@ export type ButtonSize = "sm" | "md" | "lg";
  * swapped for a solid colour, so the button doesn't flatten out mid-press. */
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "border border-transparent bg-[image:var(--accent-gradient)] text-on-brand shadow-[var(--shadow-btn)] " +
-    "hover:not-disabled:brightness-110 hover:not-disabled:shadow-[var(--shadow-btn-hover)] " +
-    "active:not-disabled:brightness-95",
+    "border border-transparent bg-[image:var(--accent-gradient)] text-on-brand shadow-[var(--accent-glow)] " +
+    "hover:not-disabled:brightness-110 hover:not-disabled:shadow-[var(--shadow-btn-hover)] hover:not-disabled:-translate-y-px " +
+    "active:not-disabled:translate-y-0 active:not-disabled:brightness-95",
   secondary:
-    "bg-surface text-heading border border-line hover:not-disabled:border-brand-border " +
+    "bg-surface text-heading border border-line shadow-[var(--shadow-xs)] hover:not-disabled:border-brand-border " +
     "hover:not-disabled:bg-brand-bg hover:not-disabled:text-brand",
   ghost: "border border-transparent bg-transparent text-fg hover:not-disabled:bg-hover hover:not-disabled:text-heading",
   soft: "bg-brand-bg text-brand border border-transparent hover:not-disabled:border-brand-border",
@@ -40,9 +40,9 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-8 gap-1.5 px-3 text-[13px] rounded-lg",
-  md: "h-10 gap-2 px-4 text-sm rounded-xl",
-  lg: "h-12 gap-2.5 px-6 text-[15px] rounded-xl",
+  sm: "h-8 gap-1.5 px-3 text-[12.5px] rounded-[9px]",
+  md: "h-10 gap-2 px-4 text-[13.5px] rounded-[11px]",
+  lg: "h-12 gap-2.5 px-6 text-[15px] rounded-[13px]",
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -101,18 +101,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 /** Square, label-less button for toolbars and table rows. `title` is not
  * optional in practice -- an icon with no accessible name is a dead end for
- * a screen reader -- so it doubles as the aria-label. */
-export function IconButton({
-  title,
-  size = "md",
-  variant = "ghost",
-  className,
-  children,
-  ...rest
-}: Omit<ButtonProps, "icon" | "iconEnd" | "block"> & { title: string }) {
-  const box = size === "sm" ? "size-8 rounded-lg" : size === "lg" ? "size-12 rounded-xl" : "size-10 rounded-xl";
+ * a screen reader -- so it doubles as the aria-label.
+ *
+ * forwardRef because menus anchor their panel to the trigger's box, and the
+ * trigger is usually one of these. */
+export const IconButton = forwardRef<
+  HTMLButtonElement,
+  Omit<ButtonProps, "icon" | "iconEnd" | "block"> & { title: string }
+>(function IconButton({ title, size = "md", variant = "ghost", className, children, ...rest }, ref) {
+  const box =
+    size === "sm" ? "size-8 rounded-[9px]" : size === "lg" ? "size-12 rounded-[13px]" : "size-10 rounded-[11px]";
   return (
     <Button
+      ref={ref}
       variant={variant}
       size={size}
       title={title}
@@ -123,4 +124,4 @@ export function IconButton({
       {children}
     </Button>
   );
-}
+});

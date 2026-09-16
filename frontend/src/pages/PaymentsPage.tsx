@@ -4,7 +4,7 @@ import type { Payment, PaymentStatus } from "../api/payments";
 import { createInvoice } from "../api/invoices";
 import { listBranches } from "../api/branches";
 import type { Branch } from "../api/branches";
-import { branchTimeZoneMap, formatDateTimeShort } from "../format";
+import { branchTimeZoneMap, formatAmount, formatDateTimeShort, formatMoney } from "../format";
 import { CheckCircleIcon, CouponIcon, PaymentIcon, ReceiptIcon, RefreshIcon, SearchIcon, WalletIcon } from "../icons";
 import {
   Badge,
@@ -17,6 +17,7 @@ import {
   PageBody,
   PageHeader,
   SegmentedControl,
+  Select,
   StatCard,
   StatGrid,
   TableToolbar,
@@ -60,10 +61,6 @@ type ActionDialog =
   | { kind: "refund"; payment: Payment }
   | { kind: "verify"; payment: Payment };
 
-function money(amount: number, currency: string | null) {
-  return `${amount.toLocaleString("ar-JO", { maximumFractionDigits: 2 })} ${currency ?? ""}`.trim();
-}
-
 export function PaymentsPage() {
   const [tab, setTab] = useState<PaymentStatus>("receipt_submitted");
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -71,6 +68,7 @@ export function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<ActionDialog | null>(null);
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<Payment["payment_type"] | "">("");
   const toast = useToast();
   // A payment's scheduled_at is its appointment's real-world time at that
   // branch, not whatever timezone the browser reviewing it happens to be in
@@ -114,12 +112,12 @@ export function PaymentsPage() {
   };
 
   const q = search.trim().toLowerCase();
-  const rows = q
-    ? payments.filter(
-        (p) =>
-          (p.patient_name ?? "").toLowerCase().includes(q) || (p.patient_phone ?? "").includes(q),
-      )
-    : payments;
+  const rows = payments.filter((p) => {
+    if (typeFilter && p.payment_type !== typeFilter) return false;
+    if (!q) return true;
+    return (p.patient_name ?? "").toLowerCase().includes(q) || (p.patient_phone ?? "").includes(q);
+  });
+  const filtered = Boolean(q || typeFilter);
 
   const total = rows.reduce((sum, p) => sum + p.amount, 0);
   const currency = rows[0]?.currency ?? "";
@@ -178,7 +176,7 @@ export function PaymentsPage() {
       sortValue: (p) => p.amount,
       cell: (p) => (
         <div className="text-end">
-          <div className="font-bold text-heading tabular-nums">{money(p.amount, p.currency)}</div>
+          <div className="font-bold text-heading tabular-nums">{formatMoney(p.amount, p.currency)}</div>
           {p.coupon_id && <div className="text-xs text-teal">بعد كوبون</div>}
         </div>
       ),
@@ -262,6 +260,7 @@ export function PaymentsPage() {
   return (
     <PageBody>
       <PageHeader
+        eyebrow="المرضى والمالية"
         title="المدفوعات والفوترة"
         description="عند تأكيد أي حجز له خدمة بسعر أو عربون محدد، ينشئ النظام سجل دفعة ويرسل تعليمات الدفع للمريض. من هنا تراجع الإيصالات وتعتمدها أو ترفضها، وتطبّق الكوبونات، وتسجّل الاسترجاعات، وتصدر الفواتير."
         actions={
@@ -275,6 +274,7 @@ export function PaymentsPage() {
 
       <StatGrid>
         <StatCard
+          index={0}
           label="عدد الدفعات"
           value={rows.length}
           icon={<PaymentIcon />}
@@ -283,13 +283,20 @@ export function PaymentsPage() {
           hint={statusMeta[tab].label}
         />
         <StatCard
+          index={1}
           label="إجمالي المبالغ"
-          value={money(total, currency)}
+          value={
+            <>
+              {formatAmount(total)}
+              <span className="ms-1 text-[14px] font-semibold text-muted">{currency}</span>
+            </>
+          }
           icon={<WalletIcon />}
           tone="teal"
           loading={loading}
         />
         <StatCard
+          index={2}
           label="إيصالات مرفوعة"
           value={withReceipt}
           icon={<ReceiptIcon />}
@@ -298,6 +305,7 @@ export function PaymentsPage() {
           hint={`من أصل ${rows.length}`}
         />
         <StatCard
+          index={3}
           label="دفعات عليها كوبون"
           value={couponed}
           icon={<CouponIcon />}
@@ -306,7 +314,20 @@ export function PaymentsPage() {
         />
       </StatGrid>
 
-      <TableToolbar>
+      <TableToolbar
+        actions={
+          filtered ? (
+            <Button
+              onClick={() => {
+                setSearch("");
+                setTypeFilter("");
+              }}
+            >
+              مسح الفلاتر
+            </Button>
+          ) : undefined
+        }
+      >
         <Input
           className="w-full sm:w-80"
           label="بحث"
@@ -315,6 +336,19 @@ export function PaymentsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <Select
+          label="نوع الدفعة"
+          className="w-full sm:w-48"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as Payment["payment_type"] | "")}
+        >
+          <option value="">كل الأنواع</option>
+          {Object.entries(paymentTypeLabel).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </Select>
       </TableToolbar>
 
       <DataTable
@@ -326,13 +360,24 @@ export function PaymentsPage() {
         empty={
           <EmptyState
             icon={<PaymentIcon />}
-            title={q ? "ما في دفعات مطابقة للبحث" : "ما في دفعات بهذه الحالة"}
+            title={filtered ? "ما في دفعات مطابقة للفلاتر" : "ما في دفعات بهذه الحالة"}
             description={
-              q
-                ? "جرّب اسماً أو رقم هاتف مختلفاً، أو امسح البحث لعرض كل دفعات هذه الحالة."
+              filtered
+                ? "جرّب اسماً أو رقم هاتف أو نوع دفعة مختلفاً، أو امسح الفلاتر لعرض كل دفعات هذه الحالة."
                 : "بمجرد ما يتأكد حجز له سعر أو عربون، بتظهر دفعته هنا للمراجعة."
             }
-            action={q ? <Button onClick={() => setSearch("")}>مسح البحث</Button> : undefined}
+            action={
+              filtered ? (
+                <Button
+                  onClick={() => {
+                    setSearch("");
+                    setTypeFilter("");
+                  }}
+                >
+                  مسح الفلاتر
+                </Button>
+              ) : undefined
+            }
           />
         }
       />
@@ -340,7 +385,7 @@ export function PaymentsPage() {
       {dialog?.kind === "verify" && (
         <ConfirmDialog
           title="قبول الدفعة"
-          description={`سيتم اعتماد دفعة ${dialog.payment.patient_name ?? ""} بمبلغ ${money(dialog.payment.amount, dialog.payment.currency)}.`}
+          description={`سيتم اعتماد دفعة ${dialog.payment.patient_name ?? ""} بمبلغ ${formatMoney(dialog.payment.amount, dialog.payment.currency)}.`}
           confirmLabel="قبول الدفعة"
           tone="primary"
           onConfirm={() => handleVerify(dialog.payment.id)}
@@ -388,7 +433,7 @@ function RejectDialog({ payment, onClose, onDone, onFail, toast }: DialogProps) 
   return (
     <Dialog
       title="رفض الدفعة"
-      description={`${payment.patient_name ?? "المريض"} — ${money(payment.amount, payment.currency)}`}
+      description={`${payment.patient_name ?? "المريض"} — ${formatMoney(payment.amount, payment.currency)}`}
       size="sm"
       onClose={onClose}
       footer={
@@ -424,7 +469,7 @@ function CouponDialog({ payment, onClose, onDone, onFail, toast }: DialogProps) 
     setBusy(true);
     applyCoupon(payment.id, code.trim())
       .then((p) => {
-        toast.success(`تم تطبيق الكوبون — المبلغ الجديد: ${money(p.amount, p.currency)}`);
+        toast.success(`تم تطبيق الكوبون — المبلغ الجديد: ${formatMoney(p.amount, p.currency)}`);
         onClose();
         onDone();
       })
@@ -435,7 +480,7 @@ function CouponDialog({ payment, onClose, onDone, onFail, toast }: DialogProps) 
   return (
     <Dialog
       title="تطبيق كوبون"
-      description={`${payment.patient_name ?? "المريض"} — المبلغ الحالي ${money(payment.amount, payment.currency)}`}
+      description={`${payment.patient_name ?? "المريض"} — المبلغ الحالي ${formatMoney(payment.amount, payment.currency)}`}
       size="sm"
       onClose={onClose}
       footer={
@@ -486,7 +531,7 @@ function RefundDialog({ payment, onClose, onDone, onFail, toast }: DialogProps) 
   return (
     <Dialog
       title="تسجيل استرجاع"
-      description={`${payment.patient_name ?? "المريض"} — الدفعة الأصلية ${money(payment.amount, payment.currency)}`}
+      description={`${payment.patient_name ?? "المريض"} — الدفعة الأصلية ${formatMoney(payment.amount, payment.currency)}`}
       size="sm"
       onClose={onClose}
       footer={
@@ -518,7 +563,7 @@ function RefundDialog({ payment, onClose, onDone, onFail, toast }: DialogProps) 
               ? `المبلغ لازم يكون بين 0 و${payment.amount}`
               : undefined
           }
-          hint={`الحد الأعلى: ${money(payment.amount, payment.currency)}`}
+          hint={`الحد الأعلى: ${formatMoney(payment.amount, payment.currency)}`}
         />
         <Textarea
           label="سبب الاسترجاع"

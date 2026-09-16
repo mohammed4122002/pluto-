@@ -95,7 +95,7 @@ function ToastRow({ toast, onDismiss }: { toast: Toast; onDismiss: () => void })
     <div
       role={toast.tone === "error" ? "alert" : "status"}
       className={cn(
-        "pointer-events-auto flex w-full max-w-sm animate-pop-in items-start gap-2.5 rounded-xl border bg-surface px-4 py-3 shadow-[var(--shadow-md)]",
+        "pointer-events-auto flex w-full max-w-sm animate-pop-in items-start gap-2.5 rounded-[14px] border bg-surface px-4 py-3.5 shadow-[var(--shadow-md)]",
         tone.box,
       )}
     >

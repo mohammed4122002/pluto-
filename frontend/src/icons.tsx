@@ -404,3 +404,24 @@ export function SidebarIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function DotsIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="5" r="1.4" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+      <circle cx="12" cy="19" r="1.4" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4.5 7h15" />
+      <path d="M9.5 7V4.8h5V7" />
+      <path d="M6.8 7l.9 12.2h8.6L17.2 7" />
+      <path d="M10.3 10.5v5.5M13.7 10.5v5.5" />
+    </svg>
+  );
+}

@@ -123,14 +123,14 @@ export function Dialog({
           aria-label={typeof title === "string" ? title : undefined}
           onMouseDown={(e) => e.stopPropagation()}
           className={cn(
-            "relative w-full animate-pop-in rounded-2xl border border-line bg-surface shadow-[var(--shadow-lg)] outline-none",
+            "relative w-full animate-pop-in rounded-[22px] bg-surface shadow-[var(--shadow-lg),var(--hairline)] outline-none",
             dialogSizes[size],
           )}
         >
           <DialogHeader title={title} description={description} onClose={close} />
           <div className="max-h-[70svh] overflow-y-auto px-5 py-4 text-sm text-fg">{children}</div>
           {footer && (
-            <div className="flex flex-wrap items-center justify-end gap-2 rounded-b-2xl border-t border-line bg-surface-2 px-5 py-3.5">
+            <div className="flex flex-wrap items-center justify-end gap-2 rounded-b-[22px] border-0 border-t border-line bg-surface-2/60 px-5 py-4">
               {footer}
             </div>
           )}
@@ -185,14 +185,18 @@ export function Drawer({
           } as React.CSSProperties
         }
         className={cn(
-          "absolute inset-y-0 start-0 flex w-full animate-slide-start flex-col border-e border-line bg-surface shadow-[var(--shadow-lg)] outline-none",
+          // Full-bleed on a phone, inset and rounded from `sm` up: a sheet
+          // that floats clear of the viewport edges reads as a layer over the
+          // page rather than a second page glued to its side.
+          "absolute inset-y-0 start-0 flex w-full animate-slide-start flex-col bg-surface shadow-[var(--shadow-lg),var(--hairline)] outline-none",
+          "sm:inset-y-3 sm:start-3 sm:rounded-[22px]",
           width === "lg" ? "sm:max-w-2xl" : "sm:max-w-xl",
         )}
       >
         <DialogHeader title={title} description={description} onClose={close} />
-        <div className="flex-1 overflow-y-auto px-5 py-4 text-sm text-fg">{children}</div>
+        <div className="flex-1 overflow-y-auto px-5 py-5 text-sm text-fg">{children}</div>
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface-2 px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-0 border-t border-line bg-surface-2/60 px-5 py-4 sm:rounded-b-[22px]">
             {footer}
           </div>
         )}
@@ -212,9 +216,9 @@ function DialogHeader({
   onClose: () => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+    <div className="flex items-start justify-between gap-4 border-0 border-b border-line px-5 py-4">
       <div className="min-w-0">
-        <h2 className="text-base leading-6 font-bold text-heading">{title}</h2>
+        <h2 className="font-display text-[17px] leading-6 font-bold tracking-tight text-heading">{title}</h2>
         {description && <p className="mt-1 text-[13px] leading-5 text-muted">{description}</p>}
       </div>
       <button

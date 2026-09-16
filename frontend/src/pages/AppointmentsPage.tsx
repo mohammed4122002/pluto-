@@ -28,9 +28,13 @@ import { branchTimeZoneMap, formatDateTimeShort } from "../format";
 import {
   AppointmentIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
   ClockIcon,
+  DotsIcon,
+  EditIcon,
   PlusIcon,
   QueueIcon,
+  RefreshIcon,
   SearchIcon,
   XCircleIcon,
 } from "../icons";
@@ -45,9 +49,12 @@ import {
   Field,
   FormGrid,
   FormRow,
+  IconButton,
   Input,
+  Menu,
   PageBody,
   PageHeader,
+  SegmentedControl,
   Select,
   StatCard,
   StatGrid,
@@ -143,6 +150,8 @@ export function AppointmentsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "">("");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [branchFilter, setBranchFilter] = useState("");
+  const [todayOnly, setTodayOnly] = useState(false);
   const toast = useToast();
 
   const fail = (err: { response?: { data?: { detail?: string } }; message: string }) =>
@@ -231,8 +240,12 @@ export function AppointmentsPage() {
   }
 
   const q = search.trim().toLowerCase();
+  const isToday = (appt: Appointment) =>
+    new Date(appt.scheduled_at).toDateString() === new Date().toDateString();
   const rows = appointments.filter((appt) => {
     if (statusFilter && appt.status !== statusFilter) return false;
+    if (branchFilter && appt.branch_id !== branchFilter) return false;
+    if (todayOnly && !isToday(appt)) return false;
     if (overdueOnly && !isOverdue(appt)) return false;
     if (!q) return true;
     const patientName = nameOf(patients, appt.patient_id).toLowerCase();
@@ -240,12 +253,19 @@ export function AppointmentsPage() {
     return patientName.includes(q) || doctorName.includes(q);
   });
 
-  const todayCount = appointments.filter(
-    (a) => new Date(a.scheduled_at).toDateString() === new Date().toDateString(),
-  ).length;
+  const todayCount = appointments.filter(isToday).length;
   const confirmedCount = appointments.filter((a) => a.status === "confirmed" || a.status === "checked_in").length;
   const cancelledCount = appointments.filter((a) => a.status === "cancelled" || a.status === "no_show").length;
   const overdueCount = appointments.filter(isOverdue).length;
+
+  const anyFilter = Boolean(q || statusFilter || overdueOnly || todayOnly || branchFilter);
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("");
+    setOverdueOnly(false);
+    setTodayOnly(false);
+    setBranchFilter("");
+  };
 
   const columns: Column<Appointment>[] = [
     {
@@ -264,21 +284,21 @@ export function AppointmentsPage() {
       key: "doctor",
       header: "الطبيب",
       sortValue: (a) => nameOf(staff, a.staff_id),
-      cell: (a) => <span className="text-[13px]">{nameOf(staff, a.staff_id)}</span>,
+      cell: (a) => <span className="whitespace-nowrap">{nameOf(staff, a.staff_id)}</span>,
     },
     {
       key: "service",
       header: "الخدمة",
       secondary: true,
       sortValue: (a) => nameOf(services, a.service_id),
-      cell: (a) => <span className="text-[13px]">{nameOf(services, a.service_id)}</span>,
+      cell: (a) => <span className="whitespace-nowrap">{nameOf(services, a.service_id)}</span>,
     },
     {
       key: "scheduled",
       header: "الموعد",
       sortValue: (a) => a.scheduled_at,
       cell: (a) => (
-        <span className="text-[13px] whitespace-nowrap">
+        <span className="whitespace-nowrap tabular-nums">
           {formatDateTimeShort(a.scheduled_at, branchTz[a.branch_id])}
         </span>
       ),
@@ -289,64 +309,93 @@ export function AppointmentsPage() {
       sortValue: (a) => statusLabel[a.status],
       cell: (a) => (
         <div className="flex flex-col items-start gap-1">
-          <Badge tone={statusTone[a.status]} dot>
-            {statusLabel[a.status]}
-          </Badge>
+          {/* The badge is the control: a separate "change status" column was
+              one whole column spent restating what the badge beside it
+              already said. Queue-owned statuses stay listed so the menu
+              shows the truth for an appointment the queue already moved, but
+              they cannot be picked here -- choosing one would advance the
+              appointment without ever creating its queue ticket. */}
+          <Menu
+            label="تغيير حالة الموعد"
+            items={statuses.map((s) => ({
+              key: s,
+              label: statusLabel[s],
+              checked: s === a.status,
+              disabled: s !== a.status && QUEUE_OWNED_STATUSES.has(s),
+              title:
+                s !== a.status && QUEUE_OWNED_STATUSES.has(s)
+                  ? "حالات الطابور تُضبط من «تسجيل حضور» ومن شاشة الطابور"
+                  : undefined,
+              onSelect: () => changeStatus(a, s),
+            }))}
+            trigger={(props) => (
+              <button
+                {...props}
+                type="button"
+                className="inline-flex cursor-pointer appearance-none items-center gap-1 rounded-full border-0 bg-transparent p-0 font-sans transition hover:opacity-80"
+                title="اضغط لتغيير الحالة"
+              >
+                <Badge tone={statusTone[a.status]} dot>
+                  {statusLabel[a.status]}
+                  <ChevronDownIcon className="-me-0.5 size-3 opacity-60" />
+                </Badge>
+              </button>
+            )}
+          />
           {isOverdue(a) && <Badge tone="danger">متأخر — بحاجة إنهاء</Badge>}
         </div>
-      ),
-    },
-    {
-      key: "change-status",
-      header: "تغيير الحالة",
-      secondary: true,
-      width: "170px",
-      cell: (a) => (
-        /* Queue-owned statuses stay listed so the dropdown shows the truth for
-           an appointment the queue already moved, but they cannot be picked
-           here -- choosing one would advance the appointment without creating
-           its queue ticket. The current value is never disabled, so the select
-           always has a matching option. */
-        <Select
-          className="h-8 text-[13px]"
-          value={a.status}
-          onChange={(e) => changeStatus(a, e.target.value as AppointmentStatus)}
-          title="حالات الطابور تُضبط من زر «تسجيل حضور» ومن شاشة الطابور، مش من هون."
-        >
-          {statuses.map((s) => (
-            <option key={s} value={s} disabled={s !== a.status && QUEUE_OWNED_STATUSES.has(s)}>
-              {statusLabel[s]}
-            </option>
-          ))}
-        </Select>
       ),
     },
     {
       key: "actions",
       header: "إجراءات",
       align: "end",
+      width: "180px",
       cell: (a) => (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5">
           {/* check_in/reschedule/cancel all need permissions doctors don't
               have -- only status and no_show (appointment.update) actually
               work for them.
               Checking someone in for a day that has already passed isn't a
               real action -- what an overdue row needs is "لم يحضر" or
-              "مكتمل", which stay available. */}
+              "مكتمل", which stay available.
+              One action is on the row; the rest live in the menu. Four
+              buttons per row wrapped onto two lines and made every row tall
+              enough to lose the schedule underneath it. */}
           {!isOverdue(a) && (
             <Button size="sm" variant="soft" icon={<QueueIcon className="size-4" />} onClick={() => handleCheckIn(a)}>
               تسجيل حضور
             </Button>
           )}
-          <Button size="sm" onClick={() => setDialog({ kind: "reschedule", appt: a })}>
-            إعادة جدولة
-          </Button>
-          <Button size="sm" onClick={() => setDialog({ kind: "no_show", appt: a })}>
-            لم يحضر
-          </Button>
-          <Button size="sm" variant="danger-soft" onClick={() => setDialog({ kind: "cancel", appt: a })}>
-            إلغاء
-          </Button>
+          <Menu
+            label="إجراءات الموعد"
+            items={[
+              {
+                key: "reschedule",
+                label: "إعادة جدولة",
+                icon: <RefreshIcon />,
+                onSelect: () => setDialog({ kind: "reschedule", appt: a }),
+              },
+              {
+                key: "no_show",
+                label: "تسجيل عدم حضور",
+                icon: <EditIcon />,
+                onSelect: () => setDialog({ kind: "no_show", appt: a }),
+              },
+              {
+                key: "cancel",
+                label: "إلغاء الموعد",
+                icon: <XCircleIcon />,
+                danger: true,
+                onSelect: () => setDialog({ kind: "cancel", appt: a }),
+              },
+            ]}
+            trigger={(props) => (
+              <IconButton {...props} title="إجراءات أخرى" size="sm" variant="secondary">
+                <DotsIcon className="size-4" />
+              </IconButton>
+            )}
+          />
         </div>
       ),
     },
@@ -355,6 +404,7 @@ export function AppointmentsPage() {
   return (
     <PageBody>
       <PageHeader
+        eyebrow="التشغيل اليومي"
         title="المواعيد"
         description="حجز، متابعة، وإدارة كل مواعيد العيادة — من تسجيل الحضور حتى الإلغاء وإعادة الجدولة."
         actions={
@@ -380,14 +430,25 @@ export function AppointmentsPage() {
 
       <StatGrid>
         <StatCard
+          index={0}
           label="إجمالي المواعيد"
           value={appointments.length}
           icon={<AppointmentIcon />}
           tone="brand"
           loading={loading}
         />
-        <StatCard label="مواعيد اليوم" value={todayCount} icon={<ClockIcon />} tone="teal" loading={loading} />
         <StatCard
+          index={1}
+          label="مواعيد اليوم"
+          value={todayCount}
+          icon={<ClockIcon />}
+          tone="teal"
+          loading={loading}
+          hint={todayOnly ? "اضغط للعودة لكل المواعيد" : "اضغط لعرضها وحدها"}
+          onClick={() => setTodayOnly((v) => !v)}
+        />
+        <StatCard
+          index={2}
           label="مؤكدة أو تم الحضور"
           value={confirmedCount}
           icon={<CheckCircleIcon />}
@@ -396,6 +457,7 @@ export function AppointmentsPage() {
         />
         {overdueCount > 0 ? (
           <StatCard
+            index={3}
             label="متأخرة — بحاجة إنهاء"
             value={overdueCount}
             icon={<ClockIcon />}
@@ -406,6 +468,7 @@ export function AppointmentsPage() {
           />
         ) : (
           <StatCard
+            index={3}
             label="ملغاة أو لم تحضر"
             value={cancelledCount}
             icon={<XCircleIcon />}
@@ -424,7 +487,7 @@ export function AppointmentsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Field label="الحالة" className="w-full sm:w-56">
+        <Field label="الحالة" className="w-full sm:w-52">
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as AppointmentStatus | "")}>
             <option value="">كل الحالات</option>
             {statuses.map((s) => (
@@ -434,10 +497,31 @@ export function AppointmentsPage() {
             ))}
           </Select>
         </Field>
-        {overdueOnly && (
-          <Button variant="soft" onClick={() => setOverdueOnly(false)}>
-            المتأخرة فقط — إلغاء الفلتر
-          </Button>
+        {branches.length > 1 && (
+          <Field label="الفرع" className="w-full sm:w-44">
+            <Select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+              <option value="">كل الفروع</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {(todayOnly || overdueOnly) && (
+          <div className="flex flex-wrap gap-2 pb-0.5">
+            {todayOnly && (
+              <Button size="sm" variant="soft" iconEnd={<XCircleIcon className="size-3.5" />} onClick={() => setTodayOnly(false)}>
+                اليوم فقط
+              </Button>
+            )}
+            {overdueOnly && (
+              <Button size="sm" variant="soft" iconEnd={<XCircleIcon className="size-3.5" />} onClick={() => setOverdueOnly(false)}>
+                المتأخرة فقط
+              </Button>
+            )}
+          </div>
         )}
       </TableToolbar>
 
@@ -451,23 +535,15 @@ export function AppointmentsPage() {
         empty={
           <EmptyState
             icon={<AppointmentIcon />}
-            title={q || statusFilter || overdueOnly ? "ما في مواعيد مطابقة" : "ما في مواعيد بعد"}
+            title={anyFilter ? "ما في مواعيد مطابقة" : "ما في مواعيد بعد"}
             description={
-              q || statusFilter || overdueOnly
+              anyFilter
                 ? "جرّب تغيير البحث أو الفلتر لعرض مواعيد أخرى."
                 : "ابدأ بحجز أول موعد من الزر بالأعلى."
             }
             action={
-              q || statusFilter || overdueOnly ? (
-                <Button
-                  onClick={() => {
-                    setSearch("");
-                    setStatusFilter("");
-                    setOverdueOnly(false);
-                  }}
-                >
-                  مسح الفلاتر
-                </Button>
+              anyFilter ? (
+                <Button onClick={clearFilters}>مسح الفلاتر</Button>
               ) : (
                 <Button variant="primary" icon={<PlusIcon className="size-4" />} onClick={() => setBookingOpen(true)}>
                   حجز موعد جديد
@@ -774,12 +850,13 @@ function RescheduleDialog({ appt, branchTz, onClose, onDone, onFail, toast }: Di
 
 function CancelDialog({ appt, onClose, onDone, onFail, toast }: DialogProps) {
   const [reason, setReason] = useState("");
+  const [by, setBy] = useState<"patient" | "clinic" | "doctor">("patient");
   const [busy, setBusy] = useState(false);
 
-  const submit = (cancelledBy: "patient" | "clinic" | "doctor") => {
+  const submit = () => {
     if (!reason.trim()) return;
     setBusy(true);
-    cancelAppointment(appt.id, reason, cancelledBy)
+    cancelAppointment(appt.id, reason, by)
       .then((result) => {
         toast.success(settlementNotice("تم الإلغاء", result));
         onClose();
@@ -792,7 +869,7 @@ function CancelDialog({ appt, onClose, onDone, onFail, toast }: DialogProps) {
   return (
     <Dialog
       title="إلغاء الموعد"
-      description="سياسة الإلغاء بتحدد إذا في رسوم أو استرجاع — بينطبّق تلقائياً حسب الجهة الملغية."
+      description="الجهة الملغية بتحدد الرسوم أو الاسترجاع حسب سياسة الإلغاء — بينطبّق تلقائياً."
       size="sm"
       onClose={onClose}
       footer={
@@ -800,24 +877,40 @@ function CancelDialog({ appt, onClose, onDone, onFail, toast }: DialogProps) {
           <Button onClick={onClose} disabled={busy}>
             تراجع
           </Button>
-          <Button variant="danger" loading={busy} disabled={!reason.trim()} onClick={() => submit("clinic")}>
-            إلغاء من العيادة
-          </Button>
-          <Button variant="primary" loading={busy} disabled={!reason.trim()} onClick={() => submit("patient")}>
-            إلغاء بطلب المريض
+          {/* One decision, one button: the old dialog offered "إلغاء بطلب
+              المريض" and "إلغاء من العيادة" as two equally weighted actions,
+              which made the choice of who cancelled look like a choice of
+              what to do. */}
+          <Button variant="danger" loading={busy} disabled={!reason.trim()} onClick={submit}>
+            تأكيد الإلغاء
           </Button>
         </>
       }
     >
-      <Textarea
-        label="سبب الإلغاء"
-        required
-        autoFocus
-        rows={2}
-        placeholder="مثال: ظرف طارئ عند المريض."
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-      />
+      <div className="flex flex-col gap-4">
+        <Field label="الجهة الملغية" hint="بتحدد إذا في رسوم إلغاء أو استرجاع للمريض.">
+          <SegmentedControl
+            items={
+              [
+                { key: "patient", label: "بطلب المريض" },
+                { key: "clinic", label: "من العيادة" },
+                { key: "doctor", label: "من الطبيب" },
+              ] as const
+            }
+            value={by}
+            onChange={(key) => setBy(key)}
+          />
+        </Field>
+        <Textarea
+          label="سبب الإلغاء"
+          required
+          autoFocus
+          rows={2}
+          placeholder="مثال: ظرف طارئ عند المريض."
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </div>
     </Dialog>
   );
 }

@@ -9,7 +9,7 @@ import {
 } from "../api/patients";
 import type { Patient, PatientCreate, PatientDuplicate, PatientTagValue } from "../api/patients";
 import { errorMessage } from "../api/errors";
-import { AlertIcon, DuplicatesIcon, PatientIcon, PlusIcon, SearchIcon } from "../icons";
+import { AlertIcon, DuplicatesIcon, PatientIcon, PlusIcon, SearchIcon, TrashIcon } from "../icons";
 import {
   Badge,
   Button,
@@ -317,12 +317,10 @@ export function PatientsPage() {
         <IconButton
           title="حذف نهائي مع كل المحادثات"
           size="sm"
-          variant="danger-soft"
+          className="text-faint hover:not-disabled:bg-danger-bg hover:not-disabled:text-danger"
           onClick={() => setDeleting(p)}
         >
-          <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
-          </svg>
+          <TrashIcon className="size-[18px]" />
         </IconButton>
       ),
     },
@@ -331,6 +329,7 @@ export function PatientsPage() {
   return (
     <PageBody>
       <PageHeader
+        eyebrow="المرضى والمالية"
         title="سجلات المرضى"
         description="كل مرضى العيادة، تصنيفاتهم، وسجل بياناتهم الأساسي."
         actions={
@@ -341,8 +340,9 @@ export function PatientsPage() {
       />
 
       <StatGrid>
-        <StatCard label="إجمالي المرضى" value={total} icon={<PatientIcon />} tone="brand" loading={loading} />
+        <StatCard index={0} label="إجمالي المرضى" value={total} icon={<PatientIcon />} tone="brand" loading={loading} />
         <StatCard
+          index={1}
           label="معروض بهذه الصفحة"
           value={patients.length}
           icon={<PatientIcon />}
@@ -351,6 +351,7 @@ export function PatientsPage() {
           hint={`صفحة ${page + 1} من ${pageCount}`}
         />
         <StatCard
+          index={2}
           label="لديهم تصنيف"
           value={taggedCount}
           icon={<AlertIcon />}
@@ -359,6 +360,7 @@ export function PatientsPage() {
           hint="ضمن الصفحة الحالية"
         />
         <StatCard
+          index={3}
           label="سجلات محتملة التكرار"
           value={duplicates?.length ?? 0}
           icon={<DuplicatesIcon />}

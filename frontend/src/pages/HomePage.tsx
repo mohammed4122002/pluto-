@@ -16,7 +16,7 @@ import type { DashboardReport } from "../api/reports";
 import { BarChart, Donut, Funnel, Heatmap, Meter, RankedList, Sparkline } from "../components/Charts";
 import type { DonutSlice, HeatmapCell } from "../components/Charts";
 import { bookingSourceLabel, bucketLabel, statusBucket, statusLabel, statusTone } from "../statusLabels";
-import { branchTimeZoneMap, formatDayMonth, formatFullDate, formatTime } from "../format";
+import { branchTimeZoneMap, formatAmount, formatDayMonth, formatFullDate, formatMoney, formatTime } from "../format";
 import {
   AiIcon,
   AppointmentIcon,
@@ -309,8 +309,15 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
   const loading = appointments === null;
   const inClinicNow = today.filter((a) => statusBucket(a.status) === "inClinic").length;
 
-  const money = (amount: number) =>
-    `${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${report?.financial.currency ?? ""}`.trim();
+  const money = (amount: number) => formatMoney(amount, report?.financial.currency);
+  /** The same amount for a KPI tile: the figure at full size, the currency
+   * beside it at label size, so a long total doesn't wrap onto two lines. */
+  const moneyTile = (amount: number) => (
+    <>
+      {formatAmount(amount)}
+      <span className="ms-1 text-[14px] font-semibold text-muted">{report?.financial.currency}</span>
+    </>
+  );
 
   const aiResolved = report
     ? Math.max(report.ai_chat.total_conversations - report.ai_chat.escalated_to_human - report.ai_chat.provider_failures, 0)
@@ -368,7 +375,11 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
 
   return (
     <PageBody>
-      <PageHeader title={`${greeting}، ${staffName}`} description={formatFullDate(new Date(), defaultTz)}>
+      <PageHeader
+        eyebrow="لوحة العيادة"
+        title={`${greeting}، ${staffName}`}
+        description={formatFullDate(new Date(), defaultTz)}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SegmentedControl
             items={PERIODS.map((p) => ({ key: p.key, label: p.label }))}
@@ -396,8 +407,9 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
 
       <StatGrid className="xl:grid-cols-5">
         <StatCard
+          index={0}
           label="الإيرادات"
-          value={report ? money(report.financial.revenue) : "—"}
+          value={report ? moneyTile(report.financial.revenue) : "—"}
           icon={<WalletIcon />}
           tone="teal"
           loading={reportLoading}
@@ -405,6 +417,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
           onClick={() => onNavigate("payments")}
         />
         <StatCard
+          index={1}
           label="المحادثات"
           value={report?.ai_chat.total_conversations ?? "—"}
           icon={<InboxIcon />}
@@ -421,6 +434,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
           onClick={() => onNavigate("inbox")}
         />
         <StatCard
+          index={2}
           label="معدل عدم الحضور"
           value={report ? `${report.appointments.no_show_rate}%` : "—"}
           icon={<PatientIcon />}
@@ -439,6 +453,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
           onClick={() => onNavigate("appointments")}
         />
         <StatCard
+          index={3}
           label="الحجوزات المؤكدة"
           value={report?.appointments.confirmed ?? "—"}
           icon={<CheckCircleIcon />}
@@ -452,6 +467,7 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
           onClick={() => onNavigate("appointments")}
         />
         <StatCard
+          index={4}
           label="إجمالي الحجوزات"
           value={report?.appointments.total ?? "—"}
           icon={<AppointmentIcon />}

@@ -92,14 +92,14 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-sm)]",
+        "overflow-hidden rounded-[18px] bg-surface shadow-[var(--shadow-sm),var(--hairline),var(--highlight)]",
         className,
       )}
     >
       {/* Desk: a real table. */}
       <div className="hidden max-h-[70svh] overflow-auto md:block">
         <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-10">
+          <thead className="sticky top-0 z-10 bg-[var(--surface-translucent)] backdrop-blur-xl">
             <tr>
               {columns.map((col) => {
                 const sortable = Boolean(col.sortValue);
@@ -111,7 +111,7 @@ export function DataTable<T>({
                     style={col.width ? { width: col.width } : undefined}
                     aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : undefined}
                     className={cn(
-                      "border-b border-line bg-surface-2 px-4 py-3 text-[12.5px] font-bold whitespace-nowrap text-muted",
+                      "border-0 border-b border-line px-4 py-3.5 text-[11px] font-bold tracking-[0.08em] whitespace-nowrap text-faint uppercase",
                       alignClass[col.align ?? "start"],
                     )}
                   >
@@ -120,7 +120,7 @@ export function DataTable<T>({
                         type="button"
                         onClick={() => toggleSort(col.key)}
                         className={cn(
-                          "inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded border-0 bg-transparent p-0 font-sans text-[12.5px] font-bold transition hover:text-heading",
+                          "inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded border-0 bg-transparent p-0 font-sans text-[11px] font-bold tracking-[0.08em] uppercase transition hover:text-heading",
                           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
                           active ? "text-brand" : "text-inherit",
                         )}
@@ -141,7 +141,7 @@ export function DataTable<T>({
               ? Array.from({ length: skeletonRows }).map((_, i) => (
                   <tr key={i}>
                     {columns.map((col) => (
-                      <td key={col.key} className="border-b border-line px-4 py-3.5">
+                      <td key={col.key} className="border-0 border-b border-line px-4 py-4">
                         <Skeleton className="h-4" />
                       </td>
                     ))}
@@ -152,7 +152,7 @@ export function DataTable<T>({
                     key={getRowKey(row, index)}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className={cn(
-                      "border-b border-line transition last:border-0 hover:bg-surface-2",
+                      "border-0 border-b border-line transition-colors duration-150 last:border-0 hover:bg-surface-2/70",
                       onRowClick && "cursor-pointer",
                       rowClassName?.(row),
                     )}
@@ -161,7 +161,7 @@ export function DataTable<T>({
                       <td
                         key={col.key}
                         className={cn(
-                          "px-4 py-3 align-middle text-fg",
+                          "px-4 py-3.5 align-middle text-[13.5px] text-fg",
                           alignClass[col.align ?? "start"],
                           col.className,
                         )}
@@ -207,7 +207,7 @@ export function DataTable<T>({
       </div>
 
       {!loading && sorted.length === 0 && empty}
-      {footer && <div className="border-t border-line bg-surface-2 px-4 py-3">{footer}</div>}
+      {footer && <div className="border-0 border-t border-line bg-surface-2/60 px-4 py-3">{footer}</div>}
     </div>
   );
 }
@@ -244,7 +244,7 @@ export function TableToolbar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-xs)]",
+        "flex flex-wrap items-end justify-between gap-3 rounded-[18px] bg-surface p-4 shadow-[var(--shadow-xs),var(--hairline)]",
         className,
       )}
     >
