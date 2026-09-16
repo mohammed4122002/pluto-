@@ -1,59 +1,137 @@
+/* ---------------------------------------------------------------------------
+   Design foundation.
+
+   Layer order is the spine of the whole redesign. The app is mid-migration:
+   the new screens are built from Tailwind utilities and the `src/ui` kit,
+   while the not-yet-migrated screens still render the hand-written CSS in
+   App.css. Unlayered CSS beats *every* layered rule regardless of
+   specificity, so App.css is pulled in as a named layer below the new
+   system -- otherwise a legacy rule as plain as `button { border-radius }`
+   would quietly win over `rounded-xl` on a brand-new component.
+
+     theme    -- Tailwind's generated custom properties
+     base     -- element defaults (deliberately tiny, see below)
+     legacy   -- App.css, untouched, for screens not migrated yet
+     components -- opt-in component classes
+     utilities  -- Tailwind utilities, always last, always win
+
+   Tailwind's Preflight is deliberately NOT imported, and nothing replaces it:
+   it resets headings to inherit their size and strips list, table and form
+   defaults, which the un-migrated screens still lean on -- and any global
+   stand-in would have to sit above `legacy` in the cascade, re-setting those
+   screens from underneath App.css. The ui kit instead states what it wants on
+   each component (its own background, border, font and padding), which is
+   what makes the two systems able to share a page at all.
+   --------------------------------------------------------------------------- */
+
+@layer theme, base, legacy, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./App.css" layer(legacy);
+@import "./styles/legacy-uplift.css";
+
+@source "./";
+
+/* The theme toggle stamps data-theme on <html> before first paint (see the
+   inline script in index.html), for both directions -- so a plain attribute
+   check is enough and no media query needs to be mirrored here. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  /* Light palette. Every surface/text/border color in the app reads from
-     these tokens rather than a hardcoded hex, which is what makes the dark
-     theme below possible without touching component CSS. */
-  --bg: #f8f7fc;
+  /* Light palette.
+     Neutrals are cool and near-grey rather than violet-tinted: a purple-cast
+     grey under a purple accent muddies both, and the accent stops reading as
+     the one thing on screen that means "act here". */
+  --bg: #f6f7fb;
+  --bg-deep: #eceef6;
   --surface: #ffffff;
-  --surface-2: #f3f1f9;
-  --surface-hover: #ecebf5;
-  --surface-translucent: rgba(255, 255, 255, 0.82);
-  --border: #e6e4f0;
-  --border-strong: #d6d3e6;
-  --text: #625f72;
-  --text-h: #18161f;
-  --text-faint: #a19eb2;
-  --text-muted: #8d8a9e;
+  --surface-2: #f4f5fa;
+  --surface-3: #eceef6;
+  --surface-hover: #f0f1f8;
+  --surface-translucent: rgba(255, 255, 255, 0.72);
+  --border: #e5e7f0;
+  --border-strong: #d2d5e3;
+  --text: #565a6e;
+  --text-h: #0f111a;
+  --text-faint: #a2a7bd;
+  --text-muted: #7a7f98;
+  --text-on-accent: #ffffff;
 
-  --accent: #6d4aff;
-  --accent-hover: #5c37f5;
-  --accent-active: #4e2be0;
-  --accent-bg: rgba(109, 74, 255, 0.1);
-  --accent-border: rgba(109, 74, 255, 0.32);
-  --accent-gradient: linear-gradient(135deg, #8f6bff 0%, #5c37f5 100%);
+  --accent: #6135f4;
+  --accent-hover: #5227e2;
+  --accent-active: #451dc9;
+  --accent-soft: #f1ecff;
+  --accent-bg: rgba(97, 53, 244, 0.09);
+  --accent-border: rgba(97, 53, 244, 0.26);
+  --accent-ring: rgba(97, 53, 244, 0.22);
+  --accent-gradient: linear-gradient(135deg, #8b6bff 0%, #5b2ff0 100%);
+  --accent-glow: 0 8px 24px -10px rgba(97, 53, 244, 0.65);
 
-  --success: #147a52;
-  --success-bg: rgba(20, 122, 82, 0.1);
-  --danger: #e5484d;
-  --danger-bg: rgba(229, 72, 77, 0.1);
-  --danger-hover: #d33338;
-  --warning: #b45309;
-  --warning-bg: rgba(180, 83, 9, 0.1);
+  /* The page-header wash. Three stops rather than two, and a hue that travels
+     violet -> indigo, so a wide banner has somewhere to go instead of
+     flattening into one printed block of colour. */
+  --brand-wash: linear-gradient(112deg, #7c4dff 0%, #5f31f0 42%, #3a1bb8 100%);
+  --brand-wash-soft: linear-gradient(112deg, rgba(124, 77, 255, 0.12) 0%, rgba(58, 27, 184, 0.05) 100%);
+  --mesh-1: rgba(255, 255, 255, 0.24);
+  --mesh-2: rgba(122, 61, 255, 0.55);
+  --mesh-3: rgba(10, 4, 48, 0.32);
 
-  --tone-violet: #6d4aff;
-  --tone-teal: #2f9686;
-  --tone-amber: #c98332;
-  --tone-rose: #c05876;
-  --tone-violet-bg: rgba(109, 74, 255, 0.1);
-  --tone-teal-bg: rgba(47, 150, 134, 0.12);
-  --tone-amber-bg: rgba(201, 131, 50, 0.13);
-  --tone-rose-bg: rgba(192, 88, 118, 0.12);
+  --success: #0f7a52;
+  --success-bg: rgba(15, 122, 82, 0.09);
+  --success-border: rgba(15, 122, 82, 0.24);
+  --danger: #dc3b45;
+  --danger-bg: rgba(220, 59, 69, 0.09);
+  --danger-border: rgba(220, 59, 69, 0.26);
+  --danger-hover: #c9303a;
+  --warning: #a9600a;
+  --warning-bg: rgba(169, 96, 10, 0.09);
+  --warning-border: rgba(169, 96, 10, 0.24);
+  --info: #1f63ad;
+  --info-bg: rgba(31, 99, 173, 0.09);
+  --info-border: rgba(31, 99, 173, 0.24);
+
+  --tone-violet: #6135f4;
+  --tone-teal: #14877a;
+  --tone-amber: #b5792a;
+  --tone-rose: #bf4d6d;
+  --tone-violet-bg: rgba(97, 53, 244, 0.09);
+  --tone-teal-bg: rgba(20, 135, 122, 0.1);
+  --tone-amber-bg: rgba(181, 121, 42, 0.11);
+  --tone-rose-bg: rgba(191, 77, 109, 0.1);
   --chart-1: var(--tone-violet);
+  --chart-grid: rgba(15, 17, 26, 0.07);
 
-  --shadow-xs: 0 1px 2px rgba(24, 20, 40, 0.05);
-  --shadow-sm: 0 1px 2px rgba(24, 20, 40, 0.04), 0 8px 20px rgba(24, 20, 40, 0.06);
-  --shadow-md: 0 2px 8px rgba(24, 20, 40, 0.06), 0 16px 36px rgba(24, 20, 40, 0.09);
-  --shadow-lg: 0 10px 20px rgba(24, 20, 40, 0.1), 0 30px 60px rgba(24, 20, 40, 0.16);
-  --shadow-btn: 0 1px 2px rgba(109, 74, 255, 0.18);
-  --shadow-btn-hover: 0 8px 18px rgba(109, 74, 255, 0.3);
+  --overlay: rgba(14, 12, 32, 0.38);
+
+  /* Elevation. Every level pairs a tight contact shadow with a wide, very
+     soft ambient one, plus a hairline: a single blurred drop-shadow reads as
+     a smudge under a card, two reads as the card sitting on the page. */
+  --hairline: inset 0 0 0 1px rgba(15, 17, 26, 0.05);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-xs: 0 1px 2px rgba(15, 17, 26, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 17, 26, 0.05), 0 6px 16px -6px rgba(15, 17, 26, 0.1);
+  --shadow-md: 0 2px 4px rgba(15, 17, 26, 0.05), 0 14px 32px -12px rgba(15, 17, 26, 0.16);
+  --shadow-lg: 0 4px 8px rgba(15, 17, 26, 0.06), 0 32px 64px -24px rgba(15, 17, 26, 0.28);
+  --shadow-btn: 0 1px 2px rgba(15, 17, 26, 0.08);
+  --shadow-btn-hover: 0 10px 22px -10px rgba(97, 53, 244, 0.6);
+  --shadow-brand: 0 24px 48px -24px rgba(58, 27, 184, 0.6);
 
   --radius-sm: 8px;
   --radius-md: 11px;
   --radius-lg: 15px;
   --radius-xl: 22px;
 
-  --sans: "Cairo", "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
+  /* Readex Pro draws its Arabic and its Latin as one family, so a name and a
+     phone number in the same row share a weight and a rhythm instead of
+     looking like two fonts pushed together. Its counters stay open at 12-13px,
+     which is where a dense table lives. The slight negative tracking claws
+     back the width its generous default spacing costs in a six-column row. */
+  --sans: "Readex Pro", "Tajawal", "Segoe UI", system-ui, Tahoma, Arial, sans-serif;
+  --display: "Readex Pro", "Tajawal", system-ui, sans-serif;
 
-  font: 15px/1.6 var(--sans);
+  font: 15px/1.65 var(--sans);
+  letter-spacing: -0.006em;
   color-scheme: light;
   color: var(--text);
   background: var(--bg);
@@ -63,164 +141,317 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark theme. Same token names, different values -- nothing in App.css
-   needs to know which theme is active. Applied two ways: automatically when
-   the OS is in dark mode and the user hasn't chosen explicitly (the
-   `:not([data-theme="light"])` guard), and explicitly via the toggle, which
-   stamps data-theme on <html> and wins either direction. A near-black
-   background (not pure black) with surfaces a step lighter than it, the
-   accent brightened so it still has enough contrast to read on dark, and
-   shadows swapped for a subtle light-based lift since a black drop-shadow on
-   a black background is invisible. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e0d16;
-    --surface: #17151f;
-    --surface-translucent: rgba(20, 18, 27, 0.82);
-    --surface-2: #1e1c2a;
-    --surface-hover: #262432;
-    --border: #2a2836;
-    --border-strong: #3a3749;
-    --text: #a6a3b8;
-    --text-h: #f1f0f7;
-    --text-faint: #6f6c80;
-    --text-muted: #85829a;
-
-    --accent: #9c85ff;
-    --accent-hover: #ab97ff;
-    --accent-active: #b7a5ff;
-    --accent-bg: rgba(156, 133, 255, 0.16);
-    --accent-border: rgba(156, 133, 255, 0.4);
-    --accent-gradient: linear-gradient(135deg, #a98cff 0%, #7c5cff 100%);
-
-    --success: #3ecf95;
-    --success-bg: rgba(62, 207, 149, 0.14);
-    --danger: #f3707a;
-    --danger-bg: rgba(243, 112, 122, 0.14);
-    --danger-hover: #f68990;
-    --warning: #e4a24e;
-    --warning-bg: rgba(228, 162, 78, 0.14);
-
-    --tone-violet: #9c85ff;
-    --tone-teal: #3ecf95;
-    --tone-amber: #e4a24e;
-    --tone-rose: #f3708f;
-    --tone-violet-bg: rgba(156, 133, 255, 0.16);
-    --tone-teal-bg: rgba(62, 207, 149, 0.14);
-    --tone-amber-bg: rgba(228, 162, 78, 0.15);
-    --tone-rose-bg: rgba(243, 112, 143, 0.14);
-
-    --shadow-xs: 0 0 0 1px rgba(255, 255, 255, 0.03);
-    --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 36px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 30px 60px rgba(0, 0, 0, 0.55);
-    --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-btn-hover: 0 8px 18px rgba(156, 133, 255, 0.28);
-
-    color-scheme: dark;
-  }
-}
-
-/* The explicit toggle, either direction -- takes precedence over the OS
-   preference above regardless of which way it's set. */
+/* Dark theme. Same token names, different values -- nothing downstream needs
+   to know which theme is active. Surfaces step up in lightness the way they
+   step up in elevation (bg < surface < surface-2 < surface-3), because in the
+   dark a shadow can't say "closer" -- only lightness can. */
 :root[data-theme="dark"] {
-  --bg: #0e0d16;
-  --surface: #17151f;
-  --surface-translucent: rgba(20, 18, 27, 0.82);
-  --surface-2: #1e1c2a;
-  --surface-hover: #262432;
-  --border: #2a2836;
-  --border-strong: #3a3749;
-  --text: #a6a3b8;
-  --text-h: #f1f0f7;
-  --text-faint: #6f6c80;
-  --text-muted: #85829a;
+  --bg: #0a0b11;
+  --bg-deep: #06070b;
+  --surface: #12141c;
+  --surface-2: #181b25;
+  --surface-3: #20232f;
+  --surface-hover: #1c1f2a;
+  --surface-translucent: rgba(15, 17, 24, 0.72);
+  --border: #242734;
+  --border-strong: #343849;
+  --text: #a2a7bd;
+  --text-h: #f2f3f8;
+  --text-faint: #676c83;
+  --text-muted: #858aa3;
+  --text-on-accent: #ffffff;
 
-  --accent: #9c85ff;
-  --accent-hover: #ab97ff;
-  --accent-active: #b7a5ff;
-  --accent-bg: rgba(156, 133, 255, 0.16);
-  --accent-border: rgba(156, 133, 255, 0.4);
-  --accent-gradient: linear-gradient(135deg, #a98cff 0%, #7c5cff 100%);
+  --accent: #9d86ff;
+  --accent-hover: #ae9bff;
+  --accent-active: #bcadff;
+  --accent-soft: #1d1836;
+  --accent-bg: rgba(157, 134, 255, 0.14);
+  --accent-border: rgba(157, 134, 255, 0.36);
+  --accent-ring: rgba(157, 134, 255, 0.32);
+  --accent-gradient: linear-gradient(135deg, #a78fff 0%, #7a54ff 100%);
+  --accent-glow: 0 8px 24px -10px rgba(122, 84, 255, 0.8);
+
+  --brand-wash: linear-gradient(112deg, #3d2a8f 0%, #2e1d77 45%, #160d43 100%);
+  --brand-wash-soft: linear-gradient(112deg, rgba(157, 134, 255, 0.14) 0%, rgba(122, 84, 255, 0.04) 100%);
+  --mesh-1: rgba(178, 155, 255, 0.22);
+  --mesh-2: rgba(97, 53, 244, 0.5);
+  --mesh-3: rgba(0, 0, 0, 0.45);
 
   --success: #3ecf95;
-  --success-bg: rgba(62, 207, 149, 0.14);
-  --danger: #f3707a;
-  --danger-bg: rgba(243, 112, 122, 0.14);
-  --danger-hover: #f68990;
-  --warning: #e4a24e;
-  --warning-bg: rgba(228, 162, 78, 0.14);
+  --success-bg: rgba(62, 207, 149, 0.13);
+  --success-border: rgba(62, 207, 149, 0.3);
+  --danger: #f4737d;
+  --danger-bg: rgba(244, 115, 125, 0.13);
+  --danger-border: rgba(244, 115, 125, 0.3);
+  --danger-hover: #f78c94;
+  --warning: #e5a655;
+  --warning-bg: rgba(229, 166, 85, 0.13);
+  --warning-border: rgba(229, 166, 85, 0.3);
+  --info: #6cb0f5;
+  --info-bg: rgba(108, 176, 245, 0.13);
+  --info-border: rgba(108, 176, 245, 0.3);
 
-  --tone-violet: #9c85ff;
+  --tone-violet: #9d86ff;
   --tone-teal: #3ecf95;
-  --tone-amber: #e4a24e;
-  --tone-rose: #f3708f;
-  --tone-violet-bg: rgba(156, 133, 255, 0.16);
-  --tone-teal-bg: rgba(62, 207, 149, 0.14);
-  --tone-amber-bg: rgba(228, 162, 78, 0.15);
-  --tone-rose-bg: rgba(243, 112, 143, 0.14);
+  --tone-amber: #e5a655;
+  --tone-rose: #f4738f;
+  --tone-violet-bg: rgba(157, 134, 255, 0.14);
+  --tone-teal-bg: rgba(62, 207, 149, 0.13);
+  --tone-amber-bg: rgba(229, 166, 85, 0.13);
+  --tone-rose-bg: rgba(244, 115, 143, 0.13);
+  --chart-grid: rgba(255, 255, 255, 0.07);
 
-  --shadow-xs: 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 36px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 30px 60px rgba(0, 0, 0, 0.55);
-  --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-btn-hover: 0 8px 18px rgba(156, 133, 255, 0.28);
+  --overlay: rgba(3, 4, 9, 0.62);
+
+  --hairline: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 16px -6px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 32px -12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.5), 0 32px 64px -24px rgba(0, 0, 0, 0.75);
+  --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-btn-hover: 0 10px 22px -10px rgba(122, 84, 255, 0.7);
+  --shadow-brand: 0 24px 48px -24px rgba(0, 0, 0, 0.8);
 
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
+/* Tailwind's token table, wired to the CSS variables above rather than to
+   fixed hexes. `inline` matters: it makes `bg-surface` compile to
+   `var(--surface)` at use-site, so flipping data-theme re-colours every
+   utility in the app without generating a second copy of the stylesheet. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hover: var(--surface-hover);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+
+  --color-fg: var(--text);
+  --color-heading: var(--text-h);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-on-brand: var(--text-on-accent);
+
+  --color-brand: var(--accent);
+  --color-brand-hover: var(--accent-hover);
+  --color-brand-active: var(--accent-active);
+  --color-brand-soft: var(--accent-soft);
+  --color-brand-bg: var(--accent-bg);
+  --color-brand-border: var(--accent-border);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  --color-violet: var(--tone-violet);
+  --color-violet-bg: var(--tone-violet-bg);
+  --color-teal: var(--tone-teal);
+  --color-teal-bg: var(--tone-teal-bg);
+  --color-amber: var(--tone-amber);
+  --color-amber-bg: var(--tone-amber-bg);
+  --color-rose: var(--tone-rose);
+  --color-rose-bg: var(--tone-rose-bg);
+  --color-grid: var(--chart-grid);
+
+  --color-overlay: var(--overlay);
+
+  --radius-card: var(--radius-lg);
+  --radius-panel: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-brand: var(--shadow-brand);
+  --shadow-glow: var(--accent-glow);
+
+  --font-sans: var(--sans);
+  --font-display: var(--display);
+
+  --animate-fade-in: fade-in 0.16s ease-out;
+  --animate-pop-in: pop-in 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-slide-start: slide-start 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-rise: rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-grow-x: grow-x 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-grow-y: grow-y 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-draw: draw 0.9s ease-out backwards;
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  transition: background-color 0.2s ease;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
-#root {
-  min-height: 100svh;
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
 }
 
-h1,
-h2,
-h3 {
-  color: var(--text-h);
-  font-weight: 700;
-  margin: 0;
+/* "start" rather than "right": the app is RTL, so a panel that flies in from
+   the inline-start edge has to follow the writing direction, not a side. */
+@keyframes slide-start {
+  from {
+    opacity: 0.4;
+    transform: translateX(var(--slide-from, 100%));
+  }
 }
 
-::selection {
-  background: var(--accent);
-  color: #fff;
+@keyframes shimmer {
+  50% {
+    opacity: 0.45;
+  }
 }
 
-/* Scrollbars — thin, tinted to match the neutral palette */
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+/* Entrance for cards and rows: a short rise, staggered by index, so a screen
+   assembles itself top-down instead of appearing all at once. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
 }
 
-*::-webkit-scrollbar-track {
-  background: transparent;
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
 }
 
-*::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+@keyframes draw {
+  from {
+    stroke-dashoffset: var(--draw-length, 400);
+  }
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-faint);
-  background-clip: content-box;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    transition: background-color 0.2s ease;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    color: var(--text-h);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* Scrollbars -- thin, tinted to match the neutral palette */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-faint);
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Migration bridge.
+     The screens still rendering App.css own their page padding and max width,
+     which the old shell relied on. The new shell supplies both, so inside it
+     the legacy wrapper has to stand down or every un-migrated screen gets
+     double padding. Deletable the day the last screen moves over. */
+  [data-ui] .page {
+    padding: 0;
+    max-width: none;
+  }
+
+  /* A screen embedded as a section of a hub (settings, reports) already has
+     its name in the hub's card header and in the side rail. Its own title is
+     dropped, but not its subtitle -- several of them explain rules the user
+     needs at that moment, which the one-line section label can't carry. */
+  [data-ui] .embedded-page .page-header-title {
+    display: none;
+  }
+
+  [data-ui] .embedded-page .page-header {
+    margin-block-start: 0;
+  }
+
+  /* Grain. A wide flat gradient bands on a cheap panel and looks plasticky on
+     a good one; a few percent of noise over it is what keeps a large colour
+     field looking like a printed surface. Applied as a pseudo-element so the
+     element underneath keeps its own background. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+  }
+
+  /* Stagger helper: `--i` on the element picks its slot in the sequence. */
+  .stagger {
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }
 }
