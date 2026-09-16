@@ -8,7 +8,7 @@
  *
  * A clinic delivered per client may also want a different locale entirely, so
  * this is the single place to change it. */
-export const LOCALE = "ar-JO";
+export const LOCALE = "ar-JO-u-nu-latn";
 
 /** Every formatter below takes an optional trailing IANA zone name
  * ("Asia/Amman"). Omitted, `Intl` falls back to the browser's own zone --
@@ -81,4 +81,25 @@ export function formatDateTimeShort(iso: string | Date, timeZone?: TimeZoneOpt):
  * fetch of its own. */
 export function branchTimeZoneMap(branches: { id: string; timezone: string }[]): Record<string, string> {
   return Object.fromEntries(branches.map((b) => [b.id, b.timezone]));
+}
+
+
+/** Counts, quantities and percentages -- grouped, never fractional unless
+ * asked. Goes through the same locale as the dates so the whole UI numbers
+ * itself one way. */
+export function formatNumber(value: number, options: Intl.NumberFormatOptions = {}) {
+  return value.toLocaleString(LOCALE, { maximumFractionDigits: 2, ...options });
+}
+
+/** The figure alone, for places that render the currency separately. */
+export function formatAmount(amount: number) {
+  return formatNumber(amount, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+/** An amount with its currency, as the clinic stores it. The currency is a
+ * free-text code on the record (د.أ, JOD, ...), not an ISO code Intl could
+ * format, so it is appended rather than passed as a currency style. */
+export function formatMoney(amount: number, currency?: string | null) {
+  const n = formatNumber(amount, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return currency ? `${n} ${currency}` : n;
 }

@@ -285,3 +285,23 @@ export const recallReasonLabel: Record<Recall["reason_type"], string> = {
   vaccination: "مطعوم",
   periodic_checkup: "فحص دوري",
 };
+
+/* --- Tones for the redesigned screens -------------------------------------
+   The legacy tables render statuses through `statusBadgeClass` ("active",
+   "warning"...), which are App.css class names. The ui kit's Badge takes a
+   semantic tone instead, so the two vocabularies are mapped here once rather
+   than re-judged per screen -- a status must never read as success on one
+   table and neutral on the next. */
+
+import type { BadgeTone } from "./ui";
+
+const CLASS_TO_TONE: Record<string, BadgeTone> = {
+  active: "success",
+  warning: "warning",
+  danger: "danger",
+  inactive: "neutral",
+};
+
+export const statusTone: Record<AppointmentStatus, BadgeTone> = Object.fromEntries(
+  Object.entries(statusBadgeClass).map(([status, cls]) => [status, CLASS_TO_TONE[cls] ?? "neutral"]),
+) as Record<AppointmentStatus, BadgeTone>;
