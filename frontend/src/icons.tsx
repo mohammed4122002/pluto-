@@ -242,3 +242,165 @@ export function MoonIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/* --- Added with the redesign: the controls the new shell and the ui kit
+   needed (chrome, row actions, trend markers) that the original set, built
+   around nav entries, never had. --- */
+
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+export function ChevronDownIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+export function ChevronStartIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m15 6-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function ChevronEndIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+export function LogoutIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+      <path d="m15 8 4 4-4 4" />
+      <path d="M19 12H9" />
+    </svg>
+  );
+}
+
+export function BellIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
+      <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+    </svg>
+  );
+}
+
+export function FilterIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 5h16l-6.5 7.5V19l-3 2v-8.5z" />
+    </svg>
+  );
+}
+
+export function ClockIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 1.8" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m5 13 4 4L19 7" />
+    </svg>
+  );
+}
+
+export function CheckCircleIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </svg>
+  );
+}
+
+export function XCircleIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m9.5 9.5 5 5M14.5 9.5l-5 5" />
+    </svg>
+  );
+}
+
+export function TrendUpIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m4 16 5-5 3.5 3.5L20 7" />
+      <path d="M15 7h5v5" />
+    </svg>
+  );
+}
+
+export function WalletIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 8a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2" />
+      <path d="M4 8v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+      <path d="M20 11h-4a1.5 1.5 0 0 0 0 3h4z" />
+    </svg>
+  );
+}
+
+export function ReceiptIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 3.5h12v17l-2.5-1.6-2.5 1.6-2.5-1.6L8 20.5 6 20.5z" />
+      <path d="M9.5 8.5h5M9.5 12.5h5" />
+    </svg>
+  );
+}
+
+export function EditIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" />
+      <path d="m14.5 6.5 3 3" />
+    </svg>
+  );
+}
+
+export function RefreshIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M20 12a8 8 0 1 1-2.6-5.9" />
+      <path d="M20 4v4h-4" />
+    </svg>
+  );
+}
+
+export function PhoneIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6.5 4h3l1.5 4-2 1.5a11 11 0 0 0 5.5 5.5l1.5-2 4 1.5v3a1.5 1.5 0 0 1-1.6 1.5C11.6 18.5 5.5 12.4 5 6.1A1.5 1.5 0 0 1 6.5 4" />
+    </svg>
+  );
+}
+
+export function SidebarIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M14.5 4.5v15" />
+    </svg>
+  );
+}

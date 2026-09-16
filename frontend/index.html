@@ -15,13 +15,18 @@
       // Applied before first paint so a stored preference doesn't flash the
       // wrong theme for a frame -- an inline <script> in <head> blocks
       // rendering until it runs, same trick every dark-mode-capable site
-      // uses. No preference stored means no attribute set, which leaves
-      // index.css's prefers-color-scheme media query to decide.
+      // uses. The resolved theme is always stamped, even when it just
+      // mirrors the OS: the stylesheet's `dark:` variant keys off the
+      // attribute, so "no attribute" must never be a state the app renders in.
       (function () {
         var saved = localStorage.getItem("pluto_theme");
-        if (saved === "light" || saved === "dark") {
-          document.documentElement.setAttribute("data-theme", saved);
-        }
+        var theme =
+          saved === "light" || saved === "dark"
+            ? saved
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.setAttribute("data-theme", theme);
       })();
     </script>
   </head>

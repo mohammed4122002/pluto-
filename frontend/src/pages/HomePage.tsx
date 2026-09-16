@@ -15,8 +15,35 @@ import { getDashboardReport } from "../api/reports";
 import type { DashboardReport } from "../api/reports";
 import { BarChart, Donut, Funnel, Heatmap, Meter, RankedList, Sparkline } from "../components/Charts";
 import type { DonutSlice, HeatmapCell } from "../components/Charts";
-import { bookingSourceLabel, bucketLabel, statusBadgeClass, statusBucket, statusLabel } from "../statusLabels";
+import { bookingSourceLabel, bucketLabel, statusBucket, statusLabel, statusTone } from "../statusLabels";
 import { branchTimeZoneMap, formatDayMonth, formatFullDate, formatTime } from "../format";
+import {
+  AiIcon,
+  AppointmentIcon,
+  CheckCircleIcon,
+  InboxIcon,
+  PackageIcon,
+  PatientIcon,
+  PaymentIcon,
+  QueueIcon,
+  WaitlistIcon,
+  WalletIcon,
+} from "../icons";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  PageBody,
+  PageHeader,
+  SegmentedControl,
+  Select,
+  Skeleton,
+  StatCard,
+  StatGrid,
+  cn,
+} from "../ui";
 
 type HomePageProps = {
   staffName: string;
@@ -24,13 +51,13 @@ type HomePageProps = {
 };
 
 const QUICK_LINKS = [
-  { key: "inbox", label: "المحادثات" },
-  { key: "appointments", label: "المواعيد" },
-  { key: "calendar", label: "التقويم" },
-  { key: "payments", label: "المدفوعات" },
-  { key: "patients", label: "المرضى" },
-  { key: "queue", label: "الطابور والانتظار" },
-  { key: "alerts", label: "كل التنبيهات" },
+  { key: "inbox", label: "المحادثات", Icon: InboxIcon },
+  { key: "appointments", label: "المواعيد", Icon: AppointmentIcon },
+  { key: "calendar", label: "التقويم", Icon: AppointmentIcon },
+  { key: "payments", label: "المدفوعات", Icon: PaymentIcon },
+  { key: "patients", label: "المرضى", Icon: PatientIcon },
+  { key: "queue", label: "الطابور والانتظار", Icon: QueueIcon },
+  { key: "alerts", label: "كل التنبيهات", Icon: AiIcon },
 ];
 
 const TREND_DAYS = 7;
@@ -43,10 +70,10 @@ const HEATMAP_DAY_ORDER = [6, 0, 1, 2, 3, 4, 5];
 const HEATMAP_DAY_LABELS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
 const PERIODS = [
-  { key: 7, label: "٧ أيام" },
-  { key: 30, label: "٣٠ يوم" },
-  { key: 90, label: "٩٠ يوم" },
-];
+  { key: "7", label: "٧ أيام" },
+  { key: "30", label: "٣٠ يوم" },
+  { key: "90", label: "٩٠ يوم" },
+] as const;
 
 function dayKey(d: Date) {
   // Local calendar day. toISOString() would shift across midnight in Amman.
@@ -57,55 +84,19 @@ function clockTime(iso: string, timeZone?: string) {
   return formatTime(iso, timeZone);
 }
 
-/** Icons are inline so the dashboard adds no network requests and the strokes
- *  inherit currentColor along with the card's accent. */
-function Icon({ name }: { name: "calendar" | "wallet" | "chat" | "package" | "check" | "userAlert" }) {
-  const paths: Record<string, ReactNode> = {
-    calendar: (
-      <>
-        <rect x="3" y="4.5" width="14" height="12.5" rx="2.5" />
-        <path d="M3 8.5h14M6.5 2.5v3M13.5 2.5v3" />
-      </>
-    ),
-    wallet: (
-      <>
-        <rect x="2.5" y="5" width="15" height="11" rx="2.5" />
-        <path d="M2.5 9h15M13 12.5h1.5" />
-      </>
-    ),
-    chat: <path d="M17 10.5c0 3.3-3.1 6-7 6-.9 0-1.8-.1-2.6-.4L3 17.5l1.3-3.2A5.7 5.7 0 0 1 3 10.5c0-3.3 3.1-6 7-6s7 2.7 7 6Z" />,
-    package: (
-      <>
-        <path d="M10 2.8 17 6.4v7.2L10 17.2 3 13.6V6.4l7-3.6Z" />
-        <path d="M3 6.4 10 10l7-3.6M10 10v7.2" />
-      </>
-    ),
-    check: (
-      <>
-        <circle cx="10" cy="10" r="7.3" />
-        <path d="M6.8 10.2 8.9 12.3 13.3 7.7" />
-      </>
-    ),
-    userAlert: (
-      <>
-        <circle cx="8.2" cy="6.8" r="3" />
-        <path d="M2.8 17c.4-3.4 2.8-5.2 5.4-5.2 1 0 1.9.25 2.7.7" />
-        <circle cx="15" cy="14" r="3.6" />
-        <path d="M15 12.2v2.1" />
-        <circle cx="15" cy="16.3" r=".15" fill="currentColor" stroke="none" />
-      </>
-    ),
-  };
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {paths[name]}
-    </svg>
-  );
-}
-
 /** Up/down/flat vs. the same-length period right before this one. null when
  *  there's nothing honest to compare against (no prior data at all). */
-function KpiDelta({ curr, prev, invert = false, isPoints = false }: { curr: number; prev: number | null; invert?: boolean; isPoints?: boolean }) {
+function KpiDelta({
+  curr,
+  prev,
+  invert = false,
+  isPoints = false,
+}: {
+  curr: number;
+  prev: number | null;
+  invert?: boolean;
+  isPoints?: boolean;
+}) {
   if (prev === null) return null;
   let dir: "up" | "down" | "flat";
   let text: string;
@@ -132,8 +123,11 @@ function KpiDelta({ curr, prev, invert = false, isPoints = false }: { curr: numb
       text = `${pct > 0 ? "+" : ""}${pct}%`;
     }
   }
+  // More bookings is good; more no-shows is not. `invert` is what tells the
+  // two apart -- the arrow direction alone can't.
   const good = dir === "flat" ? null : invert ? dir === "down" : dir === "up";
-  const cls = dir === "flat" ? "flat" : good ? "positive" : "negative";
+  const tone =
+    good === null ? "bg-surface-2 text-muted" : good ? "bg-success-bg text-success" : "bg-danger-bg text-danger";
   const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "–";
   return (
     // dir="ltr": an arrow glued to a number ("▲ +12%") has no strong RTL
@@ -142,38 +136,13 @@ function KpiDelta({ curr, prev, invert = false, isPoints = false }: { curr: numb
     // for what was written as "– 0%". Isolating it in LTR keeps the arrow
     // where it was typed regardless of where the badge itself sits in the
     // surrounding RTL layout.
-    <span className={`kpi-delta ${cls}`} dir="ltr" title="مقارنة بنفس طول الفترة السابقة">
+    <span
+      className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-bold", tone)}
+      dir="ltr"
+      title="مقارنة بنفس طول الفترة السابقة"
+    >
       {arrow} {text}
     </span>
-  );
-}
-
-type KpiProps = {
-  icon: "calendar" | "wallet" | "chat" | "package" | "check" | "userAlert";
-  tone: "violet" | "teal" | "amber" | "rose";
-  value: ReactNode;
-  label: string;
-  hint?: string;
-  trend?: number[];
-  delta?: ReactNode;
-  onClick: () => void;
-  delay: number;
-};
-
-function KpiCard({ icon, tone, value, label, hint, trend, delta, onClick, delay }: KpiProps) {
-  return (
-    <button className={`kpi-card tone-${tone}`} onClick={onClick} style={{ animationDelay: `${delay}ms` }}>
-      <span className="kpi-card-top">
-        <span className="kpi-icon">
-          <Icon name={icon} />
-        </span>
-        {delta}
-      </span>
-      <span className="kpi-value">{value}</span>
-      <span className="kpi-label">{label}</span>
-      {trend && trend.length > 1 && <Sparkline values={trend} color={`var(--tone-${tone})`} label={`${label}: اتجاه آخر ${TREND_DAYS} أيام`} />}
-      {hint && <span className="kpi-hint">{hint}</span>}
-    </button>
   );
 }
 
@@ -188,6 +157,43 @@ function periodWindow(days: number) {
     prev_date_from: prevFrom.toISOString(),
     prev_date_to: prevTo.toISOString(),
   };
+}
+
+/** One number from the live strip: what is happening in the clinic right now,
+ *  as opposed to the period KPIs above it. Each one is the filter it
+ *  describes, so "3 دفعات بانتظار المراجعة" is also the way to go review them. */
+function LiveTile({
+  value,
+  label,
+  icon,
+  onClick,
+  loading,
+}: {
+  value: ReactNode;
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-w-[9rem] flex-1 cursor-pointer appearance-none items-center gap-3 rounded-xl border-0 bg-transparent p-3 text-start font-sans transition hover:bg-surface-2"
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-bg text-brand [&_svg]:size-[18px]">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        {loading ? (
+          <Skeleton className="h-5 w-10" />
+        ) : (
+          <span className="block text-lg leading-6 font-extrabold text-heading tabular-nums">{value}</span>
+        )}
+        <span className="block truncate text-xs text-muted">{label}</span>
+      </span>
+    </button>
+  );
 }
 
 export function HomePage({ staffName, onNavigate }: HomePageProps) {
@@ -303,9 +309,12 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
   const loading = appointments === null;
   const inClinicNow = today.filter((a) => statusBucket(a.status) === "inClinic").length;
 
-  const money = (amount: number) => `${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${report?.financial.currency ?? ""}`.trim();
+  const money = (amount: number) =>
+    `${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${report?.financial.currency ?? ""}`.trim();
 
-  const aiResolved = report ? Math.max(report.ai_chat.total_conversations - report.ai_chat.escalated_to_human - report.ai_chat.provider_failures, 0) : 0;
+  const aiResolved = report
+    ? Math.max(report.ai_chat.total_conversations - report.ai_chat.escalated_to_human - report.ai_chat.provider_failures, 0)
+    : 0;
   const aiChatSlices: DonutSlice[] = report
     ? [
         { label: "تم حلها بالذكاء الاصطناعي", value: aiResolved, color: "var(--tone-teal)" },
@@ -323,7 +332,9 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
         { label: "رسوم إلغاء", value: report.financial.cancellation_fees, color: "var(--tone-amber)" },
       ]
     : [];
-  const revenueTotal = report ? report.financial.revenue + report.financial.deposits + report.financial.cancellation_fees : 0;
+  const revenueTotal = report
+    ? report.financial.revenue + report.financial.deposits + report.financial.cancellation_fees
+    : 0;
 
   const topDoctors = report
     ? [...report.utilization.occupancy_by_doctor]
@@ -353,267 +364,342 @@ export function HomePage({ staffName, onNavigate }: HomePageProps) {
     ? report.demand_heatmap.map((c) => ({ day: HEATMAP_DAY_ORDER.indexOf(c.day_of_week), hour: c.hour, count: c.count }))
     : [];
 
+  const trend = week.map((d) => d.value);
+
   return (
-    <div className="page dashboard">
-      <div className="page-header">
-        <div>
-          <p className="page-header-title">
-            {greeting}، {staffName}
-          </p>
-          <p className="page-header-subtitle">{formatFullDate(new Date(), defaultTz)}</p>
-        </div>
-        <div className="dash-filters">
-          <div className="period-pills">
-            {PERIODS.map((p) => (
-              <button
-                key={p.key}
-                className={periodDays === p.key ? "period-pill active" : "period-pill"}
-                onClick={() => setPeriodDays(p.key)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+    <PageBody>
+      <PageHeader title={`${greeting}، ${staffName}`} description={formatFullDate(new Date(), defaultTz)}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl
+            items={PERIODS.map((p) => ({ key: p.key, label: p.label }))}
+            value={String(periodDays)}
+            onChange={(key) => setPeriodDays(Number(key))}
+            onBrand
+          />
           {branches.length > 1 && (
-            <select className="branch-select" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+            <Select
+              className="h-9 w-48 border-white/25 bg-white/12 text-white [&>option]:text-heading"
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              aria-label="الفرع"
+            >
               <option value="">كل الفروع</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
         </div>
-      </div>
+      </PageHeader>
 
-      {report && (
-        <div className={reportLoading ? "kpi-grid loading" : "kpi-grid"}>
-          <KpiCard
-            icon="wallet"
-            tone="teal"
-            value={money(report.financial.revenue)}
-            label="الإيرادات"
-            delta={<KpiDelta curr={report.financial.revenue} prev={prevReport?.financial.revenue ?? null} />}
-            onClick={() => onNavigate("payments")}
-            delay={0}
-          />
-          <KpiCard
-            icon="chat"
-            tone="violet"
-            value={report.ai_chat.total_conversations}
-            label="المحادثات"
-            delta={<KpiDelta curr={report.ai_chat.total_conversations} prev={prevReport?.ai_chat.total_conversations ?? null} />}
-            onClick={() => onNavigate("inbox")}
-            delay={60}
-          />
-          <KpiCard
-            icon="userAlert"
-            tone="rose"
-            value={`${report.appointments.no_show_rate}%`}
-            label="معدل عدم الحضور"
-            delta={<KpiDelta curr={report.appointments.no_show_rate} prev={prevReport?.appointments.no_show_rate ?? null} invert isPoints />}
-            onClick={() => onNavigate("appointments")}
-            delay={120}
-          />
-          <KpiCard
-            icon="check"
-            tone="teal"
-            value={report.appointments.confirmed}
-            label="الحجوزات المؤكدة"
-            delta={<KpiDelta curr={report.appointments.confirmed} prev={prevReport?.appointments.confirmed ?? null} />}
-            onClick={() => onNavigate("appointments")}
-            delay={180}
-          />
-          <KpiCard
-            icon="calendar"
-            tone="violet"
-            value={report.appointments.total}
-            label="إجمالي الحجوزات"
-            delta={<KpiDelta curr={report.appointments.total} prev={prevReport?.appointments.total ?? null} />}
-            onClick={() => onNavigate("appointments")}
-            delay={240}
-          />
-        </div>
-      )}
+      <StatGrid className="xl:grid-cols-5">
+        <StatCard
+          label="الإيرادات"
+          value={report ? money(report.financial.revenue) : "—"}
+          icon={<WalletIcon />}
+          tone="teal"
+          loading={reportLoading}
+          delta={report && <KpiDelta curr={report.financial.revenue} prev={prevReport?.financial.revenue ?? null} />}
+          onClick={() => onNavigate("payments")}
+        />
+        <StatCard
+          label="المحادثات"
+          value={report?.ai_chat.total_conversations ?? "—"}
+          icon={<InboxIcon />}
+          tone="brand"
+          loading={reportLoading}
+          delta={
+            report && (
+              <KpiDelta
+                curr={report.ai_chat.total_conversations}
+                prev={prevReport?.ai_chat.total_conversations ?? null}
+              />
+            )
+          }
+          onClick={() => onNavigate("inbox")}
+        />
+        <StatCard
+          label="معدل عدم الحضور"
+          value={report ? `${report.appointments.no_show_rate}%` : "—"}
+          icon={<PatientIcon />}
+          tone="rose"
+          loading={reportLoading}
+          delta={
+            report && (
+              <KpiDelta
+                curr={report.appointments.no_show_rate}
+                prev={prevReport?.appointments.no_show_rate ?? null}
+                invert
+                isPoints
+              />
+            )
+          }
+          onClick={() => onNavigate("appointments")}
+        />
+        <StatCard
+          label="الحجوزات المؤكدة"
+          value={report?.appointments.confirmed ?? "—"}
+          icon={<CheckCircleIcon />}
+          tone="amber"
+          loading={reportLoading}
+          delta={
+            report && (
+              <KpiDelta curr={report.appointments.confirmed} prev={prevReport?.appointments.confirmed ?? null} />
+            )
+          }
+          onClick={() => onNavigate("appointments")}
+        />
+        <StatCard
+          label="إجمالي الحجوزات"
+          value={report?.appointments.total ?? "—"}
+          icon={<AppointmentIcon />}
+          tone="brand"
+          loading={reportLoading}
+          delta={
+            report && <KpiDelta curr={report.appointments.total} prev={prevReport?.appointments.total ?? null} />
+          }
+          chart={
+            trend.length > 1 ? (
+              <Sparkline values={trend} color="var(--tone-violet)" label={`إجمالي الحجوزات: اتجاه آخر ${TREND_DAYS} أيام`} />
+            ) : undefined
+          }
+          onClick={() => onNavigate("appointments")}
+        />
+      </StatGrid>
 
-      <div className="live-strip">
-        <button className="live-item" onClick={() => onNavigate("appointments")}>
-          <span className="live-value">{inClinicNow}</span>
-          <span className="live-label">مريض داخل العيادة الآن</span>
-        </button>
-        {attention !== null && (
-          <button className="live-item" onClick={() => onNavigate("inbox")}>
-            <span className="live-value">{attention}</span>
-            <span className="live-label">محادثات محتاجة موظف</span>
-          </button>
-        )}
-        {pendingPayments !== null && (
-          <button className="live-item" onClick={() => onNavigate("payments")}>
-            <span className="live-value">{pendingPayments}</span>
-            <span className="live-label">دفعات بانتظار المراجعة</span>
-          </button>
-        )}
-        {report && (
-          <button className="live-item" onClick={() => onNavigate("waitlist")}>
-            <span className="live-value">{report.waitlist.current_count}</span>
-            <span className="live-label">بقائمة الانتظار</span>
-          </button>
-        )}
-        {expiringPackages !== null && (
-          <button className="live-item" onClick={() => onNavigate("packages")}>
-            <span className="live-value">{expiringPackages}</span>
-            <span className="live-label">باقات قاربت على الانتهاء</span>
-          </button>
-        )}
-      </div>
-
-      {report && (
-        <div className="dash-triple">
-          <section className="dash-card" style={{ animationDelay: "300ms" }}>
-            <header className="dash-card-header">
-              <h2>قمع الحجوزات</h2>
-              <span className="dash-card-note">آخر {periodDays} يوم</span>
-            </header>
-            <Funnel
-              stages={[
-                { label: "محادثات", value: report.ai_chat.total_conversations },
-                { label: "حجوزات بدأت", value: report.appointments.total },
-                { label: "حجوزات مؤكدة", value: report.appointments.confirmed },
-                { label: "حجوزات مكتملة", value: report.appointments.completed },
-              ]}
+      <Card padded={false} className="px-2 py-1">
+        <div className="flex flex-wrap items-stretch divide-line sm:divide-x sm:divide-x-reverse">
+          <LiveTile
+            value={inClinicNow}
+            label="مريض داخل العيادة الآن"
+            icon={<QueueIcon />}
+            loading={loading}
+            onClick={() => onNavigate("appointments")}
+          />
+          {attention !== null && (
+            <LiveTile
+              value={attention}
+              label="محادثات محتاجة موظف"
+              icon={<InboxIcon />}
+              onClick={() => onNavigate("inbox")}
             />
-          </section>
-
-          <section className="dash-card" style={{ animationDelay: "340ms" }}>
-            <header className="dash-card-header">
-              <h2>أداء المساعد الذكي</h2>
-            </header>
-            <Donut slices={aiChatSlices} centerValue={report.ai_chat.total_conversations ? Math.round((aiResolved / report.ai_chat.total_conversations) * 100) : 0} centerLabel="% تلقائي" />
-          </section>
-
-          <section className="dash-card" style={{ animationDelay: "380ms" }}>
-            <header className="dash-card-header">
-              <h2>مصادر الحجز</h2>
-            </header>
-            <RankedList items={bookingSources} color="var(--tone-violet)" emptyText="ما في حجوزات بهذه الفترة." />
-          </section>
-        </div>
-      )}
-
-      {report && (
-        <div className="dash-split">
-          <section className="dash-card" style={{ animationDelay: "420ms" }}>
-            <header className="dash-card-header">
-              <h2>أعلى الأطباء إشغالاً</h2>
-              <span className="dash-card-note">حسب المواعيد المحجوزة بالفترة</span>
-            </header>
-            <RankedList items={topDoctors} color="var(--tone-teal)" emptyText="ما في بيانات إشغال بهذه الفترة." />
-          </section>
-
-          <section className="dash-card" style={{ animationDelay: "460ms" }}>
-            <header className="dash-card-header">
-              <h2>الخدمات الأكثر طلباً</h2>
-            </header>
-            <RankedList items={topServices} color="var(--tone-amber)" emptyText="ما في حجوزات بهذه الفترة." />
-          </section>
-        </div>
-      )}
-
-      {report && (
-        <div className="dash-split">
-          <section className="dash-card" style={{ animationDelay: "500ms" }}>
-            <header className="dash-card-header">
-              <h2>تفصيل الإيرادات</h2>
-              <span className="dash-card-note">بعملة {report.financial.currency}</span>
-            </header>
-            <Donut slices={revenueSlices} centerValue={revenueTotal} centerLabel={report.financial.currency} />
-            {report.financial.refunds > 0 && (
-              <p className="revenue-refund-note">استُرجع {money(report.financial.refunds)} خلال هذه الفترة.</p>
-            )}
-          </section>
-
-          <section className="dash-card" style={{ animationDelay: "540ms" }}>
-            <header className="dash-card-header">
-              <h2>المعدلات</h2>
-            </header>
-            <Meter
-              label="معدل التأكيد"
-              percent={report.appointments.confirmation_rate}
-              note={`${report.appointments.confirmed} موعد مؤكد من ${report.appointments.total}`}
-            />
-            <Meter label="معدل عدم الحضور" percent={report.appointments.no_show_rate} invert />
-            <Meter label="معدل إعادة الجدولة" percent={report.appointments.rescheduling_rate} invert color="var(--tone-amber)" />
-          </section>
-        </div>
-      )}
-
-      {report && (
-        <section className="dash-card" style={{ animationDelay: "580ms" }}>
-          <header className="dash-card-header">
-            <h2>أفضل أوقات الحجز</h2>
-            <span className="dash-card-note">كثافة الطلب حسب اليوم والساعة</span>
-          </header>
-          <Heatmap cells={heatmapCells} dayLabels={HEATMAP_DAY_LABELS} emptyText="ما في بيانات كافية لعرض الخريطة الحرارية." />
-        </section>
-      )}
-
-      <div className="dash-split">
-        <section className="dash-card" style={{ animationDelay: "620ms" }}>
-          <header className="dash-card-header">
-            <h2>حركة المواعيد</h2>
-            <span className="dash-card-note">آخر {TREND_DAYS} أيام</span>
-          </header>
-          <BarChart data={week} emptyText="ما في مواعيد مسجّلة بهذه الفترة." />
-        </section>
-
-        <section className="dash-card" style={{ animationDelay: "660ms" }}>
-          <header className="dash-card-header">
-            <h2>حالات مواعيد اليوم</h2>
-          </header>
-          <Donut slices={donutSlices} centerValue={today.length} centerLabel="موعد" />
-        </section>
-      </div>
-
-      <section className="dash-card" style={{ animationDelay: "700ms" }}>
-        <header className="dash-card-header">
-          <h2>جدول اليوم</h2>
-          {today.length > 0 && (
-            <button className="link-button" onClick={() => onNavigate("appointments")}>
-              عرض الكل
-            </button>
           )}
-        </header>
+          {pendingPayments !== null && (
+            <LiveTile
+              value={pendingPayments}
+              label="دفعات بانتظار المراجعة"
+              icon={<PaymentIcon />}
+              onClick={() => onNavigate("payments")}
+            />
+          )}
+          {report && (
+            <LiveTile
+              value={report.waitlist.current_count}
+              label="بقائمة الانتظار"
+              icon={<WaitlistIcon />}
+              onClick={() => onNavigate("waitlist")}
+            />
+          )}
+          {expiringPackages !== null && (
+            <LiveTile
+              value={expiringPackages}
+              label="باقات قاربت على الانتهاء"
+              icon={<PackageIcon />}
+              onClick={() => onNavigate("packages")}
+            />
+          )}
+        </div>
+      </Card>
+
+      {report && (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <Card>
+            <CardHeader title="قمع الحجوزات" subtitle={`آخر ${periodDays} يوم`} />
+            <div className="mt-4">
+              <Funnel
+                stages={[
+                  { label: "محادثات", value: report.ai_chat.total_conversations },
+                  { label: "حجوزات بدأت", value: report.appointments.total },
+                  { label: "حجوزات مؤكدة", value: report.appointments.confirmed },
+                  { label: "حجوزات مكتملة", value: report.appointments.completed },
+                ]}
+              />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="أداء المساعد الذكي" subtitle="نسبة ما حُل تلقائياً" />
+            <div className="mt-4">
+              <Donut
+                slices={aiChatSlices}
+                centerValue={
+                  report.ai_chat.total_conversations
+                    ? Math.round((aiResolved / report.ai_chat.total_conversations) * 100)
+                    : 0
+                }
+                centerLabel="% تلقائي"
+              />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="مصادر الحجز" />
+            <div className="mt-4">
+              <RankedList items={bookingSources} color="var(--tone-violet)" emptyText="ما في حجوزات بهذه الفترة." />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {report && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader title="أعلى الأطباء إشغالاً" subtitle="حسب المواعيد المحجوزة بالفترة" />
+            <div className="mt-4">
+              <RankedList items={topDoctors} color="var(--tone-teal)" emptyText="ما في بيانات إشغال بهذه الفترة." />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="الخدمات الأكثر طلباً" />
+            <div className="mt-4">
+              <RankedList items={topServices} color="var(--tone-amber)" emptyText="ما في حجوزات بهذه الفترة." />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {report && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader title="تفصيل الإيرادات" subtitle={`بعملة ${report.financial.currency}`} />
+            <div className="mt-4">
+              <Donut slices={revenueSlices} centerValue={revenueTotal} centerLabel={report.financial.currency} />
+              {report.financial.refunds > 0 && (
+                <p className="mt-3 text-center text-[13px] text-muted">
+                  استُرجع {money(report.financial.refunds)} خلال هذه الفترة.
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="المعدلات" subtitle="مقارنة بأهداف العيادة" />
+            <div className="mt-4">
+              <Meter
+                label="معدل التأكيد"
+                percent={report.appointments.confirmation_rate}
+                note={`${report.appointments.confirmed} موعد مؤكد من ${report.appointments.total}`}
+              />
+              <Meter label="معدل عدم الحضور" percent={report.appointments.no_show_rate} invert />
+              <Meter label="معدل إعادة الجدولة" percent={report.appointments.rescheduling_rate} invert color="var(--tone-amber)" />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {report && (
+        <Card>
+          <CardHeader title="أفضل أوقات الحجز" subtitle="كثافة الطلب حسب اليوم والساعة" />
+          {/* Capped: the heatmap's cells stretch to whatever width they are
+              given, and on a wide screen a full-bleed grid of 7x12 squares
+              reads as wallpaper rather than as data. */}
+          <div className="mt-4 max-w-4xl">
+            <Heatmap
+              cells={heatmapCells}
+              dayLabels={HEATMAP_DAY_LABELS}
+              emptyText="ما في بيانات كافية لعرض الخريطة الحرارية."
+            />
+          </div>
+        </Card>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="حركة المواعيد" subtitle={`آخر ${TREND_DAYS} أيام`} />
+          <div className="mt-4">
+            <BarChart data={week} emptyText="ما في مواعيد مسجّلة بهذه الفترة." />
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="حالات مواعيد اليوم" />
+          <div className="mt-4">
+            <Donut slices={donutSlices} centerValue={today.length} centerLabel="موعد" />
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader
+          title="جدول اليوم"
+          subtitle={today.length > 0 ? `${today.length} موعد` : undefined}
+          actions={
+            today.length > 0 ? (
+              <Button size="sm" onClick={() => onNavigate("appointments")}>
+                عرض الكل
+              </Button>
+            ) : undefined
+          }
+        />
         {loading ? (
-          <p className="chart-empty">...جاري التحميل</p>
+          <div className="mt-4 flex flex-col gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12" />
+            ))}
+          </div>
         ) : today.length === 0 ? (
-          <p className="chart-empty">ما في مواعيد اليوم.</p>
+          <EmptyState
+            compact
+            icon={<AppointmentIcon />}
+            title="ما في مواعيد اليوم"
+            description="يوم هادئ — أو وقت مناسب للاتصال بقائمة الانتظار."
+            action={
+              <Button size="sm" onClick={() => onNavigate("waitlist")}>
+                فتح قائمة الانتظار
+              </Button>
+            }
+          />
         ) : (
-          <ul className="agenda">
+          <ul className="mt-3 flex list-none flex-col p-0">
             {today.slice(0, 8).map((a) => (
-              <li key={a.id} className="agenda-row">
-                <span className="agenda-time">{clockTime(a.scheduled_at, branchTz[a.branch_id])}</span>
-                <span className="agenda-avatar" aria-hidden>
+              <li
+                key={a.id}
+                className="flex items-center gap-3 border-b border-line py-2.5 last:border-0"
+              >
+                <span className="w-16 shrink-0 text-[13px] font-bold text-muted tabular-nums">
+                  {clockTime(a.scheduled_at, branchTz[a.branch_id])}
+                </span>
+                <span
+                  className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-bg text-[13px] font-bold text-brand"
+                  aria-hidden="true"
+                >
                   {doctorInitial(a.staff_id)}
                 </span>
-                <span className="agenda-main">
-                  <strong>{patientName(a.patient_id)}</strong>
-                  <span className="agenda-sub">{doctorName(a.staff_id)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-heading">
+                    {patientName(a.patient_id)}
+                  </span>
+                  <span className="block truncate text-xs text-muted">{doctorName(a.staff_id)}</span>
                 </span>
-                <span className={`badge ${statusBadgeClass[a.status]}`}>{statusLabel[a.status]}</span>
+                <Badge tone={statusTone[a.status]} dot>
+                  {statusLabel[a.status]}
+                </Badge>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <div className="quick-links">
+      <div className="flex flex-wrap gap-2">
         {QUICK_LINKS.map((link) => (
-          <button key={link.key} className="quick-link" onClick={() => onNavigate(link.key)}>
+          <Button key={link.key} icon={<link.Icon className="size-4" />} onClick={() => onNavigate(link.key)}>
             {link.label}
-          </button>
+          </Button>
         ))}
       </div>
-    </div>
+    </PageBody>
   );
 }

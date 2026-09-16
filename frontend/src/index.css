@@ -1,33 +1,87 @@
+/* ---------------------------------------------------------------------------
+   Design foundation.
+
+   Layer order is the spine of the whole redesign. The app is mid-migration:
+   the new screens are built from Tailwind utilities and the `src/ui` kit,
+   while the not-yet-migrated screens still render the hand-written CSS in
+   App.css. Unlayered CSS beats *every* layered rule regardless of
+   specificity, so App.css is pulled in as a named layer below the new
+   system -- otherwise a legacy rule as plain as `button { border-radius }`
+   would quietly win over `rounded-xl` on a brand-new component.
+
+     theme    -- Tailwind's generated custom properties
+     base     -- element defaults (deliberately tiny, see below)
+     legacy   -- App.css, untouched, for screens not migrated yet
+     components -- opt-in component classes
+     utilities  -- Tailwind utilities, always last, always win
+
+   Tailwind's Preflight is deliberately NOT imported, and nothing replaces it:
+   it resets headings to inherit their size and strips list, table and form
+   defaults, which the un-migrated screens still lean on -- and any global
+   stand-in would have to sit above `legacy` in the cascade, re-setting those
+   screens from underneath App.css. The ui kit instead states what it wants on
+   each component (its own background, border, font and padding), which is
+   what makes the two systems able to share a page at all.
+   --------------------------------------------------------------------------- */
+
+@layer theme, base, legacy, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./App.css" layer(legacy);
+
+@source "./";
+
+/* The theme toggle stamps data-theme on <html> before first paint (see the
+   inline script in index.html), for both directions -- so a plain attribute
+   check is enough and no media query needs to be mirrored here. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  /* Light palette. Every surface/text/border color in the app reads from
+  /* Light palette. Every surface/text/border colour in the app reads from
      these tokens rather than a hardcoded hex, which is what makes the dark
      theme below possible without touching component CSS. */
-  --bg: #f8f7fc;
+  --bg: #f6f5fb;
+  --bg-deep: #efedf7;
   --surface: #ffffff;
-  --surface-2: #f3f1f9;
-  --surface-hover: #ecebf5;
-  --surface-translucent: rgba(255, 255, 255, 0.82);
-  --border: #e6e4f0;
-  --border-strong: #d6d3e6;
-  --text: #625f72;
-  --text-h: #18161f;
-  --text-faint: #a19eb2;
-  --text-muted: #8d8a9e;
+  --surface-2: #f4f2fa;
+  --surface-3: #ebe8f6;
+  --surface-hover: #edeaf7;
+  --surface-translucent: rgba(255, 255, 255, 0.78);
+  --border: #e7e4f1;
+  --border-strong: #d4d0e4;
+  --text: #5f5c71;
+  --text-h: #15131d;
+  --text-faint: #a5a1b5;
+  --text-muted: #8b8799;
+  --text-on-accent: #ffffff;
 
   --accent: #6d4aff;
   --accent-hover: #5c37f5;
   --accent-active: #4e2be0;
+  --accent-soft: #f0ebff;
   --accent-bg: rgba(109, 74, 255, 0.1);
   --accent-border: rgba(109, 74, 255, 0.32);
+  --accent-ring: rgba(109, 74, 255, 0.28);
   --accent-gradient: linear-gradient(135deg, #8f6bff 0%, #5c37f5 100%);
+  /* The page-header wash: wider and deeper than the button gradient so a
+     full-bleed banner doesn't read as one giant button. */
+  --brand-wash: linear-gradient(115deg, #7c5cff 0%, #6d4aff 45%, #4c23d6 100%);
+  --brand-wash-soft: linear-gradient(115deg, rgba(124, 92, 255, 0.14) 0%, rgba(76, 35, 214, 0.06) 100%);
 
   --success: #147a52;
   --success-bg: rgba(20, 122, 82, 0.1);
+  --success-border: rgba(20, 122, 82, 0.28);
   --danger: #e5484d;
   --danger-bg: rgba(229, 72, 77, 0.1);
+  --danger-border: rgba(229, 72, 77, 0.3);
   --danger-hover: #d33338;
   --warning: #b45309;
   --warning-bg: rgba(180, 83, 9, 0.1);
+  --warning-border: rgba(180, 83, 9, 0.28);
+  --info: #2563a8;
+  --info-bg: rgba(37, 99, 168, 0.1);
+  --info-border: rgba(37, 99, 168, 0.28);
 
   --tone-violet: #6d4aff;
   --tone-teal: #2f9686;
@@ -39,12 +93,15 @@
   --tone-rose-bg: rgba(192, 88, 118, 0.12);
   --chart-1: var(--tone-violet);
 
+  --overlay: rgba(23, 19, 43, 0.42);
+
   --shadow-xs: 0 1px 2px rgba(24, 20, 40, 0.05);
   --shadow-sm: 0 1px 2px rgba(24, 20, 40, 0.04), 0 8px 20px rgba(24, 20, 40, 0.06);
   --shadow-md: 0 2px 8px rgba(24, 20, 40, 0.06), 0 16px 36px rgba(24, 20, 40, 0.09);
   --shadow-lg: 0 10px 20px rgba(24, 20, 40, 0.1), 0 30px 60px rgba(24, 20, 40, 0.16);
   --shadow-btn: 0 1px 2px rgba(109, 74, 255, 0.18);
   --shadow-btn-hover: 0 8px 18px rgba(109, 74, 255, 0.3);
+  --shadow-brand: 0 18px 40px -18px rgba(76, 35, 214, 0.55);
 
   --radius-sm: 8px;
   --radius-md: 11px;
@@ -63,93 +120,51 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark theme. Same token names, different values -- nothing in App.css
-   needs to know which theme is active. Applied two ways: automatically when
-   the OS is in dark mode and the user hasn't chosen explicitly (the
-   `:not([data-theme="light"])` guard), and explicitly via the toggle, which
-   stamps data-theme on <html> and wins either direction. A near-black
-   background (not pure black) with surfaces a step lighter than it, the
-   accent brightened so it still has enough contrast to read on dark, and
-   shadows swapped for a subtle light-based lift since a black drop-shadow on
-   a black background is invisible. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e0d16;
-    --surface: #17151f;
-    --surface-translucent: rgba(20, 18, 27, 0.82);
-    --surface-2: #1e1c2a;
-    --surface-hover: #262432;
-    --border: #2a2836;
-    --border-strong: #3a3749;
-    --text: #a6a3b8;
-    --text-h: #f1f0f7;
-    --text-faint: #6f6c80;
-    --text-muted: #85829a;
-
-    --accent: #9c85ff;
-    --accent-hover: #ab97ff;
-    --accent-active: #b7a5ff;
-    --accent-bg: rgba(156, 133, 255, 0.16);
-    --accent-border: rgba(156, 133, 255, 0.4);
-    --accent-gradient: linear-gradient(135deg, #a98cff 0%, #7c5cff 100%);
-
-    --success: #3ecf95;
-    --success-bg: rgba(62, 207, 149, 0.14);
-    --danger: #f3707a;
-    --danger-bg: rgba(243, 112, 122, 0.14);
-    --danger-hover: #f68990;
-    --warning: #e4a24e;
-    --warning-bg: rgba(228, 162, 78, 0.14);
-
-    --tone-violet: #9c85ff;
-    --tone-teal: #3ecf95;
-    --tone-amber: #e4a24e;
-    --tone-rose: #f3708f;
-    --tone-violet-bg: rgba(156, 133, 255, 0.16);
-    --tone-teal-bg: rgba(62, 207, 149, 0.14);
-    --tone-amber-bg: rgba(228, 162, 78, 0.15);
-    --tone-rose-bg: rgba(243, 112, 143, 0.14);
-
-    --shadow-xs: 0 0 0 1px rgba(255, 255, 255, 0.03);
-    --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 36px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 30px 60px rgba(0, 0, 0, 0.55);
-    --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-btn-hover: 0 8px 18px rgba(156, 133, 255, 0.28);
-
-    color-scheme: dark;
-  }
-}
-
-/* The explicit toggle, either direction -- takes precedence over the OS
-   preference above regardless of which way it's set. */
+/* Dark theme. Same token names, different values -- nothing downstream needs
+   to know which theme is active. A near-black background (not pure black)
+   with surfaces a step lighter than it, the accent brightened so it still
+   has enough contrast to read on dark, and shadows swapped for a subtle
+   light-based lift since a black drop-shadow on black is invisible. */
 :root[data-theme="dark"] {
-  --bg: #0e0d16;
-  --surface: #17151f;
-  --surface-translucent: rgba(20, 18, 27, 0.82);
-  --surface-2: #1e1c2a;
+  --bg: #0d0c14;
+  --bg-deep: #08070d;
+  --surface: #16141e;
+  --surface-2: #1d1b28;
+  --surface-3: #252231;
   --surface-hover: #262432;
+  --surface-translucent: rgba(20, 18, 27, 0.78);
   --border: #2a2836;
   --border-strong: #3a3749;
   --text: #a6a3b8;
   --text-h: #f1f0f7;
   --text-faint: #6f6c80;
   --text-muted: #85829a;
+  --text-on-accent: #ffffff;
 
   --accent: #9c85ff;
   --accent-hover: #ab97ff;
   --accent-active: #b7a5ff;
+  --accent-soft: #221d3a;
   --accent-bg: rgba(156, 133, 255, 0.16);
   --accent-border: rgba(156, 133, 255, 0.4);
+  --accent-ring: rgba(156, 133, 255, 0.36);
   --accent-gradient: linear-gradient(135deg, #a98cff 0%, #7c5cff 100%);
+  --brand-wash: linear-gradient(115deg, #4b31a8 0%, #3d2793 45%, #241454 100%);
+  --brand-wash-soft: linear-gradient(115deg, rgba(156, 133, 255, 0.16) 0%, rgba(124, 92, 255, 0.05) 100%);
 
   --success: #3ecf95;
   --success-bg: rgba(62, 207, 149, 0.14);
+  --success-border: rgba(62, 207, 149, 0.34);
   --danger: #f3707a;
   --danger-bg: rgba(243, 112, 122, 0.14);
+  --danger-border: rgba(243, 112, 122, 0.34);
   --danger-hover: #f68990;
   --warning: #e4a24e;
   --warning-bg: rgba(228, 162, 78, 0.14);
+  --warning-border: rgba(228, 162, 78, 0.34);
+  --info: #6cb0f5;
+  --info-bg: rgba(108, 176, 245, 0.14);
+  --info-border: rgba(108, 176, 245, 0.34);
 
   --tone-violet: #9c85ff;
   --tone-teal: #3ecf95;
@@ -160,67 +175,205 @@
   --tone-amber-bg: rgba(228, 162, 78, 0.15);
   --tone-rose-bg: rgba(243, 112, 143, 0.14);
 
+  --overlay: rgba(4, 3, 10, 0.66);
+
   --shadow-xs: 0 0 0 1px rgba(255, 255, 255, 0.03);
   --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 16px 36px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 30px 60px rgba(0, 0, 0, 0.55);
   --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-btn-hover: 0 8px 18px rgba(156, 133, 255, 0.28);
+  --shadow-brand: 0 18px 40px -18px rgba(0, 0, 0, 0.7);
 
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
+/* Tailwind's token table, wired to the CSS variables above rather than to
+   fixed hexes. `inline` matters: it makes `bg-surface` compile to
+   `var(--surface)` at use-site, so flipping data-theme re-colours every
+   utility in the app without generating a second copy of the stylesheet. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-hover: var(--surface-hover);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+
+  --color-fg: var(--text);
+  --color-heading: var(--text-h);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-on-brand: var(--text-on-accent);
+
+  --color-brand: var(--accent);
+  --color-brand-hover: var(--accent-hover);
+  --color-brand-active: var(--accent-active);
+  --color-brand-soft: var(--accent-soft);
+  --color-brand-bg: var(--accent-bg);
+  --color-brand-border: var(--accent-border);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  --color-violet: var(--tone-violet);
+  --color-violet-bg: var(--tone-violet-bg);
+  --color-teal: var(--tone-teal);
+  --color-teal-bg: var(--tone-teal-bg);
+  --color-amber: var(--tone-amber);
+  --color-amber-bg: var(--tone-amber-bg);
+  --color-rose: var(--tone-rose);
+  --color-rose-bg: var(--tone-rose-bg);
+
+  --color-overlay: var(--overlay);
+
+  --radius-card: var(--radius-lg);
+  --radius-panel: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-brand: var(--shadow-brand);
+
+  --font-sans: var(--sans);
+
+  --animate-fade-in: fade-in 0.16s ease-out;
+  --animate-pop-in: pop-in 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-slide-start: slide-start 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  transition: background-color 0.2s ease;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
-#root {
-  min-height: 100svh;
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
 }
 
-h1,
-h2,
-h3 {
-  color: var(--text-h);
-  font-weight: 700;
-  margin: 0;
+/* "start" rather than "right": the app is RTL, so a panel that flies in from
+   the inline-start edge has to follow the writing direction, not a side. */
+@keyframes slide-start {
+  from {
+    opacity: 0.4;
+    transform: translateX(var(--slide-from, 100%));
+  }
 }
 
-::selection {
-  background: var(--accent);
-  color: #fff;
+@keyframes shimmer {
+  50% {
+    opacity: 0.45;
+  }
 }
 
-/* Scrollbars — thin, tinted to match the neutral palette */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  body {
+    margin: 0;
+    background: var(--bg);
+    transition: background-color 0.2s ease;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    color: var(--text-h);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* Scrollbars -- thin, tinted to match the neutral palette */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-faint);
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+/* Migration bridge.
+ *
+ * The screens still rendering App.css own their page padding and max width,
+ * which the old shell relied on. The new shell supplies both, so inside it
+ * the legacy wrapper has to stand down or every un-migrated screen gets
+ * double padding. Lives in `components` (above `legacy`, below `utilities`)
+ * so it overrides App.css without touching what a utility class says.
+ * Deletable the day the last screen moves over. */
+@layer components {
+  [data-ui] .page {
+    padding: 0;
+    max-width: none;
+  }
 
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
+  /* A screen embedded as a section of a hub (settings, reports) already has
+     its name in the hub's card header and in the side rail. Its own title is
+     dropped, but not its subtitle -- several of them explain rules the user
+     needs at that moment, which the one-line section label can't carry. */
+  [data-ui] .embedded-page .page-header-title {
+    display: none;
+  }
 
-*::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-faint);
-  background-clip: content-box;
+  [data-ui] .embedded-page .page-header {
+    margin-block-start: 0;
+  }
 }
