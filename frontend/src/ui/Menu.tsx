@@ -80,9 +80,19 @@ export function Menu({
 
   // Long menus (every appointment status) open on the current value rather
   // than at the top, where it may be 20 rows out of sight.
+  //
+  // Done by arithmetic on the panel's own scrollTop rather than with
+  // scrollIntoView: that method walks up and scrolls whatever ancestor it has
+  // to, which here was the page itself -- and a page scroll fires the very
+  // event this menu closes on, so opening a status menu closed it in the same
+  // frame. Confirmed live: the status badge looked like a dead button while
+  // the actions menu (no checked item, so no scroll) worked fine.
   useEffect(() => {
     if (!open || !pos) return;
-    panelRef.current?.querySelector("[data-checked=\"true\"]")?.scrollIntoView({ block: "center" });
+    const panel = panelRef.current;
+    const checked = panel?.querySelector<HTMLElement>('[data-checked="true"]');
+    if (!panel || !checked) return;
+    panel.scrollTop = Math.max(0, checked.offsetTop - panel.clientHeight / 2 + checked.offsetHeight / 2);
   }, [open, pos]);
 
   useEffect(() => {
@@ -99,14 +109,22 @@ export function Menu({
         triggerRef.current?.focus();
       }
     };
+    // A scroll anywhere else moves the trigger out from under the panel, so
+    // the menu closes -- but scrolling *inside* the panel is how you reach
+    // the rest of a long list, and must not.
+    const onScroll = (e: Event) => {
+      if (panelRef.current?.contains(e.target as Node)) return;
+      close();
+    };
+
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", close);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", close);
     };
   }, [open]);
