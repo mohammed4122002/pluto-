@@ -51,6 +51,11 @@ def test_submit_payment_receipt_is_removed_for_an_out_of_scope_photo():
     assert "submit_payment_receipt" not in _tool_names(tools)
 
 
+def test_submit_payment_receipt_is_removed_for_a_medication_photo():
+    tools = _select_tools({}, photo_kind="medication")
+    assert "submit_payment_receipt" not in _tool_names(tools)
+
+
 def test_submit_payment_receipt_stays_available_for_a_genuine_receipt_photo():
     tools = _select_tools({}, photo_kind="receipt")
     assert "submit_payment_receipt" in _tool_names(tools)

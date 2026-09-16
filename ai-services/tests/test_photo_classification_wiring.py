@@ -115,6 +115,17 @@ def test_a_receipt_classification_is_passed_through_as_its_own_kind(_mock):
     assert db.tables["audit_log"].rows == []
 
 
+@patch("app.routers.chat.describe_patient_photo", return_value=("medication", None, None))
+def test_a_medication_classification_is_passed_through_as_its_own_kind(_mock):
+    # No description text here either -- the bot never analyses a
+    # medication photo itself, only routes it to an immediate escalation.
+    db = _Db(messages=[_image_message()])
+    text, kind, image_without_medical_description = _photo_description_for_turn(db, "c1", _FALLBACK)
+    assert (text, kind) == (None, "medication")
+    assert image_without_medical_description is False
+    assert db.tables["audit_log"].rows == []
+
+
 @patch("app.routers.chat.describe_patient_photo", return_value=(None, None, None))
 def test_a_genuine_none_classification_is_a_receipt_candidate_not_a_failure(_mock):
     db = _Db(messages=[_image_message()])

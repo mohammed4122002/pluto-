@@ -272,6 +272,32 @@ def test_out_of_scope_never_shows_the_routine_analysis_card_layout():
     assert "✨ *خدمات مناسبة لك:*" not in prompt
 
 
+# --- medication (a photo of the drug itself, never analysed by the bot) -----
+#
+# Confirmed as a follow-up ask: a patient might send a photo of a medication
+# (a box, a pill strip, a written prescription) rather than a body part --
+# the bot must never try to identify it, comment on it, or confirm/advise
+# its use itself; that decision always belongs to a doctor.
+
+
+def test_a_medication_photo_always_escalates_and_never_gets_analysed():
+    prompt = _prompt(photo_kind="medication")
+    assert "escalation_category='medical'" in prompt
+    assert "needs_human=true" in prompt
+    assert "🔹 *النوع:*" not in prompt
+
+
+def test_a_medication_photo_forbids_the_bot_identifying_or_advising_on_it():
+    prompt = _prompt(photo_kind="medication")
+    assert "ممنوع نهائياً تحاولي تتعرفي على الدواء" in prompt
+    assert "قرار الدواء لطبيب مش موظفة استقبال" in prompt
+
+
+def test_a_medication_photo_never_gets_the_receipt_treatment():
+    prompt = _prompt(photo_kind="medication")
+    assert "استدعي submit_payment_receipt مباشرة" not in prompt
+
+
 def test_out_of_scope_also_forbids_the_receipt_tool_by_name():
     prompt = _prompt(photo_description="صورة تبيّن احمرار وانتفاخ حوالين العين", photo_kind="out_of_scope")
     assert "ممنوع نهائياً تستدعي submit_payment_receipt" in prompt

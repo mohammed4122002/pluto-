@@ -156,14 +156,15 @@ BASE_INSTRUCTIONS = (
     "- لا تصعّدي أبداً لمجرد إن المريض وصف عرض أو سبب زيارة عشان يتحدد التخصص/الطبيب المناسب (مثال: 'عندي سخونة'، 'حبوب بالبشرة', 'بدي أسنان') — هاد سؤال حجز طبيعي، كمّلي معه عادي وساعديه يحجز. وهاد بينطبق حتى لو وصف العرض بجملة زي 'بعاني من هيك' أو 'هذول الأعراض يلي بالصورة' — لسه مجرد وصف سبب زيارة، مش طلب تشخيص أو رأي طبي. لا تفترضي إنه طالب تشخيص لمجرد إنه أشار لصورة أو استخدم كلمة 'أعراض' — التصعيد هون فقط لو صراح سأل سؤال تشخيصي مباشر زي الأمثلة تحت.\n"
     "- صعّدي (needs_human=true) بالحالات التالية:\n"
     "  • طلب استشارة أو تشخيص أو رأي طبي فعلي (مثال: 'هل هاد خطير؟'، 'ليش النتيجة طالعة هيك؟').\n"
-    "  • أي سؤال عن دواء — اسم دواء، جرعة، وصفة، أو 'شو الدواء/الكريم/المرهم المناسب؟' — **صعّدي دايماً "
-    "لطبيب التخصص المعني، بلا أي استثناء حتى بجلدية/تجميل/أسنان.** ممنوع نهائياً تقترحي أو تسمي أي "
-    "دواء أو كريم علاجي أو مرهم بالاسم مهما كان السياق أو التخصص أو وجود صورة.\n"
+    "  • أي سؤال عن دواء (اسم، جرعة، وصفة، 'شو الدواء المناسب؟') — **صعّدي دايماً لطبيب التخصص، بلا "
+    "استثناء حتى بجلدية/تجميل/أسنان.** ممنوع تسمي أي دواء أو كريم علاجي أو مرهم بالاسم مهما كان "
+    "السياق.\n"
     "    **استثناء لجلدية/تجميل/أسنان بس (وما إلها علاقة بسؤال دواء)**: سؤال عن علاج أو تشخيص لحالة "
     "بشرة/شعر/أسنان بدون صورة مرفقة، ممنوع تصعّدي — اقترحي يرسل صورة لتشخيص أدق وأنسب خدمة. لو رفض، "
     "جاوبيه بخدمة مناسبة من list_services بس (مش اسم دواء أو تشخيص)، ولسا ما تصعّدي. يجوز تذكري "
-    "روتين عناية عام بعد إجراء معين (مثلاً 'بعد جلسة الليزر تجنّب الشمس واستخدمي واقي شمسي') بدون "
-    "تسمية أي دواء. باقي التخصصات تبقى تصعّد عادي.\n"
+    "روتين عناية عام بعد إجراء معين (مثلاً تجنّب الشمس بعد الليزر). ولو ذكر المريض حالة خاصة مرتبطة "
+    "(حمل، حساسية، مرض مزمن)، اربطي الروتين/الخدمة فيها بجملة احتياط عامة معروفة (شو الأنسب "
+    "يتجنبه)، وذكّريه إن الطبيب يأكد الأنسب بالكشف — بدون تسمية دواء. باقي التخصصات تصعّد عادي.\n"
     "  • شكوى على العيادة، موظف، أو تجربة سيئة.\n"
     "  • نزاع دفع أو استرجاع أو خصم أو فاتورة.\n"
     "  • طلب معلومة مش موجودة عندك إطلاقاً **بعد ما تكوني جرّبتي الأدوات فعلاً** — مش لمجرد إنك ما بتعرفي الجواب. لو الجواب موجود بأداة (خدمات، أسعار، أطباء، مواعيد، حجوزات المريض) استدعيها وجاوبي، وما تصعّدي.\n"
@@ -1308,7 +1309,10 @@ def _photo_description_for_turn(
     that's not something we treat here" block, since those need very
     different handling and must never be conflated. kind is also "receipt"
     (with no description) when the photo is proof of payment, which routes
-    straight to submit_payment_receipt instead of any of the above.
+    straight to submit_payment_receipt instead of any of the above, and
+    "medication" (with no description) when the photo shows a medication
+    itself rather than a body part, which routes straight to an immediate
+    human escalation instead of any analysis.
 
     image_without_medical_description is only True when vision actually ran
     and *explicitly* classified the photo as not medical/cosmetic at all —
@@ -1351,6 +1355,9 @@ def _photo_description_for_turn(
         return None, None, True
     if kind == "receipt":
         _remember_photo_context(db, image_row, f"{_PHOTO_CONTEXT_MARKER} إثبات دفع]")
+        return None, kind, False
+    if kind == "medication":
+        _remember_photo_context(db, image_row, f"{_PHOTO_CONTEXT_MARKER} صورة دواء]")
         return None, kind, False
     _remember_photo_context(db, image_row, f"{_PHOTO_CONTEXT_MARKER} تحليل مرئي آلي ({kind}): {text}]")
     return text, kind, False
@@ -1561,7 +1568,9 @@ def _build_system_prompt(
             "حب الشباب') — ممنوع نهائياً تقترحي اسم خدمة مش راجع فعلاً من list_services، ولو ما "
             "رجعت أي خدمة مناسبة قولي بصراحة إنه بيحتاج تقييم بالعيادة يحدد الأنسب.\n"
             "4) '💬 ' وبعدها جملة ودّية شخصية قصيرة تلخّص الوضع بأسلوبك وتشجعه على تقييم دقيق "
-            "بالعيادة.\n"
+            "بالعيادة. لو ذكر المريض بنفس المحادثة حالة خاصة مرتبطة (حمل، حساسية، مرض مزمن)، "
+            "ضيفي جملة احتياط عامة قصيرة مرتبطة (نفس قاعدة الروتين المذكورة بقسم التصعيد فوق) "
+            "بدون تسمية أي دواء.\n"
             "5) سطر فاصل ('———')، وتحته سطرين: '⚠️ هذا تحليل أولي استرشادي مش تشخيص طبي دقيق' "
             "و'👤 للتشخيص الدقيق، ننصحك بحجز موعد مع أطبائنا المتخصصين'.\n"
             "اختمي رسالتك بسؤال قصير إذا حاب تحجزيله موعد."
@@ -1603,6 +1612,14 @@ def _build_system_prompt(
             "الإيصال انرفض — قوليله بلُطف إنك شايفة الإيصال بس ما لقيتِ عليه دفعة مستحقة باسمه، "
             "واسأليه الإيصال يخص أي حجز أو خدمة. ممنوع نهائياً تحاولي تقري مبلغ أو رقم عملية من "
             "الصورة وتذكريهم — التحقق من الأرقام شغل المحاسب مش شغلك."
+        )
+    elif photo_kind == "medication":
+        parts.append(
+            "المريض بعت صورة مع رسالته الأخيرة، والصورة تبيّن دواء (علبة دواء، شريط حبوب، أو وصفة "
+            "طبية) — مش صورة جسم ولا إثبات دفع. ممنوع نهائياً تحاولي تتعرفي على الدواء، تعلّقي عليه، "
+            "تأكدي استخدامه، أو تقترحي بديل — قرار الدواء لطبيب مش موظفة استقبال. ردّي بجملة ودّية "
+            "قصيرة توضّح إنك رح تحوّلي هالسؤال لطبيب التخصص المختص عشان يشوفه ويرد عليه مباشرة، "
+            "وصعّدي فوراً (needs_human=true) بتصنيف escalation_category='medical'."
         )
     elif image_without_medical_description:
         parts.append(
@@ -1743,7 +1760,7 @@ def _select_tools(ch_settings: dict, photo_kind: str | None = None) -> list[dict
     # the analysis-card instructions actually written for this branch. The
     # instruction not to do this already exists in the receipt block of the
     # prompt; it does nothing for a turn that never reaches that block.
-    if photo_kind in ("analysis", "urgent", "out_of_scope"):
+    if photo_kind in ("analysis", "urgent", "out_of_scope", "medication"):
         tools = [t for t in tools if t["function"]["name"] != "submit_payment_receipt"]
     return tools
 

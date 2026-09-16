@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Gemini's own documented, reliable way to accept image input.
 _GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
-# Classifies a patient's photo into one of five lanes, on purpose, rather
+# Classifies a patient's photo into one of six lanes, on purpose, rather
 # than always producing the same kind of output:
 #
 # - "urgent": looks like something that needs real, prompt medical attention
@@ -39,6 +39,11 @@ _GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models
 #   deserves an honest "that's not something we treat here", not a service
 #   card built from whatever this clinic happens to sell, and not silence
 #   either.
+# - "medication": a photo of a medication itself (a box, a strip of pills, a
+#   bottle, a written prescription) rather than a body part. The assistant
+#   never identifies, comments on, or advises about a medication -- that's a
+#   doctor's call, not a receptionist's -- so this lane carries no analysis
+#   text at all; chat.py routes it straight to an immediate human escalation.
 # - "receipt": proof of payment (a receipt, an invoice, a bank/wallet
 #   transfer screenshot). Its own class rather than a flavour of "none": the
 #   two need opposite handling -- a receipt goes straight to
@@ -108,22 +113,27 @@ _VISION_SYSTEM_PROMPT_ANALYSIS_UNSCOPED = (
 )
 
 _VISION_SYSTEM_PROMPT_TAIL = (
+    "MEDICATION — لو الصورة تبيّن دواء: علبة دواء، شريط حبوب، زجاجة دواء، أو وصفة طبية مكتوبة "
+    "(روشتة) — وما فيها جزء من جسم إنسان عليه شي غير طبيعي. بعدها ما تكتبي شي إضافي — قرار الدواء "
+    "مش شغلك إنتِ، بيروح لطبيب.\n\n"
     "RECEIPT — لو الصورة إثبات دفع: إيصال أو فاتورة، سكرين شوت من تطبيق بنك أو محفظة إلكترونية "
     "(كليك/زين كاش/أوركاش...)، إشعار حوالة، أو صورة بوصة كاشير. العلامات: مبلغ ورقم مرجعي/عملية، "
     "تاريخ ووقت، اسم بنك أو محفظة أو متجر، كلمات متل 'تم التحويل' أو 'ناجحة' أو 'المبلغ'. بعدها ما "
     "تكتبي شي إضافي.\n\n"
-    "NONE — لو الصورة مو طبية ولا تجميلية ولا إثبات دفع إطلاقاً (صورة شخصية عادية بدون أي شي ظاهر "
-    "يستدعي تحليل، منتج، مستند مش واضح، صورة غير واضحة). بعدها ما تكتبي شي إضافي.\n\n"
+    "NONE — لو الصورة مو طبية ولا تجميلية ولا إثبات دفع ولا دواء إطلاقاً (صورة شخصية عادية بدون أي "
+    "شي ظاهر يستدعي تحليل، منتج غير دوائي، مستند مش واضح، صورة غير واضحة). بعدها ما تكتبي شي إضافي.\n\n"
     "مهم: لو الصورة فيها أي جزء من جسم إنسان (يد، وجه، جلد، شعر، أسنان، مفصل...) وعليه أي شي غير "
     "طبيعي ظاهر بالعين (احمرار، تورم، تغيّر لون، تقشّر، طفح، جرح، بقعة غريبة...) — حتى لو بسيط، حتى "
     "لو مو متأكدة شو بالضبط، حتى لو الصورة شكلها احترافية أو product photography — صنّفيها {analysis_or_scope_label} حسب "
     "شدتها وتخصصات العيادة، ولا تصنّفيها NONE أبداً. NONE محجوزة بس للصور اللي فعلاً ما فيها أي جزء "
-    "جسم غير طبيعي الشكل ولا هي إثبات دفع (سيلفي عادي، منتج، مستند...). الخطأ الأخطر هون إنك تفوّتي "
-    "صورة فيها إصابة أو مشكلة حقيقية وتصنّفيها NONE — مش إنك تحللي صورة سليمة بالغلط.\n\n"
-    "وبنفس الوقت، ممنوع تخلطي بين الاتنين بالاتجاه التاني: صورة فيها ورق أو شاشة فيها أرقام ومبالغ "
-    "وما فيها ولا جزء من جسم إنسان هي RECEIPT (أو NONE لو مش واضحة إنها دفع)، وممنوع تحلليها كأنها "
-    "حالة جلدية. القرار الأول اللي لازم تاخديه: في بالصورة جزء من جسم إنسان أو لأ؟ إذا في → URGENT "
-    "أو {analysis_or_scope_label}. إذا ما في → RECEIPT أو NONE."
+    "جسم غير طبيعي الشكل ولا هي إثبات دفع ولا دواء (سيلفي عادي، منتج، مستند...). الخطأ الأخطر هون إنك "
+    "تفوّتي صورة فيها إصابة أو مشكلة حقيقية وتصنّفيها NONE — مش إنك تحللي صورة سليمة بالغلط.\n\n"
+    "وبنفس الوقت، ممنوع تخلطي بين هاي التصنيفات: صورة فيها ورق أو شاشة فيها أرقام ومبالغ وما فيها "
+    "ولا جزء من جسم إنسان هي RECEIPT (أو NONE لو مش واضحة إنها دفع)، وصورة علبة/شريط دواء أو وصفة "
+    "طبية بدون جزء جسم هي MEDICATION — وممنوع تحلليهم كأنهم حالة جلدية. القرار الأول اللي لازم "
+    "تاخديه: في بالصورة جزء من جسم إنسان عليه شي غير طبيعي أو لأ؟ إذا في → URGENT أو "
+    "{analysis_or_scope_label}. إذا ما في: دواء أو علبته أو وصفة طبية → MEDICATION، إثبات دفع → "
+    "RECEIPT، غير هيك → NONE."
 )
 
 
@@ -176,6 +186,9 @@ def describe_patient_photo(
 
     - ("urgent" | "analysis" | "out_of_scope", text, None) on a successful
       classification.
+    - ("medication", None, None) when the photo shows a medication itself
+      (box, pill strip, bottle, written prescription) rather than a body
+      part. No analysis text on purpose — see the module docstring above.
     - ("receipt", None, None) when it's proof of payment (a receipt, an
       invoice, a bank/wallet transfer screenshot). Its own class rather
       than a flavour of "none" — see the module docstring above.
@@ -243,6 +256,11 @@ def describe_patient_photo(
 
     if marker == "NONE":
         return None, None, None
+    if marker == "MEDICATION":
+        # No body text: the bot never comments on or identifies a
+        # medication itself -- chat.py routes this straight to an
+        # immediate escalation instead of any kind of analysis card.
+        return "medication", None, None
     if marker == "RECEIPT":
         # No body text: the receipt's own contents are matched against the
         # pending payment by submit_payment_receipt, not by anything the

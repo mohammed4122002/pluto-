@@ -65,13 +65,23 @@ def test_a_medication_question_always_escalates_to_the_specialist_doctor_even_in
     # out (unlike a general treatment/diagnosis question, which does get
     # the photo-offer exception above).
     assert "أي سؤال عن دواء" in BASE_INSTRUCTIONS
-    assert "صعّدي دايماً لطبيب التخصص المعني، بلا أي استثناء حتى بجلدية/تجميل/أسنان" in BASE_INSTRUCTIONS
-    assert "ممنوع نهائياً تقترحي أو تسمي أي دواء أو كريم علاجي أو مرهم بالاسم" in BASE_INSTRUCTIONS
+    assert "صعّدي دايماً لطبيب التخصص، بلا استثناء حتى بجلدية/تجميل/أسنان" in BASE_INSTRUCTIONS
+    assert "ممنوع تسمي أي دواء أو كريم علاجي أو مرهم بالاسم" in BASE_INSTRUCTIONS
 
 
 def test_a_post_procedure_aftercare_routine_is_allowed_but_never_names_a_medication():
     assert "يجوز تذكري روتين عناية عام بعد إجراء معين" in BASE_INSTRUCTIONS
-    assert "بدون تسمية أي دواء" in BASE_INSTRUCTIONS
+    assert "بدون تسمية دواء" in BASE_INSTRUCTIONS
+
+
+def test_a_disclosed_special_condition_gets_a_general_caution_never_a_medication():
+    # Confirmed as a follow-up ask: a patient mentioning something like a
+    # pregnancy alongside her symptom should get the routine/service tied to
+    # a general, well-known precaution for that condition -- but still never
+    # a named medication, and always with a reminder that the doctor
+    # confirms what's actually suitable at the visit.
+    assert "ولو ذكر المريض حالة خاصة مرتبطة (حمل، حساسية، مرض مزمن)" in BASE_INSTRUCTIONS
+    assert "وذكّريه إن الطبيب يأكد الأنسب بالكشف" in BASE_INSTRUCTIONS
 
 
 def test_the_exception_is_scoped_to_dermatology_cosmetics_dental_only():
@@ -79,7 +89,7 @@ def test_the_exception_is_scoped_to_dermatology_cosmetics_dental_only():
     # pediatrics, OB) keep escalating a real treatment/diagnosis question --
     # this feature only exists for the specialties the photo-analysis
     # feature actually covers well.
-    assert "باقي التخصصات تبقى تصعّد عادي" in BASE_INSTRUCTIONS
+    assert "باقي التخصصات تصعّد عادي" in BASE_INSTRUCTIONS
 
 
 def test_a_declined_photo_gets_a_service_name_not_a_diagnosis_or_medication():

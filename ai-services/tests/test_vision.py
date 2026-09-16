@@ -116,6 +116,21 @@ def test_a_receipt_is_its_own_classification_not_a_none(mock_get, mock_post):
 
 @patch("app.services.vision.httpx.post")
 @patch("app.services.vision.httpx.get")
+def test_a_medication_photo_is_its_own_classification_not_none_or_receipt(mock_get, mock_post):
+    # A photo of a drug box/pill strip/prescription is neither a payment
+    # proof nor an unidentifiable photo -- it needs its own lane so chat.py
+    # can route it straight to a human doctor instead of letting the model
+    # decide anything about it itself.
+    mock_get.return_value = _fake_get_response()
+    mock_post.return_value = _fake_gemini_response(text="MEDICATION")
+    kind, text, failure_reason = describe_patient_photo("api-key", "m", "https://example.test/medicine.jpg")
+    assert kind == "medication"
+    assert text is None
+    assert failure_reason is None
+
+
+@patch("app.services.vision.httpx.post")
+@patch("app.services.vision.httpx.get")
 def test_the_prompt_makes_body_vs_no_body_the_first_decision(mock_get, mock_post):
     # Pins the rule that keeps the two apart in both directions: a photo of
     # a body part is never a receipt, and a page of numbers is never a skin
@@ -124,7 +139,7 @@ def test_the_prompt_makes_body_vs_no_body_the_first_decision(mock_get, mock_post
 
     for specialties in (None, ["جلدية", "أسنان عام"]):
         prompt = _build_vision_prompt(specialties)
-        assert "في بالصورة جزء من جسم إنسان أو لأ؟" in prompt
+        assert "في بالصورة جزء من جسم إنسان عليه شي غير طبيعي أو لأ؟" in prompt
         assert "RECEIPT" in prompt
 
 
