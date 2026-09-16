@@ -54,8 +54,24 @@ def test_none_is_still_explicitly_reserved_for_non_body_photos():
 
 def test_a_treatment_question_for_skin_cosmetics_or_dental_does_not_escalate_without_a_photo():
     assert "استثناء لجلدية/تجميل/أسنان بس" in BASE_INSTRUCTIONS
-    assert "سؤال عن علاج/دواء/تشخيص لحالة بشرة/شعر/أسنان بدون صورة" in BASE_INSTRUCTIONS
+    assert "سؤال عن علاج أو تشخيص لحالة بشرة/شعر/أسنان بدون صورة" in BASE_INSTRUCTIONS
     assert "ممنوع تصعّدي" in BASE_INSTRUCTIONS.split("استثناء لجلدية/تجميل/أسنان بس")[1][:200]
+
+
+def test_a_medication_question_always_escalates_to_the_specialist_doctor_even_in_derm_cosmetic_dental():
+    # A patient asking specifically about a drug/cream/dosage must never be
+    # answered with a photo offer or a service name -- medication is a
+    # medical-doctor-only topic, with no dermatology/cosmetics/dental carve
+    # out (unlike a general treatment/diagnosis question, which does get
+    # the photo-offer exception above).
+    assert "أي سؤال عن دواء" in BASE_INSTRUCTIONS
+    assert "صعّدي دايماً لطبيب التخصص المعني، بلا أي استثناء حتى بجلدية/تجميل/أسنان" in BASE_INSTRUCTIONS
+    assert "ممنوع نهائياً تقترحي أو تسمي أي دواء أو كريم علاجي أو مرهم بالاسم" in BASE_INSTRUCTIONS
+
+
+def test_a_post_procedure_aftercare_routine_is_allowed_but_never_names_a_medication():
+    assert "يجوز تذكري روتين عناية عام بعد إجراء معين" in BASE_INSTRUCTIONS
+    assert "بدون تسمية أي دواء" in BASE_INSTRUCTIONS
 
 
 def test_the_exception_is_scoped_to_dermatology_cosmetics_dental_only():
