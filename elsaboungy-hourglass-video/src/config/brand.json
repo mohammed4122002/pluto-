@@ -1,0 +1,30 @@
+{
+  "_note": "Put the original logo file in public/brand/ and set logo.src to its name (e.g. \"brand/logo.png\"). It is always drawn with object-fit: contain, so it is never stretched. While logo.src is null a clearly labelled placeholder is drawn instead.",
+  "nameAr": "الصابونجي",
+  "nameEn": "ELSABOUNGY",
+  "logo": {
+    "src": null,
+    "widthPx": 620,
+    "heightPx": 360,
+    "showPlaceholderTag": true
+  },
+  "slogan": {
+    "line1": "الصابونجي لبيتي",
+    "line2": "والنظافة تحكي حكاياتي"
+  },
+  "contact": {
+    "website": "elsaboungy.com",
+    "phone": "01225915421",
+    "whatsappLabel": "واتساب",
+    "city": "العبور"
+  },
+  "colors": {
+    "yellow": "#FFC629",
+    "yellowDeep": "#F5A300",
+    "blue": "#0E5BD8",
+    "blueDeep": "#06307A",
+    "navy": "#031A45",
+    "sky": "#CFE6FF",
+    "white": "#FFFFFF"
+  }
+}

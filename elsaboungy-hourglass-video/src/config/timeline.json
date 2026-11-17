@@ -1,0 +1,73 @@
+{
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "_note": "Edit 'seconds' to change a scene's length — scenes play back-to-back and the total is the sum (target 25 s). Scene 'id' picks the visual (rush | hourglass | order | delivery | endcard; older looks still available: hook | flow | burst | shine | brand). 'transitionOut' is the transition into the NEXT scene, centred on the cut (zoomFlash | foamWipe | blobSwipe | iris | bubblePop | none). 'headline'/'subline'/'line2' are the on-screen texts. 'vo' is the planned voice-over line (not rendered as audio in phase 1).",
+  "scenes": [
+    {
+      "id": "rush",
+      "name": "01 — Rush hour: traffic, errands, shopping, the clock running",
+      "seconds": 5.5,
+      "headline": "زحمة ومشاوير",
+      "subline": "ووقتك بيضيع!",
+      "line2": "",
+      "vo": "زحمة.. ومشاوير.. وطوابير.. والوقت بيجري.",
+      "transitionOut": {
+        "type": "zoomFlash",
+        "frames": 14
+      }
+    },
+    {
+      "id": "hourglass",
+      "name": "02 — The hourglass: foam, bubbles, flip",
+      "seconds": 4.5,
+      "headline": "وقتك أغلى",
+      "subline": "ليه تضيّعه في المشاوير؟",
+      "line2": "",
+      "vo": "وقتك أغلى من إنك تضيّعه في المشاوير.",
+      "transitionOut": {
+        "type": "blobSwipe",
+        "frames": 20
+      }
+    },
+    {
+      "id": "order",
+      "name": "03 — Ordering cleaning products on a cartoon phone",
+      "seconds": 5,
+      "headline": "اطلب منظفاتك أونلاين",
+      "subline": "بضغطة زرار من موبايلك",
+      "line2": "",
+      "vo": "اطلب منظفاتك من الصابونجي أونلاين.. بضغطة زرار.",
+      "transitionOut": {
+        "type": "foamWipe",
+        "frames": 22
+      }
+    },
+    {
+      "id": "delivery",
+      "name": "04 — The order arrives at the door, then comfort at home",
+      "seconds": 5,
+      "headline": "طلبك لحد باب البيت",
+      "subline": "ووقتك ليك.. وانت مرتاح",
+      "line2": "",
+      "vo": "وطلبك يوصل لحد باب البيت.. ووقتك يفضل ليك.",
+      "transitionOut": {
+        "type": "bubblePop",
+        "frames": 18
+      }
+    },
+    {
+      "id": "endcard",
+      "name": "05 — Logo, foam & bubbles, website, WhatsApp, slogan",
+      "seconds": 5,
+      "headline": "",
+      "subline": "",
+      "line2": "",
+      "vo": "الصابونجي لبيتي.. والنظافة تحكي حكاياتي.",
+      "transitionOut": {
+        "type": "none",
+        "frames": 0
+      }
+    }
+  ]
+}

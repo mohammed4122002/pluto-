@@ -1,0 +1,29 @@
+{
+  "name": "elsaboungy-hourglass-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Elsaboungy hourglass vertical ad (Remotion, 1080x1920, 30fps)",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render ElsaboungyHourglass out/elsaboungy-hourglass-review-silent.mp4",
+    "preview5s": "remotion render ElsaboungyPreview5s out/elsaboungy-preview-5s.mp4",
+    "render:vo": "remotion render ElsaboungyHourglassWithAudio out/elsaboungy-hourglass-with-audio.mp4",
+    "stills": "node scripts/render-stills.mjs",
+    "vo:guide": "node scripts/export-vo-guide.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/baloo-bhaijaan-2": "5.2.5",
+    "@remotion/bundler": "4.0.544",
+    "@remotion/cli": "4.0.544",
+    "@remotion/fonts": "4.0.544",
+    "@remotion/renderer": "4.0.544",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.544"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

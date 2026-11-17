@@ -1,0 +1,10 @@
+{
+  "_note": "Phase 2 audio slots. Drop files into public/audio/... and set the paths here, then render the ElsaboungyHourglassWithAudio composition. The silent ElsaboungyHourglass composition ignores everything in this file.",
+  "voiceoverSrc": null,
+  "voiceoverVolume": 1,
+  "voiceoverOffsetFrames": 0,
+  "sceneClips": {},
+  "musicSrc": null,
+  "musicVolume": 0.55,
+  "musicDuckedVolume": 0.22
+}
