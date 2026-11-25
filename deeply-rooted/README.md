@@ -17,4 +17,4 @@ A self-contained Remotion project. It has nothing to do with the clinic platform
 
 Everything you'd want to tune — scene lengths, voiceover cue points, camera speed, fog, wind, lighting, transitions, palette and grade — lives in **`src/config/production.ts`** and **`src/config/palette.ts`**.
 
-Rendered files in `out/` are not committed; re-create them with the commands above.
+Rendered files in `out/` are not committed; re-create them with the commands above. `npm run render` writes a high-bitrate master (CRF 16). The shared previews are re-encodes of that master (H.264 CRF 20, frame-accurate scene cuts: 330 / 390 / 510 frames).
