@@ -1,0 +1,24 @@
+{
+  "name": "deeply-rooted-phase01",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Deeply Rooted — Phase 01 animation production test (When Life Doesn't Go as Planned, scenes 01-03)",
+  "scripts": {
+    "studio": "remotion studio",
+    "textures": "python3 scripts/generate_textures.py",
+    "render": "remotion render Phase01 out/phase01_combined.mp4",
+    "render:scenes": "remotion render Scene01 out/scene01.mp4 && remotion render Scene02 out/scene02.mp4 && remotion render Scene03 out/scene03.mp4",
+    "still:sheet": "remotion still CharacterSheet out/character_reference_sheet.png",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.547",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.547"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
