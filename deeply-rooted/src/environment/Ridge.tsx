@@ -73,12 +73,12 @@ export const ridgeDrawable = (cam: Cam, def: RidgeDef, light: Light, haze: (d: n
             <stop offset={1} stopColor={cBase} />
           </linearGradient>
           <pattern id={`${id}-t`} patternUnits="userSpaceOnUse" width={tex} height={tex * 0.625} x={anchor.x} y={minY}>
-            <image href={staticFile('textures/brush.png')} width={tex} height={tex * 0.625} preserveAspectRatio="none" />
+            <image href={staticFile('textures/paint_strokes.png')} width={tex} height={tex * 0.625} preserveAspectRatio="none" />
           </pattern>
         </defs>
         <path d={path} fill={`url(#${id}-f)`} />
         <g opacity={Math.max(0, 0.6 - h * 0.5)}>{trees}</g>
-        <path d={path} fill={`url(#${id}-t)`} opacity={0.16 * (1 - h * 0.6)} style={{mixBlendMode: 'soft-light'}} />
+        <path d={path} fill={`url(#${id}-t)`} opacity={0.42 * (1 - h * 0.55)} style={{mixBlendMode: 'soft-light'}} />
       </g>
     ),
   };

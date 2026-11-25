@@ -13,6 +13,7 @@ import {
   presentRidges,
   presentTree,
   presentTufts,
+  presentDabs,
   WALKER_POS,
 } from '../worlds/present';
 import {World, WorldView, walkerDrawable} from './WorldView';
@@ -29,9 +30,11 @@ export const presentWorld: World = {
   haze: presentHaze,
   tree: presentTree,
   treeLook: {lush: 0.88, lightColor: PRESENT_LIGHT.rim, lightAmount: 0.25, lightDir: 1, shadow: false},
+  dabs: presentDabs,
+  sky: 'sky_present.jpg',
 };
 
-type Shot = typeof camera.wide;
+type Shot = {from: {x: number; y: number; z: number}; to: {x: number; y: number; z: number}; f: number; horizon: number; aperture: number};
 /** Camera position along a shot's move; `camera.speed` scales how far the move travels. */
 export const shotCam = (shot: Shot, t: number, focus: number): Cam => {
   const k = t * camera.speed;
@@ -79,4 +82,20 @@ export const PresentMedium: React.FC<{
       <WorldView world={presentWorld} cam={cam} frame={frame} extras={walker ? [walker] : []} glowBoost={glowBoost} />
     </div>
   );
+};
+
+/** Close-ups: the cold open, the reaction on "isn't", and the final look into the mist. */
+export const PresentCloseup: React.FC<{
+  frame: number;
+  start: number;
+  end: number;
+  pose: Pose34;
+  tRange?: [number, number];
+  offset?: {x: number; y: number; z: number; horizon: number};
+}> = ({frame, start, end, pose, tRange = [0, 1], offset = {x: 0, y: 0, z: 0, horizon: 0}}) => {
+  const t = lerp(tRange[0], tRange[1], ramp(frame, start, end - start, ease.inOutSine));
+  const c0 = shotCam(camera.closeup, t, 1);
+  const cam = {...c0, x: c0.x + offset.x, y: c0.y + offset.y, z: c0.z + offset.z, horizon: c0.horizon + offset.horizon, focus: WALKER_POS.z - (c0.z + offset.z) - 0.06};
+  const walker = walkerDrawable(cam, presentWorld, pose, WALKER_POS, 'walkerCU');
+  return <WorldView world={presentWorld} cam={cam} frame={frame} extras={walker ? [walker] : []} glowBoost={1.45} maxBlur={26} />;
 };

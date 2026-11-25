@@ -4,7 +4,7 @@ import {Cam, blurAt, groundDepthAtY, project} from '../engine/camera';
 import {Drawable, DepthStack} from '../engine/DepthStack';
 import {fogDrawable} from '../environment/Fog';
 import {GrassColors, Tuft, tuftDrawable} from '../environment/Grass';
-import {GroundLayer, Patch} from '../environment/Ground';
+import {Dab, GroundLayer, Patch} from '../environment/Ground';
 import {OliveTree, TreeLook} from '../environment/OliveTree';
 import {ridgeDrawable} from '../environment/Ridge';
 import {Sky} from '../environment/Sky';
@@ -25,6 +25,8 @@ export interface World {
   haze: (d: number) => number;
   tree: {x: number; y: number; z: number};
   treeLook: Omit<TreeLook, 'haze' | 'hazeColor' | 'detail'>;
+  dabs?: Dab[];
+  sky?: string; // painted sky texture
 }
 
 /** Renders one world from one camera: sky → ground → depth-sorted layers with depth of field. */
@@ -71,9 +73,9 @@ export const WorldView: React.FC<{
   const gd = Math.max(2, groundDepthAtY(cam, (cam.horizon + H) / 2));
   return (
     <div style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
-      <Sky cam={cam} light={L} frame={frame} id={`${world.id}-sky`} glowBoost={glowBoost} />
+      <Sky cam={cam} light={L} frame={frame} id={`${world.id}-sky`} glowBoost={glowBoost} painted={world.sky} />
       <svg width={W} height={H} style={{position: 'absolute', inset: 0, filter: `blur(${Math.min(maxBlur ?? 22, blurAt(cam, gd)).toFixed(1)}px)`}}>
-        <GroundLayer cam={cam} light={L} paths={world.paths} patches={world.patches} haze={world.haze} id={`${world.id}-gr`} />
+        <GroundLayer cam={cam} light={L} paths={world.paths} patches={world.patches} haze={world.haze} id={`${world.id}-gr`} dabs={world.dabs} />
       </svg>
       <DepthStack cam={cam} items={items} maxBlur={maxBlur} />
     </div>

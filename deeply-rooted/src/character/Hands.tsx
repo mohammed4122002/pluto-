@@ -1,6 +1,7 @@
 import React from 'react';
 import {tones} from '../config/palette';
 import {Mode, paint} from './spec';
+import {Mat} from './Materials';
 
 /**
  * Hand assets (cm, y-up, wrist at origin, fingers pointing down −y in the neutral pose).
@@ -10,7 +11,7 @@ export type HandPose = 'relaxed' | 'holdPacket' | 'grip' | 'gripBack' | 'gripThu
 
 const KNUCKLES = 'M-1.6 -8.4 C-0.6 -8.9 0.6 -8.9 1.6 -8.4';
 
-export const Hand: React.FC<{mode: Mode; pose: HandPose; mirror?: boolean; detail?: boolean}> = ({mode, pose, mirror, detail = true}) => {
+export const Hand: React.FC<{mode: Mode; pose: HandPose; mirror?: boolean; detail?: boolean; uid?: string}> = ({mode, pose, mirror, detail = true, uid}) => {
   const skin = paint(mode, tones.skin);
   const sh = tones.skinShadow;
   const g = (children: React.ReactNode) => <g transform={mirror ? 'scale(-1 1)' : undefined}>{children}</g>;
@@ -50,6 +51,10 @@ export const Hand: React.FC<{mode: Mode; pose: HandPose; mirror?: boolean; detai
       <path d="M2.4 -2.0 C3.9 -3.6 4.3 -6.8 3.8 -9.0 C3.5 -9.9 2.6 -9.8 2.4 -8.8 C2.2 -7.0 1.9 -5.2 1.3 -3.8 Z" fill={skin} />
       {mode === 'color' && detail && (
         <>
+          {uid && <Mat uid={uid} d="M-2.5 0.6 C-3.1 -2.6 -3.3 -6.2 -2.9 -9.4 C-2.6 -12.6 -1.8 -15.8 -0.4 -17.2 C0.8 -18.1 2.0 -17.2 2.3 -15.0 C2.6 -12.2 3.0 -9.0 3.1 -6.6 C3.2 -4.4 3.0 -1.8 2.5 0.6 Z" kind="skin" volV={false} />}
+          <ellipse cx={0.2} cy={-16.9} rx={0.75} ry={0.45} fill="#C49A84" opacity={0.55} />
+          <ellipse cx={3.6} cy={-8.6} rx={0.45} ry={0.32} fill="#C49A84" opacity={0.5} />
+          <path d="M-1.0 -1.6 L-1.3 -7.4 M0.6 -1.4 L0.7 -7.6" stroke={tones.skinLight} strokeWidth={0.28} opacity={0.3} />
           <path d={KNUCKLES} fill="none" stroke={sh} strokeWidth={0.35} opacity={0.55} />
           <path d="M-0.4 -9.6 L-0.6 -15.8 M1.1 -9.4 L1.2 -15.6" stroke={sh} strokeWidth={0.22} opacity={0.45} />
           <path d="M-2.9 -5 C-3.2 -8.4 -2.6 -12.8 -1.2 -16.4 L-0.6 -15.8 C-1.8 -12.2 -2.2 -8.6 -2.1 -5.2 Z" fill={sh} opacity={0.4} />

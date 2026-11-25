@@ -13,10 +13,36 @@ export const breathAt = (f: number) => {
 
 export const blinkAt = (f: number) => {
   let b = 0;
-  for (const k of C.blinks) {
+  const extra = [C.s1.headTurnStart + 2, C.s2.lookUp[0] + 1, C.s2.lookDown[0] + 4];
+  for (const k of [...C.blinks, ...extra]) {
     if (f >= k && f < k + 7) b = Math.max(b, f < k + 2 ? (f - k + 1) / 2 : 1 - (f - k - 2) / 5);
   }
   return clamp(b);
+};
+
+/** The small things that make a still person alive: weight shift, follow-through, saccades, micro-motion. */
+export const lifeAt = (f: number) => {
+  const sec = f / FPS;
+  const swayAt = (ff: number) => 0.75 * Math.sin((ff / FPS) * ((2 * Math.PI) / 7.2) + 0.6) + 0.3 * noise1(ff / 95, 13);
+  const sway = swayAt(f);
+  const hemLag = -1.1 * (sway - swayAt(f - 9));
+  // saccades: gaze hops to a new nearby target every ~0.6–1.5 s (3-frame hop), with micro-drift
+  const seg = Math.floor(sec / 0.9 + 0.35 * noise1(sec * 0.7, 17));
+  const segStart = (seg - 0.35 * noise1(sec * 0.7, 17)) * 0.9 * FPS;
+  const prev = seg - 1;
+  const tgt = (k: number, sd: number) => (Math.sin(k * 12.9898 + sd) * 43758.5453) % 1;
+  const hop = clamp((f - segStart) / 3);
+  const saccX = (tgt(prev, 1) + (tgt(seg, 1) - tgt(prev, 1)) * hop) * 0.13 + noise1(sec * 2.3, 19) * 0.015;
+  const saccY = (tgt(prev, 2) + (tgt(seg, 2) - tgt(prev, 2)) * hop) * 0.08;
+  return {
+    sway,
+    hemLag,
+    saccX,
+    saccY,
+    microTilt: 0.55 * noise1(sec * 0.6, 23),
+    microPitch: 0.45 * noise1(sec * 0.5, 29),
+    time: sec,
+  };
 };
 
 export const windAt = (f: number) => wind.strength * (0.35 + 0.45 * noise1((f / FPS) * 0.45 * wind.speed, 8));
@@ -32,20 +58,24 @@ export const scene1Pose = (f: number): Pose34 => {
     [s.headReturnStart, -0.75],
     [s.headReturnStart + s.headReturnDur, -0.3, ease.inOutSine],
   ]);
+  const L = lifeAt(f);
   return {
     ...neutralPose,
     breath: breathAt(f),
     blink: blinkAt(f),
     headTurn: turn,
-    headPitch: 3 + 1.5 * noise1(f / 70, 2),
-    headTilt: -turn * 2.2,
-    gazeX: -0.35 + turn * 0.7,
-    gazeY: -0.1,
+    headPitch: 3 + 1.5 * noise1(f / 70, 2) + L.microPitch,
+    headTilt: -turn * 2.2 + L.microTilt,
+    gazeX: -0.35 + turn * 0.7 + L.saccX,
+    gazeY: -0.1 + L.saccY,
+    sway: L.sway,
+    hemLag: L.hemLag,
+    time: L.time,
     browWorry: 0.3,
     lidLower: 0.2,
     mouthSad: 0.05,
     wind: windAt(f),
-    detail: 0,
+    detail: 1,
   };
 };
 
@@ -63,8 +93,16 @@ export const scene2Pose = (f: number): Pose34 => {
   const sacc = study * (1 - up) * (Math.round(noise1(f / 11, 21) * 3) / 3) * 0.25;
   const sigh = pulse(f, s.sigh[0], s.sigh[1] * 0.45, s.sigh[0] + s.sigh[1], s.sigh[1] * 0.55);
   const realise = ramp(f, s.lookUp[0] + 10, 40);
+  const L = lifeAt(f);
+  // thumbs re-grip the paper twice while he reads
+  const regrip = Math.max(pulse(f, s.unfoldB[0] + s.unfoldB[1] + 14, 6, s.unfoldB[0] + s.unfoldB[1] + 30, 10), pulse(f, s.lookUp[0] - 22, 5, s.lookUp[0] - 8, 8));
   return {
     ...neutralPose,
+    sway: L.sway * 0.7,
+    hemLag: L.hemLag * 0.7,
+    time: L.time,
+    thumbAdj: regrip,
+    mapLower: 2.4 * up,
     breath: breathAt(f) * (1 - sigh) + sigh * (f < s.sigh[0] + s.sigh[1] * 0.45 ? 1 : 0.2),
     blink: blinkAt(f),
     armBlend: arm,
@@ -72,11 +110,11 @@ export const scene2Pose = (f: number): Pose34 => {
     colOpen1,
     colOpen0,
     farGrip: grip,
-    headPitch: 8.5 * (1 - up) + 1 * up + 1.2 * noise1(f / 60, 4),
+    headPitch: 8.5 * (1 - up) + 1 * up + 1.2 * noise1(f / 60, 4) + L.microPitch,
     headTurn: -0.1 - 0.25 * up,
-    headTilt: 0.8 * up,
-    gazeX: -0.25 + sacc - 0.55 * up,
-    gazeY: -0.95 * (1 - up) + 0.05 * up,
+    headTilt: 0.8 * up + L.microTilt,
+    gazeX: -0.25 + sacc - 0.55 * up + L.saccX * up,
+    gazeY: -0.95 * (1 - up) + 0.05 * up + L.saccY * up,
     lidLower: 0.55 * (1 - up) + 0.18 * up,
     browWorry: 0.25 + 0.4 * realise,
     mouthSad: 0.06 + 0.2 * realise,
@@ -91,13 +129,19 @@ export const scene2Pose = (f: number): Pose34 => {
 export const presentEndPose = (f: number): Pose34 => {
   const [a, d] = C.s3.presentLookUp;
   const up = ramp(f, a, d, ease.inOutSine);
+  const L = lifeAt(f);
   return {
     ...scene2Pose(C.s2.lookDown[0] + C.s2.lookDown[1] + 4),
+    sway: L.sway * 0.6,
+    hemLag: L.hemLag * 0.6,
+    time: L.time,
+    mapLower: 2.0 * up,
+    headTilt: L.microTilt,
     breath: breathAt(f),
     blink: blinkAt(f),
     headPitch: 8 * (1 - up) + 2.5 * up,
     gazeY: -0.9 * (1 - up) + 0.1 * up,
-    gazeX: -0.25 - 0.4 * up,
+    gazeX: -0.25 - 0.4 * up + L.saccX * up,
     lidLower: 0.5 * (1 - up) + 0.25 * up,
     browWorry: 0.5,
     mouthSad: 0.18,

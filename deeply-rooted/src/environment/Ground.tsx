@@ -15,6 +15,32 @@ export interface Patch {
   opacity: number;
 }
 
+export interface Dab {
+  x: number;
+  z: number;
+  len: number;
+  wid: number;
+  ang: number;
+  color: string;
+  opacity: number;
+}
+/** Small brush dabs laid on the ground plane: they stay glued to the world as the camera moves. */
+export const makeDabs = (seed: number, n: number, x0: number, x1: number, z0: number, z1: number, colors: string[]): Dab[] => {
+  const r = rng(seed);
+  return Array.from({length: n}, () => {
+    const z = z0 + (z1 - z0) * Math.pow(r(), 1.9);
+    return {
+      x: x0 + (x1 - x0) * r(),
+      z,
+      len: 0.4 + r() * 1.6 + z * 0.02,
+      wid: 0.08 + r() * 0.25,
+      ang: (r() - 0.5) * 0.9,
+      color: colors[Math.floor(r() * colors.length)],
+      opacity: 0.25 + r() * 0.4,
+    };
+  });
+};
+
 export const makePatches = (seed: number, n: number, x0: number, x1: number, z0: number, z1: number, colors: string[]): Patch[] => {
   const r = rng(seed);
   return Array.from({length: n}, () => {
@@ -42,7 +68,8 @@ export const GroundLayer: React.FC<{
   haze: (d: number) => number;
   id: string;
   pathOpacity?: number;
-}> = ({cam, light, paths, patches, haze, id, pathOpacity = 1}) => {
+  dabs?: Dab[];
+}> = ({cam, light, paths, patches, haze, id, pathOpacity = 1, dabs = []}) => {
   const hz = cam.horizon;
   const stops = DEPTHS.map((d) => ({o: Math.min(1, Math.max(0, (groundY(cam, d) - hz) / (H - hz))), d})).sort((a, b) => a.o - b.o);
   const stopsFor = (near: string) =>
@@ -78,6 +105,22 @@ export const GroundLayer: React.FC<{
         return <ellipse key={i} cx={c.x} cy={c.y} rx={rx} ry={ry} fill={mix(p.color, light.groundFar, haze(c.d))} opacity={p.opacity} />;
       })}
       </g>
+      {dabs.map((g, i) => {
+        const c = project(cam, g.x, 0, g.z);
+        if (!c || c.d < 1.2) return null;
+        const L = g.len * c.s;
+        const Wd = (g.wid * cam.y * cam.f) / (c.d * c.d) + 0.6;
+        if (L < 1.2 || c.x < -60 || c.x > W + 60 || c.y > H + 20) return null;
+        const dx = Math.cos(g.ang) * L * 0.5, dy = Math.sin(g.ang) * L * 0.5 * (cam.y / c.d);
+        return (
+          <path
+            key={`d${i}`}
+            d={`M${(c.x - dx).toFixed(1)} ${(c.y - dy).toFixed(1)}Q${c.x.toFixed(1)} ${(c.y - Wd).toFixed(1)} ${(c.x + dx).toFixed(1)} ${(c.y + dy).toFixed(1)}Q${c.x.toFixed(1)} ${(c.y + Wd * 0.6).toFixed(1)} ${(c.x - dx).toFixed(1)} ${(c.y - dy).toFixed(1)}Z`}
+            fill={mix(g.color, light.groundFar, haze(c.d))}
+            opacity={g.opacity}
+          />
+        );
+      })}
       <g opacity={pathOpacity}>
         {paths.map((p, i) => (
           <path key={`s${i}`} d={groundPolyToSvg(cam, ribbon(p, 1.75))} fill={`url(#${id}-ps)`} opacity={0.55} />

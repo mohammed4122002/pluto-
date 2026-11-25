@@ -39,6 +39,8 @@ const segAt = (id: string) => narrationData.segments.find((g: Seg) => g.id === i
 
 /** Key words, in GLOBAL film frames. */
 export const beats = {
+  here: beatF('here'),
+  titleEnd: beatF('titleEnd'),
   wondered: beatF('wondered'),
   hereEnd: beatF('hereEnd'),
   isnt: beatF('isnt'),
@@ -52,7 +54,10 @@ export const beats = {
 // ---------------------------------------------------------------------------
 // 2. Scene timing — derived from the narration
 // ---------------------------------------------------------------------------
-const CUT12 = beats.hereEnd + sec(1.45); // hold after "…ended up here?" then the mist carries us closer
+const CUT_A = beats.here; // close-up → the wide crossroads, cut exactly on "…ended up HERE?"
+const CUT12 = beats.titleEnd + sec(0.9); // title read plays over the wide, then the mist carries us closer
+const CU2_IN = beats.isnt - 10; // close-up reaction as his eyes leave the map: "this isn't where…"
+const CU2_OUT = beats.beEnd + 18;
 const CUT23 = sec(segAt('VO03a').at - 0.55); // cut on his glance down, just before "You had plans."
 const MATCH = beats.dreams - 16; // the drawn route becomes the world on "dreams"
 const RETURN = beats.nowEnd + sec(2.8); // let the imagined future breathe, then the mist returns
@@ -65,6 +70,15 @@ export const scenes = {
   scene03: {id: 'Scene03', title: 'The Life We Imagined', start: CUT23, duration: END - CUT23},
 } as const;
 export const TOTAL_FRAMES = END;
+
+/** The shot list inside the scenes (global frames). */
+export const shots = {
+  s1CloseUp: [0, CUT_A] as const,
+  s1Wide: [CUT_A, CUT12] as const,
+  s2Medium: [CUT12, CU2_IN] as const,
+  s2CloseUp: [CU2_IN, CU2_OUT] as const,
+  s2MediumB: [CU2_OUT, CUT23] as const,
+};
 
 // ---------------------------------------------------------------------------
 // 3. Camera (metres / pixels; see engine/camera.ts). `speed` scales how far each move travels.
@@ -88,6 +102,14 @@ export const camera = {
     horizon: 0.365 * H,
     aperture: 34,
   },
+  closeup: {
+    // Close-ups: the cold open, the reaction on "isn't", and the final look into the mist
+    from: {x: 0.31, y: 1.62, z: JUNCTION_Z - 2.42},
+    to: {x: 0.325, y: 1.62, z: JUNCTION_Z - 2.12},
+    f: 4200,
+    horizon: 0.47 * H,
+    aperture: 70,
+  },
   mapPush: {
     // Scene 03 — POV insert: scale of the open map on screen (1 = map art fills the frame)
     fromScale: 0.5,
@@ -106,12 +128,12 @@ export const camera = {
 // 4. Transitions (frames)
 // ---------------------------------------------------------------------------
 export const transitions = {
-  fadeInFromCharcoal: 40,
+  fadeInFromCharcoal: 12,
   fogWipeS1toS2: 40, // dense mist crosses the lens, centred on the scene cut
   cutS2toS3: 'cut-on-action', // he glances down → POV of the map
   mapMatchStart: MATCH, // ink route starts becoming the real path
   mapMatchDuration: 84,
-  imaginedCameraStart: MATCH + 50,
+  imaginedCameraStart: MATCH + 12,
   returnToPresentStart: RETURN,
   returnToPresentDuration: RETURN_DUR,
   fadeOutToCharcoal: 26,
@@ -148,9 +170,9 @@ export const character = {
     unfoldB: [LIFT + 62, 44] as const, // panels swing open
     studyUntil: beats.isnt - 6,
     lookUp: [beats.isnt - 6, 26] as const, // eyes leave the map: "this isn't where…"
-    rackToPaths: [beats.isnt + 4, 48] as const,
-    sigh: [beats.beEnd + 20, 46] as const, // quiet exhale, shoulders settle
-    rackBack: [beats.beEnd + 66, 34] as const,
+    rackToPaths: [CU2_OUT + 2, 46] as const, // back on the medium: focus finds the paths behind him
+    sigh: [CU2_OUT + 40, 46] as const, // quiet exhale, shoulders settle
+    rackBack: [CUT23 - 66, 34] as const,
     lookDown: [CUT23 - 34, 30] as const, // motivates the cut into Scene 03
   },
   s3: {
@@ -225,16 +247,18 @@ export const grade = {
 // 8. On-screen script (captions + opening title), timed to the narration
 // ---------------------------------------------------------------------------
 export const captions = {
-  enabled: true,
+  enabled: true, // burned into the combined render (the clean master and overlay are rendered separately)
   leadIn: 0.08, // s before the first word
   holdAfter: 0.5, // s after the last word
-  fadeIn: 7, // frames
+  fadeIn: 8, // frames — restrained fades, no movement, no word-by-word effects
   fadeOut: 9,
-  fontFamily: 'Caladea, "Bitstream Charter", Georgia, serif',
-  fontSize: 50,
-  bottom: 96, // px from the bottom edge
+  fontSize: 56, // mobile-first: ~5.2% of frame height
+  weight: 500,
+  lineHeight: 1.3,
+  maxWidth: 1320, // ≤ 2 balanced lines for every phrase
+  bottom: 106, // title-safe: ~10% from the bottom edge
   color: palette.ivory,
-  scrim: 0.36, // soft charcoal gradient behind the text (readability over the bright map)
+  plate: 0.24, // soft feathered charcoal plate behind the text (contrast on bright paper / sky)
 };
 
 export interface TimedText {
@@ -278,10 +302,12 @@ const S2c = character.s2;
 export const sfx = {
   enabled: true,
   master: 1,
-  footsteps: {file: 'step_dirt', variants: 4, volume: 0.3, strideM: 1.45},
+  footsteps: {file: 'step_dirt', variants: 4, volume: 0.24, strideM: 1.45},
+  duck: {depthDb: -5, attack: 5, release: 16}, // ambience + effects dip under her voice (sidechain-style)
   cues: [
     {id: 'Dawn wind (present)', file: 'amb_dawn_wind', at: 0, dur: MATCH + 50, volume: 0.38, fadeIn: 45, fadeOut: 50},
-    {id: 'Mist whoosh S01→S02', file: 'whoosh_mist', at: CUT12 - sec(1.35), dur: sec(3.0), volume: 0.42},
+    {id: 'Wind opens on the reveal', file: 'gust_open', at: CUT_A - 12, dur: sec(3.0), volume: 0.34},
+    {id: 'Mist gust S01→S02', file: 'gust_mist', at: CUT12 - sec(1.7), dur: sec(3.4), volume: 0.36},
     {id: 'Coat shift', file: 'cloth_shift', at: LIFT - 2, dur: sec(0.9), volume: 0.45},
     {id: 'Paper: lift map', file: 'paper_handle', at: LIFT + 4, dur: sec(1.1), volume: 0.48},
     {id: 'Paper: first fold', file: 'paper_unfold_1', at: S2c.unfoldA[0] + 2, dur: sec(0.8), volume: 0.5},
@@ -290,9 +316,9 @@ export const sfx = {
     {id: 'Exhale', file: 'breath_exhale', at: S2c.sigh[0] + 2, dur: sec(1.7), volume: 0.36},
     {id: 'Coat settle (looks down)', file: 'cloth_settle', at: S2c.lookDown[0], dur: sec(0.7), volume: 0.38},
     {id: 'Paper: POV grip', file: 'paper_handle', at: CUT23 + 2, dur: sec(1.1), volume: 0.32},
-    {id: 'Shimmer: map becomes world', file: 'shimmer_bloom', at: MATCH - 8, dur: sec(5.5), volume: 0.3},
+    {id: 'Warm breeze: map becomes world', file: 'warm_swell', at: MATCH - 20, dur: sec(6.0), volume: 0.42},
     {id: 'Meadow (imagined)', file: 'amb_meadow_warm', at: MATCH - 6, dur: RETURN + 56 - (MATCH - 6), volume: 0.5, fadeIn: 50, fadeOut: 56},
-    {id: 'Mist whoosh: return', file: 'whoosh_return', at: RETURN - 8, dur: sec(3.8), volume: 0.4},
+    {id: 'Mist gust: return', file: 'gust_return', at: RETURN - 14, dur: sec(4.0), volume: 0.34},
     {id: 'Dawn wind (return)', file: 'amb_dawn_wind', at: RETURN - 6, dur: END - (RETURN - 6), volume: 0.36, fadeIn: 60, fadeOut: 30, trim: 14},
   ] as SfxCue[],
 };

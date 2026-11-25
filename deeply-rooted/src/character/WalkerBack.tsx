@@ -4,6 +4,7 @@ import {lerp} from '../engine/anim';
 import {Hand} from './Hands';
 import {capsule, V} from './Limb';
 import {Mode, paint} from './spec';
+import {Mat, MaterialDefs} from './Materials';
 
 /**
  * THE WALKER — back view (walking away), for the imagined future in Scene 03 and the reference sheet.
@@ -41,7 +42,8 @@ const leg = (phase: number, side: -1 | 1, walk: number): LegState => {
   const hx = side * 5.2;
   const ankleY = 9 + lift + fwd * 9; // further away reads as higher on screen
   const ankleX = hx + side * 0.6 - fwd * side * 0.8;
-  const knee: V = [lerp(hx, ankleX, 0.5) + side * 0.8, lerp(88, ankleY, 0.52) + (lift > 2 ? 1.5 : 0)];
+  // swing leg: the knee lifts and the shin folds back toward the lens (reads as a shorter, bent leg)
+  const knee: V = [lerp(hx, ankleX, 0.5) + side * (0.8 + lift * 0.08), lerp(88, ankleY, 0.52) + lift * 0.55];
   return {hip: [hx, 90], knee, ankle: [ankleX, ankleY], heelLift: heel, front: fwd > 0.05};
 };
 
@@ -65,12 +67,13 @@ const Boot: React.FC<{mode: Mode; at: V; heel: number; side: -1 | 1; scale: numb
   );
 };
 
-export const WalkerBack: React.FC<{mode: Mode; phase: number; walk?: number; wind?: number; detail?: number}> = ({
+export const WalkerBack: React.FC<{mode: Mode; phase: number; walk?: number; wind?: number; detail?: number; uid?: string}> = ({
   mode,
   phase,
   walk = 1,
   wind = 0,
   detail = 1,
+  uid = 'wb',
 }) => {
   const P = (c: string) => paint(mode, c);
   const color = mode === 'color';
@@ -97,8 +100,10 @@ export const WalkerBack: React.FC<{mode: Mode; phase: number; walk?: number; win
   const armR = s1 * walk;
   const arm = (side: -1 | 1, a: number) => {
     const S: V = [side * 15.6, 141 + bob - side * tilt * 0.6];
+    // forward swing bends the elbow; back swing straightens the arm
     const E: V = [side * (17.6 - a * 0.6), 113 + bob + a * 3.2];
-    const Wr: V = [side * (17.2 - a * 1.6), 88 + bob + a * 7.5];
+    const bend = Math.max(0, a) * 2.4;
+    const Wr: V = [side * (17.2 - a * 1.6 - bend * 0.4), 88 + bob + a * 7.5 + bend];
     return (
       <g>
         <path d={capsule(Wr, [Wr[0], Wr[1] - 1], 3.6, 3.4, 0)} fill={P(T.sweater)} />
@@ -114,8 +119,13 @@ export const WalkerBack: React.FC<{mode: Mode; phase: number; walk?: number; win
   const armsBehind = [armL > 0.3 ? arm(-1, armL) : null, armR > 0.3 ? arm(1, armR) : null];
   const armsFront = [armL <= 0.3 ? arm(-1, armL) : null, armR <= 0.3 ? arm(1, armR) : null];
 
+  const COAT_BACK =
+    `M-7.2 152.6 C-12.4 151.6 -16.4 149.6 -18.2 146.2 C-19.2 143.6 -19.0 138 -18.4 131 C-17.6 120 -16.4 112 -16.2 104 ` +
+    `C-16.6 90 ${-18.0 + hemSway * 0.4} 70 ${-19.6 + hemSway} 52.6 C-12 51.2 -4 50.8 0 50.8 C4 50.8 12 51.2 ${19.6 + hemSway} 52.6 ` +
+    `C${18.0 + hemSway * 0.4} 70 16.6 90 16.2 104 C16.4 112 17.6 120 18.4 131 C19.0 138 19.2 143.6 18.2 146.2 C16.4 149.6 12.4 151.6 7.2 152.6 Z`;
   return (
     <g transform={`translate(${sway} 0)`}>
+      {color && <MaterialDefs uid={uid} />}
       {armsBehind}
       {legs.map((l, i) => (
         <g key={i}>{legShape(l)}</g>
@@ -128,16 +138,10 @@ export const WalkerBack: React.FC<{mode: Mode; phase: number; walk?: number; win
         <path d="M12.6 104.6 C13.0 96 13.6 88 14.6 81.6 L25.2 82.8 C25.6 90 25.4 98 24.8 105.4 Z" fill={P(T.satchel)} />
         {color && <path d="M12.4 104.6 L25.0 105.4 L25.2 96.4 C21 95.4 16.6 95.4 12.8 96.0 Z" fill={T.satchelShadow} opacity={0.5} />}
         {/* coat back */}
-        <path
-          d={
-            `M-7.2 152.6 C-12.4 151.6 -16.4 149.6 -18.2 146.2 C-19.2 143.6 -19.0 138 -18.4 131 C-17.6 120 -16.4 112 -16.2 104 ` +
-            `C-16.6 90 ${-18.0 + hemSway * 0.4} 70 ${-19.6 + hemSway} 52.6 C-12 51.2 -4 50.8 0 50.8 C4 50.8 12 51.2 ${19.6 + hemSway} 52.6 ` +
-            `C${18.0 + hemSway * 0.4} 70 16.6 90 16.2 104 C16.4 112 17.6 120 18.4 131 C19.0 138 19.2 143.6 18.2 146.2 C16.4 149.6 12.4 151.6 7.2 152.6 Z`
-          }
-          fill={P(T.coat)}
-        />
+        <path d={COAT_BACK} fill={P(T.coat)} />
         {color && (
           <g>
+            <Mat uid={uid} d={COAT_BACK} kind="wool" />
             <path d="M0 104 L0 66" stroke={T.coatShadow} strokeWidth={0.7} />
             <path d={`M-0.4 66 L${-1.6 + hemSway * 0.3} 51.2 L${1.2 + hemSway * 0.3} 51.2 L0.4 66 Z`} fill={T.coatShadow} opacity={0.9} />
             <path d="M-15.6 106 C-10 104.6 10 104.6 15.6 106" stroke={T.coatShadow} strokeWidth={0.8} fill="none" opacity={0.6} />

@@ -36,6 +36,7 @@ for i, c in enumerate(caps):
     if i + 1 < len(caps):
         b = min(b, film(caps[i + 1]["src"][0]) - LEAD - 2 / FPS)
     items.append((a, b, c["text"]))
+items.sort(key=lambda it: it[0])
 os.makedirs(os.path.join(ROOT, "out"), exist_ok=True)
 out = os.path.join(ROOT, "out", "phase01_captions.srt")
 with open(out, "w", encoding="utf-8") as fh:

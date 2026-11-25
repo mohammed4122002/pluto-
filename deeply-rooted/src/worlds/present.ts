@@ -1,6 +1,6 @@
 // PRESENT DAY — the crossroads in the mist, just before sunrise (Scenes 01, 02, end of 03).
 import {JUNCTION_Z, fog as fogCfg, lighting} from '../config/production';
-import {makePatches} from '../environment/Ground';
+import {makeDabs, makePatches} from '../environment/Ground';
 import {makeTufts} from '../environment/Grass';
 import {FogDef, PathDef, RidgeDef} from '../environment/types';
 
@@ -53,6 +53,7 @@ export const presentFog: FogDef[] = [
   {z: J - 20, y0: -0.2, height: 2.4, tileWidth: 40, tex: 'fog_wisp_1', speed: -0.3, opacity: 0.26, x0: 3},
   // eye-level wisps between the medium-shot camera and him (Scene 02 foreground depth)
   {z: J - 2.3, y0: 1.05, height: 1.1, tileWidth: 9, tex: 'fog_wisp_1', speed: -0.16, opacity: 0.2, x0: 2},
+  {z: J - 1.1, y0: 1.25, height: 0.75, tileWidth: 5, tex: 'fog_wisp_0', speed: -0.12, opacity: 0.16, x0: 1},
 ];
 
 export const presentPatches = makePatches(21, 260, -60, 60, 0, 200, ['#3F4537', '#5E644F', '#6E705C', '#4A5242', '#7C7B66']);
@@ -62,8 +63,12 @@ export const presentTufts = makeTufts(
   900,
   {x0: -34, x1: 34, z0: J - 31, z1: J + 80},
   presentPaths,
-  {minH: 0.16, maxH: 0.55, dry: 0.42, avoid: 0.2, tallChance: 0.12},
+  {minH: 0.16, maxH: 0.55, dry: 0.42, avoid: 0.2, tallChance: 0.12, mix: {grass: 6, seed: 2.2, shrub: 0.9, stone: 0.6}},
+).concat(
+  // foreground framing: tall seed-grasses along the sides of the opening dolly (they sweep past the lens)
+  makeTufts(37, 60, {x0: -7.5, x1: 3.5, z0: 17, z1: 34}, presentPaths, {minH: 0.75, maxH: 1.25, dry: 0.75, avoid: 1.6, tallChance: 0, mix: {seed: 3, grass: 1}}),
 );
+export const presentDabs = makeDabs(41, 900, -50, 50, J - 32, J + 120, ['#3B4133', '#57604A', '#6B6D58', '#7F7C66', '#4D5544', '#8D8A75']);
 export const presentGrass = {dark: '#3C4234', mid: '#5D6450', dry: '#8D8670', tip: '#B7AC93', haze: PRESENT_LIGHT.groundFar};
 
 export const presentHaze = (d: number) => 0.9 * (1 - Math.exp(-d * fogCfg.presentHaze * fogCfg.density));

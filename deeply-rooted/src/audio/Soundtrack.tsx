@@ -1,6 +1,6 @@
 import React from 'react';
 import {Audio, Sequence, staticFile} from 'remotion';
-import {camera, character, FPS, narration, sec, sfx, transitions} from '../config/production';
+import {camera, captionTrack, character, FPS, narration, sec, sfx, transitions} from '../config/production';
 import {clamp, ease, lerp, ramp} from '../engine/anim';
 import {alongPath, distAtZ} from '../environment/geometry';
 import {imaginedPath} from '../worlds/imagined';
@@ -19,6 +19,19 @@ interface Clip {
   fadeOut: number;
   trimBefore: number; // frames
 }
+
+/** Sidechain-style ducking: ambience and effects dip a few dB whenever she is speaking. */
+const duckAt = (f: number) => {
+  const {depthDb, attack, release} = sfx.duck;
+  let act = 0;
+  for (const c of captionTrack) {
+    const up = ramp(f, c.from - attack, attack, ease.inOutSine);
+    const down = 1 - ramp(f, c.to - 6, release, ease.inOutSine);
+    act = Math.max(act, Math.min(up, down));
+  }
+  const g = Math.pow(10, depthDb / 20);
+  return 1 - (1 - g) * act;
+};
 
 /** Footsteps on the imagined path: one per heel strike, quieter as he walks away. */
 const footstepClips = (): Clip[] => {
@@ -97,7 +110,7 @@ export const Soundtrack: React.FC<{offset: number; length: number}> = ({offset, 
             <Audio
               src={staticFile(c.src)}
               trimBefore={c.trimBefore}
-              volume={(f) => c.volume * envAt(f, c.dur, c.fadeIn, c.fadeOut)}
+              volume={(f) => c.volume * envAt(f, c.dur, c.fadeIn, c.fadeOut) * (c.name.startsWith('VO') ? 1 : duckAt(c.at + f))}
             />
           </Sequence>
         );

@@ -1,6 +1,6 @@
 # Phase 01 — Timing, Narration Sync, On-screen Script & Sound
 
-**Film:** *When Life Doesn't Go as Planned* · Scenes 01–03 · 1920×1080 · 30 fps · **1233 frames = 41.1 s**
+**Film:** *When Life Doesn't Go as Planned* · Scenes 01–03 · 1920×1080 · 30 fps · **1227 frames = 40.9 s** (v2)
 
 The picture now follows the narrator's recording (`When_Life_Doesnt_Go_as_Planned_1vd.mp3`, 5:40). Phase 01 uses its opening, the title read plus the first three lines. Everything is derived from `src/data/narration.json` and `src/config/production.ts`.
 
@@ -25,23 +25,23 @@ The three lines match the approved script word for word. The full word-level tra
 
 ---
 
-## 2. Narration placement on the film
+## 2. Narration placement on the film (v2 edit: hook first)
 
-Her phrasing is kept intact inside each segment. Pauses are only added between segments, where a scene needs room: the mist wipe, the map unfolding, the cut into the map.
+Her phrasing is kept intact inside each segment. Segments are placed so the emotional hook comes first and her title read plays over the reveal of the crossroads.
 
 | Segment | Recording (s) | Film start (s) | Film start (frame) |
 |---|---|---|---|
-| TITLE | 0.00 – 5.58 | 1.30 | 39 |
-| VO01 | 6.02 – 10.82 | 7.75 | 233 |
-| VO02a ("Not because… But because…") | 11.52 – 14.86 | 15.30 | 459 |
-| VO02b ("this isn't where…") | 15.14 – 17.26 | 19.50 | 585 |
-| VO03a ("You had plans.") | 17.96 – 19.24 | 26.95 | 809 |
-| VO03b ("You had dreams. You imagined…") | 19.40 – 23.92 | 29.00 | 870 |
+| VO01 ("Have you ever looked at your life… and wondered how you ended up here?") | 6.02 – 10.82 | 0.80 | 24 |
+| TITLE ("When Life Doesn't Go as Planned · Deeply Rooted · Episode One") | 0.00 – 5.58 | 7.00 | 210 |
+| VO02a ("Not because… But because…") | 11.52 – 14.86 | 14.60 | 438 |
+| VO02b ("this isn't where…") | 15.14 – 17.26 | 18.90 | 567 |
+| VO03a ("You had plans.") | 17.96 – 19.24 | 26.80 | 804 |
+| VO03b ("You had dreams. You imagined…") | 19.40 – 23.92 | 28.80 | 864 |
 
 **Voice processing:**
 - **Source:** the original was very quiet (−34.5 LUFS).
 - **Processing:** high-pass at 70 Hz, gentle 3:1 compression, +22 dB of gain and a −1.5 dBFS limiter.
-- **Result:** the voice stem `public/audio/narration.m4a` sits at −16 LUFS.
+- **Result:** the voice stem `public/audio/narration.m4a` sits at −16 LUFS. Her delivery and timing are untouched.
 
 To redo it:
 
@@ -51,30 +51,35 @@ ffmpeg -i narration_original.mp3 -af "highpass=f=70,acompressor=threshold=0.025:
 
 ---
 
-## 3. Scenes and beats (derived from her words)
+## 3. Shots and beats (derived from her words)
 
-| Scene | Frames | Timecode | Length |
+| Scene | Frames | Length | Shots |
 |---|---|---|---|
-| 01 How Did I End Up Here? | 0 – 417 | 00:00:00:00 – 00:00:13:27 | 13.9 s |
-| 02 This Was Not the Plan | 418 – 791 | 00:00:13:28 – 00:00:26:11 | 12.5 s |
-| 03 The Life We Imagined | 792 – 1232 | 00:00:26:12 – 00:00:41:02 | 14.7 s |
+| 01 How Did I End Up Here? | 0 – 402 | 13.4 s | Close-up 0–158 · Wide 159–402 |
+| 02 This Was Not the Plan | 403 – 787 | 12.8 s | Medium 403–568 · Close-up 569–645 · Medium 646–787 |
+| 03 The Life We Imagined | 788 – 1226 | 14.6 s | POV map 788–862 · Match 863–946 · Imagined 863–1080 · Return 1081–1158 · Close-up 1159–1226 |
+
+**Total: 1227 frames = 40.9 s.**
 
 | Beat | Frame | Tied to |
 |---|---|---|
-| Fade up from charcoal; title card (Deeply Rooted / When Life Doesn't Go as Planned / Episode One) | 0 – 226 | title read |
-| Head turns toward the far paths | 302 – 348 | "**wondered**" (312) |
-| Mist rolls across the lens → medium shot | 398 – 438 (cut 418) | 1.45 s after "…here?" |
-| Lifts and unfolds the map | 426 – 532 | "Not because everything is terrible." |
-| Studies the route | 532 – 591 | "But because…" |
-| Eyes leave the map; rack focus to the paths | 591 – 649 | "this **isn't** where…" (597) |
-| Exhale, focus returns, looks down | 666 – 788 | silence |
-| Cut on his glance → POV push into the map | 792 – 869 | "You had **plans**." |
-| Ink route dissolves into the real world | 869 – 953 | "You had **dreams**." (885) |
-| Walks toward the flourishing olive tree | 869 – 1087 | "You **imagined** a different version of yourself…" |
-| Mist returns to the present; he lifts his eyes | 1087 – 1199 | silence |
-| Fade to charcoal | 1207 – 1233 | — |
+| Fade from charcoal (0.4 s); close-up in drifting mist | 0 – 12 | — |
+| His head turns toward the far paths (close-up) | 94 – 140 | "**wondered**" (104) |
+| Cut to the wide crossroads | 159 | "…ended up **here**?" |
+| Title card in the sky (her title read) | 209 – 403 | title read |
+| Mist gust → medium shot | 383 – 423 (cut 403) | 0.9 s after "Episode One" |
+| Lifts and unfolds the map | 411 – 517 | "Not because everything is terrible." |
+| Studies the route; thumbs re-grip | 517 – 573 | "But because…" |
+| **Close-up**: eyes leave the map, the map sinks slightly | 569 – 645 | "this **isn't** where…" (579) |
+| Back on the medium: rack focus to the paths behind him | 648 – 694 | silence |
+| Exhale; focus returns; he looks down → cut | 686 – 784 | silence |
+| POV push into the drawn route | 788 – 862 | "You had **plans**." |
+| Light through the paper → wash from the route → world | 837 – 946 | "You had **dreams**." (879) |
+| Walks toward the flourishing olive tree | 863 – 1080 | "You **imagined** a different version of yourself…" |
+| Mist returns; close-up as he lifts his eyes | 1081 – 1199 | silence |
+| Fade to charcoal | 1201 – 1226 | — |
 
-**To re-time:** change a segment's `at` in `src/data/narration.json`. Scene lengths, transitions, acting beats, captions and every sound cue follow automatically.
+**To re-time:** move a segment's `at` in `src/data/narration.json`. Shots, transitions, acting beats, captions and sound cues all follow automatically.
 
 ---
 

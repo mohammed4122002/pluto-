@@ -105,6 +105,38 @@ def chirp(dur: float, f0: float, f1: float, rng, harm=0.18) -> np.ndarray:
     return a * (np.sin(ph) + harm * np.sin(2 * ph))
 
 
+def whistle(dur: float, contour, rng, vib=0.02) -> np.ndarray:
+    """A songbird note: smooth pitch contour (list of Hz keyframes), vibrato, soft harmonics."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    k = np.linspace(0, 1, len(contour))
+    f = np.interp(t / dur, k, contour)
+    f = f * (1 + vib * np.sin(2 * np.pi * rng.uniform(18, 32) * t))
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    a = np.sin(np.pi * np.clip(t / dur, 0, 1)) ** 1.5
+    return a * (np.sin(ph) + 0.12 * np.sin(2 * ph) + 0.03 * np.sin(3 * ph))
+
+
+def song(rng, base=3200.0, lively=False) -> np.ndarray:
+    """Natural phrase: a mix of falling 'tee-oo' whistles, rising notes and quick trills."""
+    parts = []
+    for _ in range(rng.integers(2, 5 if not lively else 7)):
+        kind = rng.choice(["fall", "rise", "trill", "slur"])
+        b = base * rng.uniform(0.85, 1.2)
+        if kind == "fall":
+            parts.append(whistle(rng.uniform(0.18, 0.32), [b * 1.15, b, b * 0.82], rng))
+        elif kind == "rise":
+            parts.append(whistle(rng.uniform(0.12, 0.22), [b * 0.85, b * 1.18], rng))
+        elif kind == "slur":
+            parts.append(whistle(rng.uniform(0.25, 0.4), [b, b * 1.25, b * 0.95, b * 1.1], rng, 0.01))
+        else:
+            for _ in range(rng.integers(3, 7)):
+                parts.append(whistle(0.045, [b * 1.1, b * 0.9], rng, 0.0))
+                parts.append(np.zeros(int(0.025 * SR)))
+        parts.append(np.zeros(int(rng.uniform(0.06, 0.18) * SR)))
+    return np.concatenate(parts)
+
+
 def bird_phrase(rng, base=3200.0, notes=(2, 5), lively=False) -> np.ndarray:
     parts = []
     for _ in range(rng.integers(*notes)):
@@ -163,8 +195,8 @@ def amb_dawn_wind(dur=46.0):
     bed = np.stack(ch, axis=1)
     birds = np.zeros((n, 2))
     for t in (4.2, 11.5, 19.8, 27.3, 36.0, 42.5):
-        ph = filt(bird_phrase(rng, base=rng.uniform(2600, 3600)), "lowpass", 5500, 2)
-        ph = reverb(ph, 0.9, 0.55, rng)
+        ph = filt(song(rng, base=rng.uniform(2600, 3400)), "lowpass", 5000, 2)
+        ph = reverb(ph, 1.1, 0.6, rng)
         st = pan(ph, rng.uniform(-0.8, 0.8))
         i = int((t + rng.uniform(-1, 1)) * SR)
         birds[i : i + len(st)] += st[: max(0, n - i)]
@@ -189,12 +221,12 @@ def amb_meadow_warm(dur=16.0):
     birds = np.zeros((n, 2))
     t = 0.4
     while t < dur - 1.5:
-        ph = bird_phrase(rng, base=rng.uniform(3000, 5200), notes=(4, 10), lively=True)
-        ph = reverb(filt(ph, "lowpass", 8000, 2), 0.6, 0.3, rng)
+        ph = song(rng, base=rng.uniform(2800, 4600), lively=True)
+        ph = reverb(filt(ph, "lowpass", 7000, 2), 0.8, 0.4, rng)
         st = pan(ph, rng.uniform(-0.7, 0.7))
         i = int(t * SR)
         birds[i : i + len(st)] += st[: max(0, n - i)] * rng.uniform(0.4, 1.0)
-        t += rng.uniform(0.6, 1.6)
+        t += rng.uniform(1.1, 2.6)
     bed = bed / np.sqrt(np.mean(bed**2)) * 10 ** (-28 / 20)
     birds = birds / (np.max(np.abs(birds)) + 1e-9) * 10 ** (-24 / 20)
     write("amb_meadow_warm.wav", bed + birds, peak_db=-6, rms_db=-25)
@@ -214,6 +246,49 @@ def whoosh(name, dur, seed, darker=False, pan_from=0.7, pan_to=-0.7):
     y = reverb(y, 1.4, 0.35, rng)
     p = np.linspace(pan_from, pan_to, n)
     write(name, pan(y, p), peak_db=-8)
+
+
+def gust(name, dur, seed, darker=False, peak=0.5, rustle=0.35, pan_drift=0.25):
+    """A natural gust of wind passing through grass: no synthetic sweep, gentle stereo drift."""
+    rng = np.random.default_rng(seed)
+    n = int(dur * SR)
+    e = bell(n, peak, 1.15) ** 1.2
+    chans = []
+    for c in range(2):
+        x = pink(n, rng)
+        lo = filt(x, "bandpass", [45, 260 if darker else 320]) * 1.0
+        mid = filt(x, "bandpass", [260, 1100 if darker else 1500]) * (0.55 + 0.45 * slow(n, 3.5, rng))
+        hi = filt(x, "bandpass", [1500, 4500]) * (0.12 if darker else 0.2)
+        grass = filt(white(n, rng), "bandpass", [1800, 6500]) * (0.35 + 0.65 * slow(n, 18, rng)) * rustle * 0.4
+        chans.append((lo + mid * 0.7 + hi + grass) * e)
+    y = np.stack(chans, axis=1)
+    drift = np.linspace(pan_drift, -pan_drift, n)[:, None]
+    y[:, 0] *= (1 - drift[:, 0] * 0.5)
+    y[:, 1] *= (1 + drift[:, 0] * 0.5)
+    write(name, y, peak_db=-10)
+
+
+def warm_swell(dur=6.0):
+    """The map becoming a world: a warm breeze opening up, leaves stirring, birds arriving."""
+    rng = np.random.default_rng(8)
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    rise = np.clip(t / 1.6, 0, 1) ** 2 * np.exp(-np.clip(t - 2.2, 0, None) / 2.2)
+    chans = []
+    for c in range(2):
+        x = pink(n, rng)
+        breeze = filt(x, "bandpass", [180, 2200]) * rise
+        leaves = filt(white(n, rng), "bandpass", [1800, 6000]) * (0.3 + 0.7 * slow(n, 20, rng)) * rise * 0.35
+        chans.append(breeze + leaves)
+    y = np.stack(chans, axis=1)
+    birds = np.zeros((n, 2))
+    for k, at in enumerate((1.3, 2.4, 3.4)):
+        ph = reverb(filt(song(rng, base=rng.uniform(3200, 4400), lively=True), "lowpass", 7000, 2), 0.9, 0.45, rng)
+        st = pan(ph, rng.uniform(-0.6, 0.6)) * (0.35 + 0.2 * k)
+        i = int(at * SR)
+        birds[i : i + len(st)] += st[: max(0, n - i)]
+    y = y / (np.max(np.abs(y)) + 1e-9) * 0.5 + birds / (np.max(np.abs(birds)) + 1e-9) * 0.22
+    write("warm_swell.wav", y, peak_db=-10)
 
 
 def shimmer_bloom(dur=5.5):
@@ -241,9 +316,10 @@ def paper(name, dur, seed, density, flap_at=None, snap=False, body=0.35, peak=-6
     n = int(dur * SR)
     t = np.arange(n) / SR
     dens = np.interp(t, *density)
-    cr = crackle(n, dens, rng, 1400, 9500, (0.0015, 0.009))
-    slide = filt(white(n, rng), "bandpass", [400, 2600]) * np.interp(t, *density) / (max(density[1]) + 1e-9) * body
-    y = cr + slide * 0.25
+    cr = filt(crackle(n, dens * 0.8, rng, 1200, 7000, (0.003, 0.014)), "lowpass", 6500, 2)
+    slide = filt(white(n, rng), "bandpass", [300, 2400]) * np.interp(t, *density) / (max(density[1]) + 1e-9) * body
+    flex = filt(white(n, rng), "bandpass", [150, 700]) * np.interp(t, *density) / (max(density[1]) + 1e-9) * 0.5
+    y = cr * 0.8 + slide * 0.35 + flex * 0.3
     if flap_at is not None:
         i = int(flap_at * SR)
         L = int(0.09 * SR)
@@ -306,7 +382,8 @@ def footstep(name, seed, heavy=1.0):
     toe_at = rng.uniform(0.09, 0.12)
     toe = crackle(n, np.where((t > toe_at) & (t < toe_at + 0.04), 380, 0), rng, 1100, 5500, (0.001, 0.004)) * 0.5
     scuff = filt(white(n, rng), "bandpass", [500, 3000]) * env(n, 0.01, 0.3, 2) * np.exp(-t / 0.12) * 0.15
-    y = thud * 1.2 + filt(heel * 0.45 + toe, 'lowpass', 5000, 2) + scuff
+    swish = filt(white(n, rng), "bandpass", [250, 1800]) * env(n, 0.06, 0.25, 2) * 0.08
+    y = thud * 1.1 + filt(heel * 0.3 + toe * 0.7, 'lowpass', 4200, 2) + scuff * 0.8 + swish
     y = reverb(y, 0.25, 0.1, rng)
     write(name, pan(y, 0.0), peak_db=-4)
 
@@ -314,9 +391,10 @@ def footstep(name, seed, heavy=1.0):
 if __name__ == "__main__":
     amb_dawn_wind()
     amb_meadow_warm()
-    whoosh("whoosh_mist.wav", 3.0, 11, pan_from=0.75, pan_to=-0.75)
-    whoosh("whoosh_return.wav", 3.8, 12, darker=True, pan_from=0.6, pan_to=-0.8)
-    shimmer_bloom()
+    gust("gust_mist.wav", 3.4, 11, peak=0.5)
+    gust("gust_return.wav", 4.0, 12, darker=True, peak=0.45)
+    gust("gust_open.wav", 3.0, 13, peak=0.35, rustle=0.5, pan_drift=0.15)
+    warm_swell()
     paper("paper_handle.wav", 1.1, 21, ([0, 0.15, 0.6, 1.1], [5, 80, 35, 0]))
     paper("paper_unfold_1.wav", 0.8, 22, ([0, 0.08, 0.35, 0.8], [10, 260, 60, 0]), flap_at=0.36)
     paper("paper_unfold_2.wav", 1.0, 23, ([0, 0.1, 0.45, 1.0], [10, 320, 80, 0]), flap_at=0.48, snap=True)

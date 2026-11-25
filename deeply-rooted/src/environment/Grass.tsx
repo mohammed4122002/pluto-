@@ -16,11 +16,14 @@ interface Blade {
   dry: boolean;
   phase: number;
 }
+export type PlantKind = 'grass' | 'seed' | 'flower' | 'shrub' | 'stone';
 export interface Tuft {
   x: number;
   z: number;
   blades: Blade[];
   h: number;
+  kind?: PlantKind;
+  seed?: number;
 }
 
 export const makeTufts = (
@@ -28,8 +31,18 @@ export const makeTufts = (
   n: number,
   area: {x0: number; x1: number; z0: number; z1: number},
   paths: PathDef[],
-  opt: {minH: number; maxH: number; dry: number; avoid: number; tallChance?: number},
+  opt: {minH: number; maxH: number; dry: number; avoid: number; tallChance?: number; mix?: Partial<Record<PlantKind, number>>},
 ): Tuft[] => {
+  const weights = {grass: 1, seed: 0, flower: 0, shrub: 0, stone: 0, ...(opt.mix ?? {})};
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  const pickKind = (u: number): PlantKind => {
+    let acc = 0;
+    for (const [k, w] of Object.entries(weights)) {
+      acc += w / total;
+      if (u <= acc) return k as PlantKind;
+    }
+    return 'grass';
+  };
   const r = rng(seed);
   const out: Tuft[] = [];
   let guard = 0;
@@ -58,7 +71,9 @@ export const makeTufts = (
       dry: r() < opt.dry || (tall && r() < 0.7),
       phase: r() * 10,
     }));
-    out.push({x, z, blades, h});
+    let kind = pickKind(r());
+    if (kind === 'shrub' && z - area.z0 < 10) kind = 'grass';
+    out.push({x, z, blades, h: kind === 'stone' ? h * 0.35 : kind === 'shrub' ? h * 1.1 : h, kind, seed: Math.floor(r() * 1e6)});
   }
   return out;
 };
@@ -103,6 +118,66 @@ export const tuftDrawable = (
     (b.dry ? dry : dark).push(d);
   }
   const top = p.y - t.h * 1.2 * p.s;
+  const kind = t.kind ?? 'grass';
+  const sd = t.seed ?? 1;
+  const extras: React.ReactNode[] = [];
+  if (kind === 'stone') {
+    const w = t.h * 2.2 * p.s, hh = t.h * 1.0 * p.s;
+    return {
+      key: id,
+      depth: p.d,
+      node: (
+        <g>
+          <ellipse cx={p.x} cy={p.y - hh * 0.1} rx={w * 0.62} ry={hh * 0.2} fill="#000" opacity={0.18} />
+          <path d={`M${p.x - w * 0.5} ${p.y} C${p.x - w * 0.5} ${p.y - hh} ${p.x + w * 0.4} ${p.y - hh * 1.1} ${p.x + w * 0.5} ${p.y} Z`} fill={mix('#7D7A70', col.haze, hz)} />
+          <path d={`M${p.x - w * 0.3} ${p.y - hh * 0.55} C${p.x - w * 0.1} ${p.y - hh * 0.95} ${p.x + w * 0.25} ${p.y - hh * 0.95} ${p.x + w * 0.38} ${p.y - hh * 0.5}`} stroke={mix('#B9B2A2', col.haze, hz)} strokeWidth={Math.max(0.6, hh * 0.12)} fill="none" opacity={0.7} />
+        </g>
+      ),
+    };
+  }
+  if (kind === 'shrub') {
+    // a low domed clump: many small leafy masses, darker at the base, catching light on top
+    const blobs: React.ReactNode[] = [];
+    const n = 16;
+    const Wd = t.h * 1.5 * p.s, Ht = t.h * 0.9 * p.s;
+    for (let k = 0; k < n; k++) {
+      const u = (Math.sin(sd * 0.01 + k * 12.9898) * 43758.5453) % 1;
+      const v = (Math.sin(sd * 0.02 + k * 78.233) * 12345.6789) % 1;
+      const fx = Math.abs(u) - 0.5, fy = Math.abs(v);
+      const hgt = Math.sqrt(Math.max(0, 1 - (fx * 2) ** 2)) * fy;
+      const rr = (0.16 + 0.1 * (1 - hgt)) * Wd * 0.5;
+      const sway2 = 0.03 * wind.strength * windMul * Ht * hgt * Math.sin(time * 1.2 + k + t.x);
+      const cx = p.x + fx * Wd + sway2;
+      const cy = p.y - hgt * Ht - rr * 0.3;
+      const c = hgt > 0.55 ? col.mid : col.dark;
+      blobs.push(<ellipse key={k} cx={cx} cy={cy} rx={rr} ry={rr * 0.78} fill={mix(c, col.haze, hz)} />);
+      if (hgt > 0.6 && k % 2 === 0) blobs.push(<ellipse key={`l${k}`} cx={cx + rr * 0.3} cy={cy - rr * 0.35} rx={rr * 0.45} ry={rr * 0.3} fill={mix(col.tip, col.haze, hz)} opacity={0.3} />);
+    }
+    return {key: id, depth: p.d, node: <g>{blobs}</g>};
+  }
+  if (kind === 'seed' || kind === 'flower') {
+    t.blades.forEach((b, k) => {
+      if (k % 2) return;
+      const sway = -(0.1 + 0.22 * gust) * wind.strength * windMul + 0.07 * noise1(time * 1.3 + b.phase + t.x * 0.3, 5) * wind.strength;
+      const a = b.lean + sway * (b.h / t.h) * 1.25;
+      const hh = b.h * 1.25;
+      const tipX = p.x + b.dx * p.s + Math.sin(a) * hh * p.s;
+      const tipY = p.y - Math.cos(a) * hh * p.s;
+      const baseX = p.x + b.dx * p.s;
+      extras.push(
+        <path key={`s${k}`} d={`M${baseX.toFixed(1)} ${p.y.toFixed(1)}Q${(baseX + Math.sin(a * 0.5) * hh * 0.5 * p.s).toFixed(1)} ${(p.y - hh * 0.55 * p.s).toFixed(1)} ${tipX.toFixed(1)} ${tipY.toFixed(1)}`} stroke={mix(col.dry, col.haze, hz)} strokeWidth={Math.max(0.5, 0.006 * p.s)} fill="none" />,
+      );
+      if (kind === 'seed') {
+        const L = 0.09 * p.s, Wd = 0.022 * p.s;
+        extras.push(
+          <ellipse key={`h${k}`} cx={tipX} cy={tipY} rx={Math.max(0.6, Wd)} ry={Math.max(1, L)} transform={`rotate(${(a * 180) / Math.PI + 12} ${tipX} ${tipY})`} fill={mix(col.tip, col.haze, hz)} />,
+        );
+      } else {
+        const fr = Math.max(0.7, 0.018 * p.s);
+        extras.push(<circle key={`f${k}`} cx={tipX} cy={tipY} r={fr} fill={mix(k % 4 === 0 ? '#E9D9A6' : '#F0E8D4', col.haze, hz)} />);
+      }
+    });
+  }
   return {
     key: id,
     depth: p.d,
@@ -121,6 +196,7 @@ export const tuftDrawable = (
         </defs>
         {dark.length > 0 && <path d={dark.join('')} fill={`url(#${id}-a)`} />}
         {dry.length > 0 && <path d={dry.join('')} fill={`url(#${id}-b)`} />}
+        {extras}
       </g>
     ),
   };

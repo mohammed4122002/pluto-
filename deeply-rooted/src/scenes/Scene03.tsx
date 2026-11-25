@@ -23,11 +23,12 @@ import {
   imaginedRidges,
   imaginedTree,
   imaginedTufts,
+  imaginedDabs,
   mapArtGeometry,
   matchCam,
 } from '../worlds/imagined';
 import {flutterAt, presentEndPose, windAt} from './performance';
-import {PresentMedium} from './PresentShots';
+import {PresentCloseup} from './PresentShots';
 import {World, WorldView} from './WorldView';
 
 const TR = transitions;
@@ -50,6 +51,8 @@ export const imaginedWorld: World = {
   haze: imaginedHaze,
   tree: imaginedTree,
   treeLook: {lush: 1.1, lightColor: IMAGINED_LIGHT.rim, lightAmount: 0.95, lightDir: 1, shadow: true},
+  dabs: imaginedDabs,
+  sky: 'sky_imagined.jpg',
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -131,12 +134,14 @@ const PovHands: React.FC<{part: 'back' | 'thumb'}> = ({part}) => {
 
 const MapPOV: React.FC<{frame: number}> = ({frame}) => {
   const m = mapPush(frame);
+  const glow = ramp(frame, MATCH0 - 26, 28, ease.inSine); // dawn light starts to shine through the paper
   const flutter = flutterAt(frame) * (1 - m.e);
   const cool = 0.3 * (1 - ramp(frame, MATCH0 - 40, 60));
+  const [tgx, tgy] = [geo.tree.x, geo.tree.y - 3 * geo.tree.s];
   return (
     <div style={{position: 'absolute', inset: 0}}>
-      <PovGround frame={frame} e={m.e} />
-      <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
+      {glow < 0.01 && <PovGround frame={frame} e={m.e} />}
+      <svg width={W} height={H} style={{position: 'absolute', inset: 0, opacity: 1 - 0.22 * glow}}>
         <defs>
           <filter id="povShadow" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation={18} />
@@ -150,6 +155,17 @@ const MapPOV: React.FC<{frame: number}> = ({frame}) => {
           <PovHands part="thumb" />
         </g>
       </svg>
+      {glow > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            mixBlendMode: 'screen',
+            opacity: glow,
+            background: `radial-gradient(ellipse 55% 48% at ${(tgx / W) * 100}% ${(tgy / H) * 100}%, rgba(255,226,170,0.55) 0%, rgba(255,214,150,0.18) 45%, rgba(255,214,150,0) 100%)`,
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -167,6 +183,9 @@ const MapDissolve: React.FC<{frame: number}> = ({frame}) => {
   const ink = 1 - ramp(frame, MATCH0 + 34, 56, ease.inOutSine);
   const crease = 1 - ramp(frame, MATCH0, 40);
   const paperGone = t >= 0.999;
+  const drift = 1 + 0.07 * ease.inSine(t);
+  const [px, py] = [geo.tree.x, geo.tree.y];
+  const driftT = `translate(${px} ${py}) scale(${drift}) translate(${-px} ${-py})`;
   return (
     <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
       <defs>
@@ -184,9 +203,16 @@ const MapDissolve: React.FC<{frame: number}> = ({frame}) => {
         </mask>
       </defs>
       {!paperGone && (
-        <g mask="url(#paperMask)">
+        <g mask="url(#paperMask)" transform={driftT}>
           <g transform={`translate(${-OFFSET[0]} ${-OFFSET[1]})`}>
             <MapPanels mode="color" id="dis" rowOpen={1} colOpen1={1} colOpen0={1} crease={crease} ink={0} />
+          </g>
+          {/* warm light still glowing through the remaining paper */}
+          <rect width={W} height={H} fill="#FFE4B0" opacity={0.18 * (1 - t)} />
+          {/* luminous wet edge where paper becomes world */}
+          <g filter="url(#wash)" opacity={0.5 * (1 - t * 0.7)}>
+            <path d={routeD} stroke="#FFF1CF" strokeWidth={w + 70} strokeLinecap="round" fill="none" opacity={0.65} />
+            <circle cx={geo.tree.x} cy={geo.tree.y - 3 * geo.tree.s} r={treeR + 50} fill="#FFF1CF" opacity={0.5} />
           </g>
           {/* pigment gathering at the wet edge */}
           <g filter="url(#wash)" opacity={0.55 * (1 - t * 0.5)}>
@@ -194,8 +220,8 @@ const MapDissolve: React.FC<{frame: number}> = ({frame}) => {
           </g>
         </g>
       )}
-      <g transform={`translate(${-OFFSET[0]} ${-OFFSET[1]})`} opacity={ink}>
-        <MapArt mode="color" paper={0} ink={1} />
+      <g transform={`${driftT} translate(${-OFFSET[0]} ${-OFFSET[1]})`} opacity={ink}>
+        <MapArt mode="color" paper={0} ink={1} inkScale={1 + 1.3 * ease.inSine(t)} />
       </g>
     </svg>
   );
@@ -235,7 +261,7 @@ export const imaginedWalker = (cam: Cam, frame: number, id: string): Drawable | 
             hazeAmount: imaginedHaze(p.d) * 0.6,
             texture: 0.2,
           }}
-          render={(m) => <WalkerBack mode={m} phase={dist / STRIDE} walk={1} wind={windAt(frame)} detail={k > 2.2 ? 1 : 0} />}
+          render={(m) => <WalkerBack mode={m} phase={dist / STRIDE} walk={1} wind={windAt(frame)} detail={k > 2.2 ? 1 : 0} uid={id} />}
         />
       </g>
     ),
@@ -279,7 +305,7 @@ const ImaginedShot: React.FC<{frame: number}> = ({frame}) => {
 // ---------------------------------------------------------------------------------------------
 export const Scene03: React.FC<{frame: number}> = ({frame}) => {
   const showPOV = frame < MATCH0 + 2;
-  const showImagined = frame >= MATCH0 && frame < RET1 + 2;
+  const showImagined = frame >= MATCH0 - 26 && frame < RET1 + 2;
   const showPresent = frame >= RET0 + 10;
   const imaginedOpacity = 1 - ramp(frame, RET0 + 24, 40, ease.inOutSine);
   const mist = pulse(frame, RET0, 34, RET1 + 30, 44, ease.inOutSine);
@@ -287,15 +313,7 @@ export const Scene03: React.FC<{frame: number}> = ({frame}) => {
   return (
     <div style={{position: 'absolute', inset: 0}}>
       {showPresent && (
-        <PresentMedium
-          frame={frame}
-          start={RET0}
-          end={S3.start + S3.duration}
-          tRange={[0.92, 1]}
-          pose={presentEndPose(frame)}
-          focusKeys={[[RET0, -1]]}
-          glowBoost={1.5}
-        />
+        <PresentCloseup frame={frame} start={RET0} end={S3.start + S3.duration} pose={presentEndPose(frame)} tRange={[0.1, 0.9]} offset={{x: 0.03, y: -0.02, z: 0.1, horizon: 20}} />
       )}
       {showImagined && (
         <div style={{position: 'absolute', inset: 0, opacity: imaginedOpacity}}>

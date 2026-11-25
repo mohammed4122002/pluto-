@@ -1,7 +1,7 @@
 // THE IMAGINED FUTURE — the life he planned: a clear path to a flourishing olive tree in warm light.
 import {camera, H, W, fog as fogCfg, lighting} from '../config/production';
 import {Cam, project} from '../engine/camera';
-import {makePatches} from '../environment/Ground';
+import {makeDabs, makePatches} from '../environment/Ground';
 import {makeTufts} from '../environment/Grass';
 import {catmull} from '../environment/geometry';
 import {ridgeHeight} from '../environment/Ridge';
@@ -46,8 +46,12 @@ export const imaginedTufts = makeTufts(
   430,
   {x0: -22, x1: 26, z0: 1.2, z1: 62},
   [imaginedPath],
-  {minH: 0.25, maxH: 0.7, dry: 0.5, avoid: 0.3, tallChance: 0.1},
+  {minH: 0.25, maxH: 0.7, dry: 0.5, avoid: 0.3, tallChance: 0.1, mix: {grass: 5, seed: 2.4, flower: 2, shrub: 0.6, stone: 0.4}},
+).concat(
+  // foreground framing at the bottom corners of the imagined shot
+  makeTufts(77, 40, {x0: -4.5, x1: 5.0, z0: 3.2, z1: 10}, [imaginedPath], {minH: 0.7, maxH: 1.15, dry: 0.7, avoid: 1.2, tallChance: 0, mix: {seed: 3, flower: 1, grass: 1}}),
 );
+export const imaginedDabs = makeDabs(81, 800, -45, 50, 0, 90, ['#6D6A43', '#8C8752', '#A79C68', '#B9A877', '#7C7C4C', '#C9B98A']);
 export const imaginedGrass = {dark: '#5B5E3E', mid: '#7E7D4E', dry: '#C3AE80', tip: '#E6CF9C', haze: IMAGINED_LIGHT.groundFar};
 
 export const imaginedHaze = (d: number) => 0.82 * (1 - Math.exp(-d * fogCfg.imaginedHaze * fogCfg.density));

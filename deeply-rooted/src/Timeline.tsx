@@ -1,11 +1,11 @@
 import React from 'react';
 import {AbsoluteFill, useCurrentFrame} from 'remotion';
-import {character, grade, lighting, scenes, TOTAL_FRAMES, transitions} from './config/production';
+import {character, grade, lighting, scenes, shots, TOTAL_FRAMES, transitions} from './config/production';
 import {Soundtrack} from './audio/Soundtrack';
 import {Captions} from './post/Captions';
 import {ease, pulse, ramp, track} from './engine/anim';
 import {Graded, MistPass} from './post/Grade';
-import {PresentMedium, PresentWide} from './scenes/PresentShots';
+import {PresentCloseup, PresentMedium, PresentWide} from './scenes/PresentShots';
 import {Scene03} from './scenes/Scene03';
 import {scene1Pose, scene2Pose} from './scenes/performance';
 
@@ -25,7 +25,11 @@ export const s2FocusKeys = (): [number, number][] => {
 
 /** Which shot is on screen and its colour temperature, for any global frame. */
 const Picture: React.FC<{f: number}> = ({f}) => {
-  if (f < S2.start) return <PresentWide frame={f} start={S1.start} end={S2.start} pose={scene1Pose(f)} />;
+  const sh = shots;
+  if (f < sh.s1CloseUp[1]) return <PresentCloseup frame={f} start={sh.s1CloseUp[0]} end={sh.s1CloseUp[1]} pose={scene1Pose(f)} />;
+  if (f < S2.start) return <PresentWide frame={f} start={sh.s1Wide[0]} end={S2.start} pose={scene1Pose(f)} />;
+  if (f >= sh.s2CloseUp[0] && f < sh.s2CloseUp[1])
+    return <PresentCloseup frame={f} start={sh.s2CloseUp[0]} end={sh.s2CloseUp[1]} pose={scene2Pose(f)} tRange={[0.25, 0.75]} offset={{x: 0.02, y: -0.03, z: -0.15, horizon: 30}} />;
   if (f < S3.start) return <PresentMedium frame={f} start={S2.start} end={S3.start + 40} pose={scene2Pose(f)} focusKeys={s2FocusKeys()} />;
   return <Scene03 frame={f} />;
 };
@@ -43,7 +47,7 @@ export const warmthAt = (f: number) =>
  * The master timeline. `offset` lets each Scene composition render a slice of the same film,
  * so scene previews and the combined cut are frame-identical.
  */
-export const Timeline: React.FC<{offset?: number; length?: number}> = ({offset = 0, length = TOTAL_FRAMES}) => {
+export const Timeline: React.FC<{offset?: number; length?: number; burnCaptions?: boolean}> = ({offset = 0, length = TOTAL_FRAMES, burnCaptions = true}) => {
   const f = useCurrentFrame() + offset;
   const wipe = transitions.fogWipeS1toS2;
   const mist = pulse(f, S2.start - wipe / 2, wipe / 2, S2.start + wipe / 2, wipe / 2, ease.inOutSine);
@@ -57,10 +61,16 @@ export const Timeline: React.FC<{offset?: number; length?: number}> = ({offset =
         <MistPass frame={f} amount={mist * 0.92} color={lighting.present.haze} />
       </Graded>
       {/* the narration on screen, above the grade */}
-      <Captions frame={f} />
+      {burnCaptions && <Captions frame={f} />}
       {black > 0.001 && <AbsoluteFill style={{background: grade.fadeColor, opacity: black}} />}
       {/* narration segments + sound effects, each an editable named track */}
       <Soundtrack offset={offset} length={length} />
     </AbsoluteFill>
   );
+};
+
+/** The subtitles + title card alone on a transparent background (separately editable layer). */
+export const CaptionsOverlay: React.FC<{offset?: number}> = ({offset = 0}) => {
+  const f = useCurrentFrame() + offset;
+  return <Captions frame={f} />;
 };

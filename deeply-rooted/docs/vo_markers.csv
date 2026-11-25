@@ -1,14 +1,15 @@
 Marker,Frame,Timecode,Duration (frames),Notes
-S01 start / title read,39,00:00:01:09,168,"When Life Doesn't Go as Planned · Deeply Rooted · Episode One"
-VO01,233,00:00:07:23,144,"Have you ever looked at your life… and wondered how you ended up here?"
-VO01 'wondered',312,00:00:10:12,1,Head turn toward the far paths starts at 302
-Mist wipe peak / S02 cut,418,00:00:13:28,1,Scene 02 — This Was Not the Plan
-VO02a,459,00:00:15:09,100,"Not because everything is terrible. But because…"
-VO02b,585,00:00:19:15,64,"this isn't where you thought you would be."
-VO02b 'isn't',597,00:00:19:27,1,Eyes leave the map; rack focus to the paths 601–649
-Cut on action / S03,792,00:00:26:12,1,Scene 03 — The Life We Imagined (POV of the map)
-VO03a,809,00:00:26:29,38,"You had plans."
-VO03b,870,00:00:29:00,136,"You had dreams. You imagined a different version of yourself by now."
-VO03b 'dreams' / match,885,00:00:29:15,1,Ink route dissolves into the real path (869–953)
-Return to present,1087,00:00:36:07,78,Mist returns; warm light cools
-End fade,1207,00:00:40:07,26,Fade to charcoal; last frame 1232
+Close-up / VO01,24,00:00:00:24,144,"Have you ever looked at your life… and wondered how you ended up here?"
+VO01 'wondered',104,00:00:03:14,1,Head turn toward the far paths
+Cut to wide on 'here',159,00:00:05:09,1,Reveal of the crossroads
+TITLE read,210,00:00:07:00,167,"When Life Doesn't Go as Planned · Deeply Rooted · Episode One"
+Mist gust / S02 cut,403,00:00:13:13,1,Scene 02 — This Was Not the Plan
+VO02a,438,00:00:14:18,100,"Not because everything is terrible. But because…"
+Close-up reaction,569,00:00:18:29,77,Eyes leave the map
+VO02b 'isn't',579,00:00:19:09,1,"this isn't where you thought you would be."
+Cut on action / S03,788,00:00:26:08,1,Scene 03 — The Life We Imagined (POV of the map)
+VO03a,804,00:00:26:24,38,"You had plans."
+VO03b,864,00:00:28:24,136,"You had dreams. You imagined a different version of yourself by now."
+VO03b 'dreams' / match,879,00:00:29:09,1,Paper dissolves into the imagined world
+Return to present,1081,00:00:36:01,78,Mist returns; close-up
+End fade,1201,00:00:40:01,26,Fade to charcoal; last frame 1226

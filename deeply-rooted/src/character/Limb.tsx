@@ -1,5 +1,6 @@
 import React from 'react';
 import {Mode, paint} from './spec';
+import {Mat} from './Materials';
 
 export type V = [number, number];
 
@@ -51,7 +52,13 @@ export const Sleeve: React.FC<{
   wUpper?: [number, number];
   wFore?: [number, number];
   lightSide?: 1 | -1;
-}> = ({mode, S, E, Wr, coat, coatShadow, coatLight, sweater, wUpper = [5.8, 5.0], wFore = [5.0, 4.5], lightSide = 1}) => {
+  uid?: string;
+  part?: 'all' | 'fore';
+}> = ({mode, S, E: E0, Wr, coat, coatShadow, coatLight, sweater, wUpper = [5.8, 5.0], wFore = [5.0, 4.5], lightSide = 1, uid, part = 'all'}) => {
+  let E = E0;
+  const upper = part === 'all';
+  // drawn alone in front of the body, the forearm starts just past the elbow so no round cap shows
+  if (!upper) E = [E[0] + (Wr[0] - E[0]) * 0.22, E[1] + (Wr[1] - E[1]) * 0.22];
   const fa = Math.atan2(Wr[1] - E[1], Wr[0] - E[0]);
   const ux = Math.cos(fa), uy = Math.sin(fa);
   const cuffIn: V = [Wr[0] - ux * 3.2, Wr[1] - uy * 3.2];
@@ -59,12 +66,13 @@ export const Sleeve: React.FC<{
   return (
     <g>
       <path d={capsule(Wr, swEnd, 3.7, 3.5, 0)} fill={paint(mode, sweater)} />
-      <path d={capsule(S, E, wUpper[0], wUpper[1])} fill={paint(mode, coat)} />
+      {upper && <path d={capsule(S, E, wUpper[0], wUpper[1])} fill={paint(mode, coat)} />}
       <path d={capsule(E, Wr, wFore[0], wFore[1])} fill={paint(mode, coat)} />
       {mode === 'color' && (
         <>
+          {uid && <Mat uid={uid} d={(upper ? capsule(S, E, wUpper[0], wUpper[1]) : '') + capsule(E, Wr, wFore[0], wFore[1])} kind="wool" />}
           <path d={capsule(cuffIn, Wr, wFore[1] + 0.15, wFore[1] + 0.1, 0)} fill={coatShadow} opacity={0.55} />
-          <path
+          {upper && <path
             d={capsule(
               [S[0] + lightSide * 1.6, S[1] - 2],
               [E[0] + lightSide * 1.4, E[1]],
@@ -73,7 +81,7 @@ export const Sleeve: React.FC<{
             )}
             fill={coatLight}
             opacity={0.35}
-          />
+          />}
           <path d={capsule([E[0] - lightSide * 1.5, E[1] + 1.5], [E[0] + ux * 6 - lightSide, E[1] + uy * 6], 1.2, 0.6, 0)} fill={coatShadow} opacity={0.5} />
         </>
       )}

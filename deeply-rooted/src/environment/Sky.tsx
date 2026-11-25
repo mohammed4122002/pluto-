@@ -5,13 +5,14 @@ import {Cam} from '../engine/camera';
 import {Light} from './types';
 
 /** Screen-space sky (the camera never pitches, so the sky only drifts). */
-export const Sky: React.FC<{cam: Cam; light: Light; frame: number; id: string; glowBoost?: number; cloud?: number}> = ({
+export const Sky: React.FC<{cam: Cam; light: Light; frame: number; id: string; glowBoost?: number; cloud?: number; painted?: string}> = ({
   cam,
   light,
   frame,
   id,
   glowBoost = 1,
   cloud = 0.22,
+  painted,
 }) => {
   const hz = cam.horizon;
   const drift = ((frame / FPS) * 6) % 2048;
@@ -36,6 +37,17 @@ export const Sky: React.FC<{cam: Cam; light: Light; frame: number; id: string; g
         </mask>
       </defs>
       <rect width={W} height={H} fill={`url(#${id}-sky)`} />
+      {painted && (
+        <image
+          href={staticFile(`textures/${painted}`)}
+          x={-140 - ((frame / FPS) * 3) % 120}
+          y={-30}
+          width={W + 280}
+          height={hz + 90}
+          preserveAspectRatio="none"
+          opacity={0.92}
+        />
+      )}
       <rect width={W} height={H} fill={light.skyHorizon} opacity={cloud} mask={`url(#${id}-cloudmask)`} />
       <rect width={W} height={H} fill={`url(#${id}-glow)`} />
     </svg>

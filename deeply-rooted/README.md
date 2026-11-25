@@ -10,7 +10,9 @@ A self-contained Remotion project. It has nothing to do with the clinic platform
 | Reusable character assets | `src/character/` (master lock in `spec.ts`) |
 | Scene 01 / 02 / 03 previews | `out/scene01.mp4`, `out/scene02.mp4`, `out/scene03.mp4` (`npm run render:scenes`) |
 | Combined preview (picture only) | `out/phase01_combined.mp4` |
-| **Final film with narration, on-screen script and sound effects** | `out/phase01_final.mp4` (`npm run render:final`) |
+| **v2 final film (painterly upgrade) with narration, subtitles and sound** | `out/phase01_v2_final.mp4` (`bash scripts/render_final.sh`) |
+| v2 clean master (no subtitles) + subtitle layer | `out/phase01_v2_clean.mp4`, `out/v2_subtitles_overlay.mov` |
+| Quality-upgrade notes | `docs/04_QUALITY_UPGRADE.md` |
 | Subtitles for YouTube | `docs/phase01_captions.srt` (`python3 scripts/export_srt.py`) |
 | Editable source | this folder; open `npm run studio` |
 | Timing & VO sync guide | `docs/01_TIMING_AND_VO_SYNC.md`, `docs/vo_markers.csv` |

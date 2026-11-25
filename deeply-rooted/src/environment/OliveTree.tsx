@@ -79,8 +79,8 @@ export const OliveTree: React.FC<{x: number; y: number; s: number; frame: number
   const t = (frame / FPS) * wind.speed;
   const H = (c: string) => mix(c, look.hazeColor, look.haze);
   const lit = mix(tones.leafSilver, look.lightColor, look.lightAmount * 0.55);
-  const fine = look.detail > 25;
-  const veryFine = look.detail > 55;
+  const fine = look.detail > 18;
+  const veryFine = look.detail > 40;
   const sway = wind.strength * 0.05;
   return (
     <g transform={`translate(${x} ${y}) scale(${s} ${-s})`}>
@@ -101,7 +101,7 @@ export const OliveTree: React.FC<{x: number; y: number; s: number; frame: number
         const ry = ry0 * look.lush;
         const leaves: React.ReactNode[] = [];
         if (fine) {
-          const n = veryFine ? 26 : 12;
+          const n = veryFine ? 46 : 20;
           for (let k = 0; k < n; k++) {
             const a = hash(k, i * 13 + seed) * Math.PI * 2;
             const rr = Math.sqrt(hash(k, i * 7 + seed + 1));
@@ -114,8 +114,8 @@ export const OliveTree: React.FC<{x: number; y: number; s: number; frame: number
                 key={k}
                 cx={lx}
                 cy={ly}
-                rx={0.11}
-                ry={0.035}
+                rx={0.13}
+                ry={0.04}
                 transform={`rotate(${(hash(k, i + 99) - 0.5) * 120 + flick * 20} ${lx} ${ly})`}
                 fill={side > 0 ? H(lit) : H(tones.leafDark)}
                 opacity={side > 0 ? 0.55 + 0.35 * flick : 0.6}
@@ -134,7 +134,7 @@ export const OliveTree: React.FC<{x: number; y: number; s: number; frame: number
             <path
               d={blob(cx + 0.3 * look.lightDir * rx, cy + 0.3 * ry, rx * 0.5, ry * 0.42, i + seed + 80, t)}
               fill={H(lit)}
-              opacity={0.35 + 0.45 * look.lightAmount}
+              opacity={0.18 + 0.22 * look.lightAmount}
             />
             {leaves}
           </g>
