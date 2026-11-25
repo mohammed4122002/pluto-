@@ -1,4 +1,23 @@
-# Phase 01 v2 — render status (checkpoint)
+# Phase 01 v2 — render status
+
+**COMPLETE.** The pipeline finished with `exit 0`.
+
+Verification of `out/phase01_v2_final.mp4`:
+- decodes with 0 errors;
+- 1227 frames, 40.9 s, stereo 48 kHz audio;
+- −15.0 LUFS integrated, true peak −1.5 dBTP, LRA 9.9;
+- voice onsets land on the planned segment cues;
+- captions spot-checked against speech.
+
+Delivered:
+- `phase01_v2_final.mp4` and `phase01_v2_final_720p.mp4`;
+- `docs/phase01_captions.srt`;
+- `out/compare/*` (V1/V2 pairs, face, landscape/tree);
+- the stage-1 file `v2_picture_av.mp4`.
+
+---
+
+## Checkpoint history
 
 **Checked:** 18:34 UTC. The pipeline (`scripts/render_final.sh`, started 18:04, pid 14982) runs as a detached background process. It doesn't depend on the session's monitor and keeps running if the monitor expires. It stops only if the cloud container itself is reclaimed.
 
