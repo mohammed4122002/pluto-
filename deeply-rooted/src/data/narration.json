@@ -1,0 +1,37 @@
+{
+  "about": "Narration placement for Phase 01. 'src' = seconds in public/audio/narration.m4a (the narrator's recording, loudness-normalised). 'at' = film second where the segment's src start lands. Word times come from src/data/narration_transcript.json (speech recognition, verified against the approved script).",
+  "file": "audio/narration.m4a",
+  "segments": [
+    {"id": "TITLE", "src": [0.0, 5.58], "at": 1.3, "note": "When Life Doesn't Go as Planned · Deeply Rooted · Episode One"},
+    {"id": "VO01", "src": [6.02, 10.82], "at": 7.75, "note": "Have you ever looked at your life… and wondered how you ended up here?"},
+    {"id": "VO02a", "src": [11.52, 14.86], "at": 15.3, "note": "Not because everything is terrible. But because…"},
+    {"id": "VO02b", "src": [15.14, 17.26], "at": 19.5, "note": "this isn't where you thought you would be."},
+    {"id": "VO03a", "src": [17.96, 19.24], "at": 26.95, "note": "You had plans."},
+    {"id": "VO03b", "src": [19.4, 23.92], "at": 29.0, "note": "You had dreams. You imagined a different version of yourself by now."}
+  ],
+  "beats": {
+    "wondered": 8.67,
+    "hereEnd": 10.73,
+    "isnt": 15.53,
+    "beEnd": 17.16,
+    "plans": 18.47,
+    "dreams": 19.91,
+    "imagined": 21.24,
+    "nowEnd": 23.82
+  },
+  "titles": [
+    {"text": "When Life Doesn't Go as Planned", "style": "title", "src": [0.0, 2.11]},
+    {"text": "Deeply Rooted", "style": "channel", "src": [2.6, 3.54]},
+    {"text": "Episode One", "style": "episode", "src": [3.98, 5.53]}
+  ],
+  "captions": [
+    {"text": "Have you ever looked at your life…", "src": [6.08, 7.67]},
+    {"text": "…and wondered how you ended up here?", "src": [8.43, 10.73]},
+    {"text": "Not because everything is terrible.", "src": [11.6, 13.33]},
+    {"text": "But because…", "src": [13.93, 14.8]},
+    {"text": "…this isn't where you thought you would be.", "src": [15.21, 17.16]},
+    {"text": "You had plans.", "src": [18.03, 19.11]},
+    {"text": "You had dreams.", "src": [19.48, 20.62]},
+    {"text": "You imagined a different version of yourself by now.", "src": [21.08, 23.82]}
+  ]
+}

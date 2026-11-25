@@ -1,6 +1,8 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame} from 'remotion';
-import {character, grade, lighting, scenes, TOTAL_FRAMES, transitions, voiceover} from './config/production';
+import {AbsoluteFill, useCurrentFrame} from 'remotion';
+import {character, grade, lighting, scenes, TOTAL_FRAMES, transitions} from './config/production';
+import {Soundtrack} from './audio/Soundtrack';
+import {Captions} from './post/Captions';
 import {ease, pulse, ramp, track} from './engine/anim';
 import {Graded, MistPass} from './post/Grade';
 import {PresentMedium, PresentWide} from './scenes/PresentShots';
@@ -54,16 +56,11 @@ export const Timeline: React.FC<{offset?: number; length?: number}> = ({offset =
         <Picture f={f} />
         <MistPass frame={f} amount={mist * 0.92} color={lighting.present.haze} />
       </Graded>
+      {/* the narration on screen, above the grade */}
+      <Captions frame={f} />
       {black > 0.001 && <AbsoluteFill style={{background: grade.fadeColor, opacity: black}} />}
-      {/* Voiceover: one editable track per line, placed at its cue. Silent until files exist. */}
-      {voiceover.enabled &&
-        voiceover.lines.map((l) =>
-          l.start - offset < length && l.end - offset > 0 ? (
-            <Sequence key={l.id} from={l.start - offset} name={`VO · ${l.id}`}>
-              <Audio src={staticFile(l.file)} volume={voiceover.volume} />
-            </Sequence>
-          ) : null,
-        )}
+      {/* narration segments + sound effects, each an editable named track */}
+      <Soundtrack offset={offset} length={length} />
     </AbsoluteFill>
   );
 };

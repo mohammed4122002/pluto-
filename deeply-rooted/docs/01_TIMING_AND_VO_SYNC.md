@@ -1,94 +1,121 @@
-# Phase 01 — Scene Timing & Voiceover Sync Guide
+# Phase 01 — Timing, Narration Sync, On-screen Script & Sound
 
-**Film:** *When Life Doesn't Go as Planned* · Scenes 01–03 · 1920×1080 · 30 fps · **1230 frames = 41.0 s**
+**Film:** *When Life Doesn't Go as Planned* · Scenes 01–03 · 1920×1080 · 30 fps · **1233 frames = 41.1 s**
 
-All numbers below come from `src/config/production.ts`. That file is the source of truth. If you change a number there, every shot, beat and audio cue moves with it.
+The picture now follows the narrator's recording (`When_Life_Doesnt_Go_as_Planned_1vd.mp3`, 5:40). Phase 01 uses its opening, the title read plus the first three lines. Everything is derived from `src/data/narration.json` and `src/config/production.ts`.
 
 ---
 
-## 1. Scene timing
+## 1. What the narrator says (speech recognition, checked against the approved script)
 
-| Scene | Title | Frames | Timecode (HH:MM:SS:FF @30) | Length |
-|---|---|---|---|---|
-| 01 | How Did I End Up Here? | 0 – 329 | 00:00:00:00 – 00:00:10:29 | 11.0 s |
-| 02 | This Was Not the Plan | 330 – 719 | 00:00:11:00 – 00:00:23:29 | 13.0 s |
-| 03 | The Life We Imagined | 720 – 1229 | 00:00:24:00 – 00:00:40:29 | 17.0 s |
-
-### Transitions
-
-| Where | Frames | What happens |
+| In the recording | Spoken | Used in |
 |---|---|---|
-| Film open | 0 – 40 | Fade up from deep charcoal `#303238` |
-| S01 → S02 | 310 – 350 (cut at 330) | Mist rolls across the lens; the cut to the medium shot is hidden at peak density |
-| S02 → S03 | cut at 720 | **Cut on action:** he lowers his eyes to the map (682–712) → his point of view of the map |
-| Inside S03 | 800 – 884 | **Match transition:** the paper dissolves outward from the ink route and the imagined world appears exactly under the drawing |
-| Inside S03 | 1096 – 1174 | Warm mist rolls in, cools, and carries us back to the present-day medium shot |
-| Film close | 1204 – 1229 | Fade to deep charcoal |
+| 0.00 – 5.53 s | "When Life Doesn't Go as Planned · Deeply Rooted · Episode One" | Opening title card |
+| 6.08 – 7.67 s | "Have you ever looked at your life…" | Scene 01 |
+| 8.43 – 10.73 s | "…and wondered how you ended up here?" | Scene 01 |
+| 11.60 – 13.33 s | "Not because everything is terrible." | Scene 02 |
+| 13.93 – 14.80 s | "But because…" | Scene 02 |
+| 15.21 – 17.16 s | "…this isn't where you thought you would be." | Scene 02 |
+| 18.03 – 19.11 s | "You had plans." | Scene 03 |
+| 19.48 – 20.62 s | "You had dreams." | Scene 03 |
+| 21.08 – 23.82 s | "You imagined a different version of yourself by now." | Scene 03 |
+| 24.65 s → | "Maybe you thought you'd be happier…" | next section (not in Phase 01) |
+
+The three lines match the approved script word for word. The full word-level transcript of all 5:40 is in `src/data/narration_transcript.json` (906 words), ready for the next phases.
 
 ---
 
-## 2. Voiceover cue sheet (placeholder timing)
+## 2. Narration placement on the film
 
-The narration is **not** generated. These cues are where each line is designed to sit, read by a calm female voice at ~130 wpm with the written pauses.
+Her phrasing is kept intact inside each segment. Pauses are only added between segments, where a scene needs room: the mist wipe, the map unfolding, the cut into the map.
 
-| Track | Line (exact approved text) | In (frame / TC) | Out (frame / TC) | Key word → frame |
-|---|---|---|---|---|
-| VO01 | "Have you ever looked at your life… and wondered how you ended up here?" | 45 · 00:00:01:15 | 205 · 00:00:06:25 | looked 66 · life 100 · **wondered 128** · here 190 |
-| VO02 | "Not because everything is terrible. But because… this isn't where you thought you would be." | 360 · 00:00:12:00 | 612 · 00:00:20:12 | terrible 425 · but because 462 · **isn't 528** · would be 600 |
-| VO03 | "You had plans. You had dreams. You imagined a different version of yourself by now." | 744 · 00:00:24:24 | 1020 · 00:00:34:00 | **plans 770** · **dreams 846** · **imagined 905** · version 950 · by now 1005 |
+| Segment | Recording (s) | Film start (s) | Film start (frame) |
+|---|---|---|---|
+| TITLE | 0.00 – 5.58 | 1.30 | 39 |
+| VO01 | 6.02 – 10.82 | 7.75 | 233 |
+| VO02a ("Not because… But because…") | 11.52 – 14.86 | 15.30 | 459 |
+| VO02b ("this isn't where…") | 15.14 – 17.26 | 19.50 | 585 |
+| VO03a ("You had plans.") | 17.96 – 19.24 | 26.95 | 809 |
+| VO03b ("You had dreams. You imagined…") | 19.40 – 23.92 | 29.00 | 870 |
 
-Visual silence after each line is deliberate:
-- 4.1 s after VO01, as the mist takes us closer.
-- 3.6 s after VO02, while he exhales and looks down.
-- 7 s after VO03, while the imagined future plays out and the mist returns.
+**Voice processing:**
+- **Source:** the original was very quiet (−34.5 LUFS).
+- **Processing:** high-pass at 70 Hz, gentle 3:1 compression, +22 dB of gain and a −1.5 dBFS limiter.
+- **Result:** the voice stem `public/audio/narration.m4a` sits at −16 LUFS.
+
+To redo it:
+
+```bash
+ffmpeg -i narration_original.mp3 -af "highpass=f=70,acompressor=threshold=0.025:ratio=3:attack=4:release=140:knee=6:makeup=1,volume=22dB,alimiter=limit=0.84:attack=3:release=60:level=false" -ar 48000 -c:a aac -b:a 256k public/audio/narration.m4a
+```
 
 ---
 
-## 3. Picture beats tied to the words
+## 3. Scenes and beats (derived from her words)
 
-| Frame(s) | Beat | Anchored to |
+| Scene | Frames | Timecode | Length |
+|---|---|---|---|
+| 01 How Did I End Up Here? | 0 – 417 | 00:00:00:00 – 00:00:13:27 | 13.9 s |
+| 02 This Was Not the Plan | 418 – 791 | 00:00:13:28 – 00:00:26:11 | 12.5 s |
+| 03 The Life We Imagined | 792 – 1232 | 00:00:26:12 – 00:00:41:02 | 14.7 s |
+
+| Beat | Frame | Tied to |
 |---|---|---|
-| 0 – 330 | Slow push toward him (camera travels 10 m, ~50 mm lens) | whole of VO01 |
-| 114 – 160 | He turns his head toward the far paths | "…and **wondered**" |
-| 248 – 302 | Head settles back, slight tilt | after "here?" |
-| 340 – 370 | Lifts the folded map in front of him | just before "Not because" |
-| 368 – 448 | Unfolds it: bottom fold drops, panels swing open, far hand takes the edge | "everything is terrible" |
-| 448 – 522 | Studies the drawn route (small reading eye movements) | "But because…" |
-| 524 – 550 | Eyes leave the map and look into the misty landscape; brows lift slightly | "this **isn't** where…" |
-| 532 – 580 | Rack focus from him/the map to the paths behind him | "…you thought you would be" |
-| 596 – 642 | Quiet exhale, shoulders settle | silence |
-| 640 – 674 | Focus returns to him | silence |
-| 682 – 712 | He looks back down at the map → **cut** | silence |
-| 720 – 800 | POV push into the drawn route | "You had **plans**." |
-| 800 – 884 | Ink route becomes the real path; the paper melts away | "You had **dreams**." |
-| 850 → | Camera starts moving into the imagined world; warm sun rises | — |
-| 880 – 1096 | He walks with certainty toward the flourishing olive tree | "You **imagined** a different version of yourself by now." |
-| 1096 – 1174 | Mist returns; warm light cools | silence |
-| 1170 – 1210 | Back in the present he slowly lifts his eyes from the map | silence |
+| Fade up from charcoal; title card (Deeply Rooted / When Life Doesn't Go as Planned / Episode One) | 0 – 226 | title read |
+| Head turns toward the far paths | 302 – 348 | "**wondered**" (312) |
+| Mist rolls across the lens → medium shot | 398 – 438 (cut 418) | 1.45 s after "…here?" |
+| Lifts and unfolds the map | 426 – 532 | "Not because everything is terrible." |
+| Studies the route | 532 – 591 | "But because…" |
+| Eyes leave the map; rack focus to the paths | 591 – 649 | "this **isn't** where…" (597) |
+| Exhale, focus returns, looks down | 666 – 788 | silence |
+| Cut on his glance → POV push into the map | 792 – 869 | "You had **plans**." |
+| Ink route dissolves into the real world | 869 – 953 | "You had **dreams**." (885) |
+| Walks toward the flourishing olive tree | 869 – 1087 | "You **imagined** a different version of yourself…" |
+| Mist returns to the present; he lifts his eyes | 1087 – 1199 | silence |
+| Fade to charcoal | 1207 – 1233 | — |
+
+**To re-time:** change a segment's `at` in `src/data/narration.json`. Scene lengths, transitions, acting beats, captions and every sound cue follow automatically.
 
 ---
 
-## 4. Importing the narrator's recording
+## 4. On-screen script
 
-### A. In this Remotion project (keeps every beat in sync automatically)
-1. Export each line as its own WAV (48 kHz, 24-bit), named exactly:
-   - `public/audio/VO01_have_you_ever_looked.wav`
-   - `public/audio/VO02_not_because.wav`
-   - `public/audio/VO03_you_had_plans.wav`
-2. In `src/config/production.ts`, set `voiceover.enabled = true`.
-3. Run `npm run studio`, scrub to each key word in the recording, and update that line's `start` and `beats` frames. Character beats that read from those beats move with them (for example the S01 head turn follows `beats.wondered`).
-4. If a line runs longer than its window, extend the relevant scene `duration` in `scenes`. The scenes after it are positioned by their own `start` values, so shift those too.
-5. Render again: `npm run render`.
+- **Opening title card** in the sky, while she reads the title: "DEEPLY ROOTED" (small, letterspaced gold), "When Life Doesn't Go as Planned" (serif) and "Episode One" (italic).
+- **Captions:** one phrase at a time, exactly as she says it.
+  - Ivory serif at the bottom of the frame, with a soft charcoal gradient behind it so it stays readable over the bright paper map.
+  - It fades in just before the first word and holds 0.5 s after the last.
+  - No word-by-word kinetic effects.
+- **Switching off:** set `captions.enabled = false` in `production.ts` for a clean version.
+- **YouTube closed captions:** use `docs/phase01_captions.srt` (regenerate with `python3 scripts/export_srt.py`).
 
-Each line is its own `<Audio>` inside its own named `<Sequence>` ("VO · VO01" …), so in Remotion Studio the tracks stay separately editable. No music or sound-effects tracks exist yet, by design.
+---
 
-### B. In an NLE (Premiere / Resolve / Final Cut)
-- Drop `out/phase01_combined.mp4` on V1. It has no audio track.
-- Import `docs/vo_markers.csv` as timeline markers (Resolve: *Timeline → Import → Timeline Markers from EDL/CSV*; Premiere: paste the timecodes as markers manually).
-- Put each narration line on its own audio track: A1 = VO01, A2 = VO02, A3 = VO03. Keep A4–A6 empty for music, ambience and foley later.
-- Align each line's **key word** (bold in §2) to its marker rather than the start of the breath. That's what the animation is timed to.
-- If the read is slower, nudge the picture by ±0.5 s rather than squeezing the voice. The holds were designed with slack.
+## 5. Sound effects (no music)
 
-### Loudness targets for the final mix
-- Dialogue around −16 LUFS short-term.
-- Integrated −14 LUFS, true peak −1 dBTP.
+All effects are synthesised by `scripts/generate_sfx.py`, deterministic and royalty-free, into `public/audio/sfx/`. Each cue is its own named track in Remotion Studio. Levels and timing are in `sfx` in `production.ts`.
+
+| Cue | When | Sound |
+|---|---|---|
+| Dawn wind (present) | 0 → match | Layered wind with gusts, a faint whistle, sparse distant birds |
+| Mist whoosh | peaks on the Scene 01 → 02 cut | Airy swell moving right → left with the mist |
+| Coat shift + paper lift | 424 – 460 | Wool rustle, paper sliding out |
+| Paper: first fold / panels open | 456, 492 | Crinkle bursts, soft paper flaps, a snap |
+| Paper flutter | while he studies the map | The free panel moving in the wind |
+| Exhale | the sigh (666) | Soft breath |
+| Coat settle | as he looks down | Small fabric movement |
+| Paper grip (POV) | 794 | Map held close |
+| Shimmer | the map becomes the world | Restrained bell-like partials over an airy bloom |
+| Meadow (imagined) | 863 → return | Warm breeze, leaf rustle, lively birdsong |
+| Footsteps | every heel strike of his walk | Dirt path, quieter as he walks away |
+| Mist whoosh: return | 1079 | Darker swell carrying us back |
+| Dawn wind (return) | 1081 → end | Present-day wind, fading with the picture |
+
+**Mix:**
+- voice stem −16 LUFS;
+- ambience about 10–12 dB under the voice;
+- foley close to camera, just under the voice.
+
+The delivered master is loudness-normalised (see the README for the exact values).
+
+### In an NLE
+Use `out/phase01_av_master.mp4` as the reference. The stems are `public/audio/narration.m4a` (place segments per §2) and `public/audio/sfx/*.wav` (place per §5).

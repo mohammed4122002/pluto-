@@ -1,14 +1,14 @@
 Marker,Frame,Timecode,Duration (frames),Notes
-S01 start,0,00:00:00:00,330,Scene 01 — How Did I End Up Here?
-VO01 in,45,00:00:01:15,160,"Have you ever looked at your life… and wondered how you ended up here?"
-VO01 'wondered',128,00:00:04:08,1,Head turn toward the far paths starts at 114
-Mist wipe peak / S02 cut,330,00:00:11:00,1,Scene 02 — This Was Not the Plan
-VO02 in,360,00:00:12:00,252,"Not because everything is terrible. But because… this isn't where you thought you would be."
-VO02 'isn't',528,00:00:17:18,1,Eyes leave the map; rack focus to the paths 532–580
-Look down → cut,712,00:00:23:22,8,Cut on action into his POV at 720
-S03 start,720,00:00:24:00,510,Scene 03 — The Life We Imagined
-VO03 in,744,00:00:24:24,276,"You had plans. You had dreams. You imagined a different version of yourself by now."
-VO03 'dreams',846,00:00:28:06,1,Ink route dissolving into the real path (800–884)
-VO03 'imagined',905,00:00:30:05,1,He walks toward the flourishing olive tree
-Return to present,1096,00:00:36:16,78,Mist returns; warm light cools
-End fade,1204,00:00:40:04,26,Fade to charcoal; last frame 1229
+S01 start / title read,39,00:00:01:09,168,"When Life Doesn't Go as Planned · Deeply Rooted · Episode One"
+VO01,233,00:00:07:23,144,"Have you ever looked at your life… and wondered how you ended up here?"
+VO01 'wondered',312,00:00:10:12,1,Head turn toward the far paths starts at 302
+Mist wipe peak / S02 cut,418,00:00:13:28,1,Scene 02 — This Was Not the Plan
+VO02a,459,00:00:15:09,100,"Not because everything is terrible. But because…"
+VO02b,585,00:00:19:15,64,"this isn't where you thought you would be."
+VO02b 'isn't',597,00:00:19:27,1,Eyes leave the map; rack focus to the paths 601–649
+Cut on action / S03,792,00:00:26:12,1,Scene 03 — The Life We Imagined (POV of the map)
+VO03a,809,00:00:26:29,38,"You had plans."
+VO03b,870,00:00:29:00,136,"You had dreams. You imagined a different version of yourself by now."
+VO03b 'dreams' / match,885,00:00:29:15,1,Ink route dissolves into the real path (869–953)
+Return to present,1087,00:00:36:07,78,Mist returns; warm light cools
+End fade,1207,00:00:40:07,26,Fade to charcoal; last frame 1232
