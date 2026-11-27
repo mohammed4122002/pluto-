@@ -38,6 +38,19 @@ PARAMS = dict(
     bloom_threshold=0.70,
     grain=0.032,
 )
+# --light: for already-painted plates (Pilot 01) — unifies plate, character and light without repainting them
+PARAMS_LIGHT = dict(
+    radius_fine=2,
+    radius_broad=4,
+    broad_mix=0.3,
+    q=6.0,
+    edge_dark=0.07,
+    canvas=0.024,
+    bloom=0.2,
+    bloom_threshold=0.72,
+    grain=0.022,
+)
+ACTIVE = PARAMS
 
 
 def _half_kernels(r: int):
@@ -126,7 +139,7 @@ def _work(args):
     idx, buf = args
     cv2.setNumThreads(1)
     frame = np.frombuffer(buf, np.uint8).reshape(H, W, 3)
-    return idx, paint(frame, idx).tobytes()
+    return idx, paint(frame, idx, ACTIVE).tobytes()
 
 
 def run_video(src: str, dst: str, workers: int, crf: int) -> None:
@@ -169,9 +182,12 @@ if __name__ == "__main__":
     ap.add_argument("--still", action="store_true")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--crf", type=int, default=14)
+    ap.add_argument("--light", action="store_true", help="gentler pass for pre-painted plates")
     a = ap.parse_args()
+    if a.light:
+        ACTIVE = PARAMS_LIGHT
     if a.still:
         im = cv2.imread(a.src)
-        cv2.imwrite(a.dst, paint(im, 0))
+        cv2.imwrite(a.dst, paint(im, 0, ACTIVE))
     else:
         run_video(a.src, a.dst, a.workers, a.crf)

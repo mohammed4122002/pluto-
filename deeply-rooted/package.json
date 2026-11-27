@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "5.2.11",
+    "@fontsource/ibm-plex-sans-arabic": "5.2.6",
     "@fontsource/inter": "5.2.8",
     "@remotion/cli": "4.0.547",
     "@remotion/fonts": "4.0.547",

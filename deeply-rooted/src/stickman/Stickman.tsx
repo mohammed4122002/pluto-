@@ -84,12 +84,13 @@ export type StickLook = 'ivory' | 'imagined' | 'younger';
  * Draws the Traveller. `facing` +1 = toward screen right, -1 = left (mirrors the pose).
  * `look`: 'ivory' (him), 'imagined' (the luminous version of himself he imagined), 'younger' (his younger self).
  */
-export const Stickman: React.FC<{pose: StickPose; facing?: 1 | -1; look?: StickLook; scale?: number; glow?: number}> = ({
+export const Stickman: React.FC<{pose: StickPose; facing?: 1 | -1; look?: StickLook; scale?: number; glow?: number; shadeSide?: 1 | -1}> = ({
   pose,
   facing = 1,
   look = 'ivory',
   scale = 1,
   glow = 0,
+  shadeSide = 1, // which side of the head carries the form shadow (-1 when the key light is on his facing side)
 }) => {
   const S = STICK;
   const young = look === 'younger';
@@ -144,7 +145,7 @@ export const Stickman: React.FC<{pose: StickPose; facing?: 1 | -1; look?: StickL
       ) : null}
       <circle cx={head[0]} cy={-head[1]} r={S.headR * (young ? 1.02 : 1)} fill={body} stroke={S.edge} strokeOpacity={0.45} strokeWidth={1.6} />
       <path
-        d={`M${head[0] + S.headR * 0.15} ${-head[1] - S.headR * 0.95} A${S.headR} ${S.headR} 0 0 1 ${head[0] + S.headR * 0.15} ${-head[1] + S.headR * 0.95}`}
+        d={`M${head[0] + S.headR * 0.15 * shadeSide} ${-head[1] - S.headR * 0.95} A${S.headR} ${S.headR} 0 0 ${shadeSide > 0 ? 1 : 0} ${head[0] + S.headR * 0.15 * shadeSide} ${-head[1] + S.headR * 0.95}`}
         stroke={far}
         strokeWidth={S.headR * 0.5}
         fill="none"
