@@ -16,6 +16,8 @@ A self-contained Remotion project. It has nothing to do with the clinic platform
 | Subtitles for YouTube | `docs/phase01_captions.srt` (`python3 scripts/export_srt.py`) |
 | **Pilot 01 — final direction (Traveller in painted worlds), opening line** | `out/pilot01/pilot01_en.mp4`, `pilot01_ar.mp4` (Arabic subtitle preview), `pilot01_clean.mp4`, SRTs (`bash scripts/pilot/render_pilot01.sh`); notes in `docs/stickman/PILOT01_NOTES.md` |
 | Pilot 01 · voice test (new narration recording, re-timed) | `out/pilot01_voicetest/` (`bash scripts/pilot/render_pilot01_voicetest.sh`); notes in `docs/stickman/PILOT01_VOICETEST.md` |
+| **Pilot 01 · bilingual (primary deliverable): English + Arabic subtitles together** | `out/pilot01_bilingual/pilot01_bilingual.mp4` + separate SRTs (`bash scripts/pilot/render_pilot01_bilingual.sh`) |
+| **Channel bilingual subtitle standard** (component, style, cue builder, safe zone) | `docs/SUBTITLES_BILINGUAL.md`, `src/subtitles/`, `scripts/subtitles/build_subtitles.py` |
 | Editable source | this folder; open `npm run studio` |
 | Timing & VO sync guide | `docs/01_TIMING_AND_VO_SYNC.md`, `docs/vo_markers.csv` |
 | Visual prompts & animation specs | `docs/02_VISUAL_PROMPTS_AND_ANIMATION_SPECS.md` |

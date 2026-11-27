@@ -1,0 +1,18 @@
+{
+ "id": "pilot01",
+ "fps": 30,
+ "cues": [
+  {
+   "from": 24,
+   "to": 87,
+   "en": "Have you ever looked at your life…",
+   "ar": "هل نظرتَ يومًا إلى حياتك…"
+  },
+  {
+   "from": 89,
+   "to": 162,
+   "en": "…and wondered how you ended up here?",
+   "ar": "…وتساءلتَ كيف انتهى بك المطافُ إلى هنا؟"
+  }
+ ]
+}

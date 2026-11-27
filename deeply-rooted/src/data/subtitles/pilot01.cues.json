@@ -1,0 +1,12 @@
+{
+  "id": "pilot01",
+  "title": "Deeply Rooted · Episode 01 · Pilot 01 (opening line), new narration recording",
+  "fps": 30,
+  "voice": "public/audio/voice_new/narration_new_2026-11-27.mp3",
+  "transcript": "src/data/narration_new_transcript.json",
+  "placement": [{"src": [5.6, 9.95], "at": 0.8}],
+  "cues": [
+    {"words": [5.654, 7.46], "en": "Have you ever looked at your life…", "ar": "هل نظرتَ يومًا إلى حياتك…"},
+    {"words": [7.836, 9.688], "en": "…and wondered how you ended up here?", "ar": "…وتساءلتَ كيف انتهى بك المطافُ إلى هنا؟"}
+  ]
+}
