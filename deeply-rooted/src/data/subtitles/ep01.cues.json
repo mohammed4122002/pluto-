@@ -1,0 +1,703 @@
+{
+ "id": "ep01",
+ "title": "Deeply Rooted · Episode 01 · When Life Doesn't Go as Planned",
+ "fps": 30,
+ "voice": "public/audio/voice_new/narration_new_2026-11-27.mp3",
+ "transcript": "src/data/narration_new_transcript.json",
+ "placement": "src/data/episode01/placement.json",
+ "_notes": "English follows the narration as spoken. Cue times are aligned automatically to the transcript's word timings. burn:false = carried by the on-screen title card instead (still in the SRTs). Arabic: translation for review by a native speaker; the verse uses the Qur'anic text of Al-Baqarah 2:216.",
+ "cues": [
+  {
+   "en": "When Life Doesn't Go as Planned",
+   "ar": "حين لا تسير الحياة كما خطّطنا",
+   "burn": false
+  },
+  {
+   "en": "Deeply Rooted",
+   "ar": "Deeply Rooted",
+   "burn": false
+  },
+  {
+   "en": "Episode One",
+   "ar": "الحلقة الأولى",
+   "burn": false
+  },
+  {
+   "en": "Have you ever looked at your life…",
+   "ar": "هل نظرتَ يومًا إلى حياتك…"
+  },
+  {
+   "en": "…and wondered how you ended up here?",
+   "ar": "…وتساءلتَ كيف انتهى بك المطافُ إلى هنا؟"
+  },
+  {
+   "en": "Not because everything is terrible.",
+   "ar": "ليس لأنّ كلّ شيءٍ سيّئ."
+  },
+  {
+   "en": "But because…",
+   "ar": "بل لأنّك…"
+  },
+  {
+   "en": "this isn't where you thought you would be.",
+   "ar": "لستَ حيث ظننتَ أنّك ستكون."
+  },
+  {
+   "en": "You had plans.",
+   "ar": "كانت لديك خطط."
+  },
+  {
+   "en": "You had dreams.",
+   "ar": "كانت لديك أحلام."
+  },
+  {
+   "en": "You imagined a different version of yourself",
+   "ar": "تخيّلتَ نسخةً مختلفةً من نفسك"
+  },
+  {
+   "en": "by now.",
+   "ar": "بحلول هذا الوقت."
+  },
+  {
+   "en": "Maybe you thought you'd be happier,",
+   "ar": "ربما ظننتَ أنّك ستكون أسعد،"
+  },
+  {
+   "en": "more successful, more loved.",
+   "ar": "أكثر نجاحًا، ومحبوبًا أكثر."
+  },
+  {
+   "en": "Maybe you thought certain people",
+   "ar": "ربما ظننتَ أنّ أشخاصًا بعينهم"
+  },
+  {
+   "en": "would still be beside you.",
+   "ar": "سيظلّون إلى جانبك."
+  },
+  {
+   "en": "Maybe you believed that by this age,",
+   "ar": "ربما اعتقدتَ أنّه في هذا العمر،"
+  },
+  {
+   "en": "by this moment,",
+   "ar": "وفي هذه اللحظة،"
+  },
+  {
+   "en": "everything would finally make sense.",
+   "ar": "سيصبح لكلّ شيءٍ معنى أخيرًا."
+  },
+  {
+   "en": "But life… had other plans.",
+   "ar": "لكنّ الحياة… كانت لها خططٌ أخرى."
+  },
+  {
+   "en": "And sometimes the hardest part",
+   "ar": "وأحيانًا، الجزء الأصعب"
+  },
+  {
+   "en": "isn't what happened.",
+   "ar": "ليس ما حدث."
+  },
+  {
+   "en": "It's learning to accept",
+   "ar": "بل أن تتعلّم القبول"
+  },
+  {
+   "en": "that the life you imagined",
+   "ar": "بأنّ الحياة التي تخيّلتها"
+  },
+  {
+   "en": "may never look exactly the way you expected.",
+   "ar": "قد لا تبدو أبدًا كما توقّعتها تمامًا."
+  },
+  {
+   "en": "But what if you're not falling behind?",
+   "ar": "لكن ماذا لو أنّك لستَ متأخّرًا؟"
+  },
+  {
+   "en": "What if you're simply living a chapter",
+   "ar": "ماذا لو أنّك تعيش ببساطة فصلًا"
+  },
+  {
+   "en": "you never knew you needed?",
+   "ar": "لم تكن تعلم أنّك تحتاجه؟"
+  },
+  {
+   "en": "We spend so much of our lives",
+   "ar": "نقضي جزءًا كبيرًا من حياتنا"
+  },
+  {
+   "en": "measuring ourselves",
+   "ar": "ونحن نقيس أنفسنا"
+  },
+  {
+   "en": "against invisible timelines.",
+   "ar": "بجداول زمنيةٍ خفيّة."
+  },
+  {
+   "en": "\"By this age, I should have achieved this.\"",
+   "ar": "«في هذا العمر، كان يجب أن أحقّق هذا.»"
+  },
+  {
+   "en": "\"By now, I should have found my purpose.\"",
+   "ar": "«حتى الآن، كان يجب أن أجد هدفي.»"
+  },
+  {
+   "en": "\"I should be further ahead.\"",
+   "ar": "«يجب أن أكون قد تقدّمتُ أكثر.»"
+  },
+  {
+   "en": "\"I should be happier.\"",
+   "ar": "«يجب أن أكون أسعد.»"
+  },
+  {
+   "en": "And without even realizing it,",
+   "ar": "ودون أن ندرك ذلك،"
+  },
+  {
+   "en": "we turn our lives into a race",
+   "ar": "نحوّل حياتنا إلى سباقٍ"
+  },
+  {
+   "en": "against a version of ourselves",
+   "ar": "مع نسخةٍ من أنفسنا"
+  },
+  {
+   "en": "that doesn't even exist.",
+   "ar": "لا وجود لها أصلًا."
+  },
+  {
+   "en": "We forget that people grow differently,",
+   "ar": "ننسى أنّ الناس ينمون بطرقٍ مختلفة،"
+  },
+  {
+   "en": "heal differently,",
+   "ar": "ويُشفَون بطرقٍ مختلفة،"
+  },
+  {
+   "en": "discover themselves differently.",
+   "ar": "ويكتشفون أنفسهم بطرقٍ مختلفة."
+  },
+  {
+   "en": "Some people find their direction early.",
+   "ar": "بعض الناس يجدون طريقهم مبكرًا."
+  },
+  {
+   "en": "Others spend years searching.",
+   "ar": "وآخرون يقضون سنواتٍ في البحث."
+  },
+  {
+   "en": "Some find love when they least expect it.",
+   "ar": "بعضهم يجد الحبّ حين لا يتوقّعه."
+  },
+  {
+   "en": "Others need time to learn",
+   "ar": "وآخرون يحتاجون وقتًا ليتعلّموا"
+  },
+  {
+   "en": "how to love themselves first.",
+   "ar": "كيف يحبّون أنفسهم أولًا."
+  },
+  {
+   "en": "And some of the strongest people",
+   "ar": "وبعضُ أقوى الناس"
+  },
+  {
+   "en": "you'll ever meet",
+   "ar": "الذين ستقابلهم يومًا"
+  },
+  {
+   "en": "are still figuring things out.",
+   "ar": "ما زالوا يحاولون فهم الأمور."
+  },
+  {
+   "en": "There is no universal timeline",
+   "ar": "لا يوجد جدولٌ زمنيّ واحدٌ للجميع"
+  },
+  {
+   "en": "for becoming who you are meant to be.",
+   "ar": "لتصبح من قُدِّر لك أن تكون."
+  },
+  {
+   "en": "Your journey doesn't become",
+   "ar": "رحلتك لا تصبح"
+  },
+  {
+   "en": "less meaningful just because",
+   "ar": "أقلّ معنًى لمجرّد"
+  },
+  {
+   "en": "it looks different from someone else's.",
+   "ar": "أنّها تبدو مختلفةً عن رحلة غيرك."
+  },
+  {
+   "en": "So please,",
+   "ar": "لذا، أرجوك،"
+  },
+  {
+   "en": "stop treating your life like a deadline.",
+   "ar": "توقّف عن معاملة حياتك كموعدٍ نهائيّ."
+  },
+  {
+   "en": "You are a human being,",
+   "ar": "أنت إنسان،"
+  },
+  {
+   "en": "not a project that needs to be completed",
+   "ar": "لا مشروعٌ يجب إنجازه"
+  },
+  {
+   "en": "by a certain age.",
+   "ar": "قبل عمرٍ معيّن."
+  },
+  {
+   "en": "And then,",
+   "ar": "ثمّ،"
+  },
+  {
+   "en": "there are the things we never wanted to lose.",
+   "ar": "هناك الأشياء التي لم نرغب يومًا في خسارتها."
+  },
+  {
+   "en": "A relationship.",
+   "ar": "علاقة."
+  },
+  {
+   "en": "An opportunity.",
+   "ar": "فرصة."
+  },
+  {
+   "en": "A dream we worked so hard for.",
+   "ar": "حلمٌ عملنا بجدٍّ من أجله."
+  },
+  {
+   "en": "A version of life we thought",
+   "ar": "نسخةٌ من الحياة ظننّا"
+  },
+  {
+   "en": "was finally within reach.",
+   "ar": "أنّها أصبحت أخيرًا في متناولنا."
+  },
+  {
+   "en": "Losing something you truly wanted hurts.",
+   "ar": "خسارة شيءٍ أردتَه حقًّا تؤلم."
+  },
+  {
+   "en": "And you don't have to pretend otherwise.",
+   "ar": "ولستَ مضطرًّا إلى التظاهر بغير ذلك."
+  },
+  {
+   "en": "You don't have to call",
+   "ar": "لستَ مضطرًّا إلى أن تسمّي"
+  },
+  {
+   "en": "every disappointment a blessing",
+   "ar": "كلّ خيبةٍ نعمة"
+  },
+  {
+   "en": "while you're still trying to understand it.",
+   "ar": "بينما ما زلتَ تحاول أن تفهمها."
+  },
+  {
+   "en": "Sometimes you just need",
+   "ar": "أحيانًا تحتاج فقط"
+  },
+  {
+   "en": "to sit with the feeling.",
+   "ar": "إلى أن تبقى مع هذا الشعور."
+  },
+  {
+   "en": "To acknowledge that it mattered.",
+   "ar": "أن تعترف بأنّه كان مهمًّا."
+  },
+  {
+   "en": "That you cared.",
+   "ar": "وأنّك اهتممت."
+  },
+  {
+   "en": "That you hoped.",
+   "ar": "وأنّك تمنّيت."
+  },
+  {
+   "en": "And that it hurts.",
+   "ar": "وأنّه يؤلم."
+  },
+  {
+   "en": "But don't let one painful chapter",
+   "ar": "لكن لا تدع فصلًا مؤلمًا واحدًا"
+  },
+  {
+   "en": "convince you that the entire story is over.",
+   "ar": "يقنعك بأنّ القصة كلّها قد انتهت."
+  },
+  {
+   "en": "A closed door is not proof",
+   "ar": "الباب المغلق ليس دليلًا"
+  },
+  {
+   "en": "that every door will remain closed.",
+   "ar": "على أنّ كلّ الأبواب ستبقى مغلقة."
+  },
+  {
+   "en": "A difficult season",
+   "ar": "الموسم الصعب"
+  },
+  {
+   "en": "is not a permanent identity.",
+   "ar": "ليس هويةً دائمة."
+  },
+  {
+   "en": "And a moment of uncertainty",
+   "ar": "ولحظةٌ من الحيرة"
+  },
+  {
+   "en": "doesn't mean you've lost your way forever.",
+   "ar": "لا تعني أنّك أضعتَ طريقك إلى الأبد."
+  },
+  {
+   "en": "Sometimes,",
+   "ar": "أحيانًا،"
+  },
+  {
+   "en": "the most important growth happens quietly.",
+   "ar": "يحدث أهمّ نموٍّ بهدوء."
+  },
+  {
+   "en": "When nobody is watching.",
+   "ar": "حين لا يراك أحد."
+  },
+  {
+   "en": "When there are no achievements to celebrate.",
+   "ar": "حين لا توجد إنجازاتٌ للاحتفال بها."
+  },
+  {
+   "en": "When all you're doing is choosing to get up",
+   "ar": "حين يكون كلّ ما تفعله أن تختار النهوض"
+  },
+  {
+   "en": "and try again.",
+   "ar": "والمحاولة من جديد."
+  },
+  {
+   "en": "That matters too.",
+   "ar": "وهذا مهمٌّ أيضًا."
+  },
+  {
+   "en": "Maybe you need to hear this today:",
+   "ar": "ربما تحتاج أن تسمع هذا اليوم:"
+  },
+  {
+   "en": "You are allowed to begin again.",
+   "ar": "يحقّ لك أن تبدأ من جديد."
+  },
+  {
+   "en": "You are allowed to change your mind.",
+   "ar": "يحقّ لك أن تغيّر رأيك."
+  },
+  {
+   "en": "You are allowed to outgrow",
+   "ar": "يحقّ لك أن تتجاوز"
+  },
+  {
+   "en": "the dreams you once had.",
+   "ar": "الأحلام التي كانت لديك يومًا."
+  },
+  {
+   "en": "You are allowed to walk away",
+   "ar": "يحقّ لك أن تبتعد"
+  },
+  {
+   "en": "from what no longer feels right.",
+   "ar": "عمّا لم يعد يبدو صحيحًا."
+  },
+  {
+   "en": "And you are allowed to build",
+   "ar": "ويحقّ لك أن تبني"
+  },
+  {
+   "en": "a completely different life,",
+   "ar": "حياةً مختلفةً تمامًا،"
+  },
+  {
+   "en": "even if it takes longer than you imagined.",
+   "ar": "حتى لو استغرق ذلك وقتًا أطول ممّا تخيّلت."
+  },
+  {
+   "en": "Don't underestimate the quiet courage",
+   "ar": "لا تستهِن بالشجاعة الهادئة"
+  },
+  {
+   "en": "it takes to keep going.",
+   "ar": "التي يتطلّبها الاستمرار."
+  },
+  {
+   "en": "Not every victory is visible.",
+   "ar": "ليس كلّ انتصارٍ مرئيًّا."
+  },
+  {
+   "en": "Sometimes victory is getting through",
+   "ar": "أحيانًا يكون الانتصار أن تجتاز"
+  },
+  {
+   "en": "a difficult day without giving up on yourself.",
+   "ar": "يومًا صعبًا دون أن تتخلّى عن نفسك."
+  },
+  {
+   "en": "Sometimes it's choosing peace",
+   "ar": "وأحيانًا يكون باختيار السلام"
+  },
+  {
+   "en": "over proving a point.",
+   "ar": "بدل إثبات وجهة نظر."
+  },
+  {
+   "en": "Sometimes it's forgiving yourself",
+   "ar": "وأحيانًا يكون بأن تسامح نفسك"
+  },
+  {
+   "en": "for the years you spent not knowing",
+   "ar": "على السنوات التي قضيتَها لا تعرف"
+  },
+  {
+   "en": "what you know today.",
+   "ar": "ما تعرفه اليوم."
+  },
+  {
+   "en": "And sometimes,",
+   "ar": "وأحيانًا،"
+  },
+  {
+   "en": "it's simply trusting that your story",
+   "ar": "يكون ببساطة بأن تثق بأنّ قصتك"
+  },
+  {
+   "en": "still has beautiful pages left to be written.",
+   "ar": "ما زالت فيها صفحاتٌ جميلة لم تُكتب بعد."
+  },
+  {
+   "en": "And perhaps",
+   "ar": "وربما"
+  },
+  {
+   "en": "there is another way to look at all of this.",
+   "ar": "هناك طريقةٌ أخرى للنظر إلى كلّ هذا."
+  },
+  {
+   "en": "A way that invites us to loosen our grip",
+   "ar": "طريقةٌ تدعونا إلى أن نرخي قبضتنا"
+  },
+  {
+   "en": "on the things we cannot control.",
+   "ar": "عن الأشياء التي لا نملك السيطرة عليها."
+  },
+  {
+   "en": "In the Qur'an, Allah reminds us",
+   "ar": "في القرآن الكريم، يذكّرنا الله"
+  },
+  {
+   "en": "in Surah Al-Baqarah, verse 216:",
+   "ar": "في سورة البقرة، الآية ٢١٦:"
+  },
+  {
+   "en": "\"But perhaps you hate a thing",
+   "ar": "«وَعَسَىٰ أَن تَكْرَهُوا شَيْئًا",
+   "quran": true
+  },
+  {
+   "en": "and it is good for you;",
+   "ar": "وَهُوَ خَيْرٌ لَّكُمْ",
+   "quran": true
+  },
+  {
+   "en": "and perhaps you love a thing",
+   "ar": "وَعَسَىٰ أَن تُحِبُّوا شَيْئًا",
+   "quran": true
+  },
+  {
+   "en": "and it is bad for you.",
+   "ar": "وَهُوَ شَرٌّ لَّكُمْ",
+   "quran": true
+  },
+  {
+   "en": "And Allah knows, while you know not.\"",
+   "ar": "وَاللَّهُ يَعْلَمُ وَأَنتُمْ لَا تَعْلَمُونَ»",
+   "quran": true
+  },
+  {
+   "en": "Think about that for a moment.",
+   "ar": "فكّر في ذلك للحظة."
+  },
+  {
+   "en": "How often have we wanted something so deeply,",
+   "ar": "كم مرّةً أردنا شيئًا بشدّة،"
+  },
+  {
+   "en": "believing it was exactly what we needed?",
+   "ar": "معتقدين أنّه تمامًا ما نحتاجه؟"
+  },
+  {
+   "en": "And how often have we looked back",
+   "ar": "وكم مرّةً نظرنا إلى الوراء"
+  },
+  {
+   "en": "at something we once considered",
+   "ar": "إلى شيءٍ اعتبرناه يومًا"
+  },
+  {
+   "en": "a disappointment,",
+   "ar": "خيبةَ أمل،"
+  },
+  {
+   "en": "only to realize that life took us",
+   "ar": "لندرك أنّ الحياة أخذتنا"
+  },
+  {
+   "en": "somewhere we couldn't have imagined.",
+   "ar": "إلى مكانٍ لم نكن لنتخيّله."
+  },
+  {
+   "en": "This doesn't mean every painful experience",
+   "ar": "هذا لا يعني أنّ كلّ تجربةٍ مؤلمة"
+  },
+  {
+   "en": "will immediately make sense.",
+   "ar": "سيتّضح معناها على الفور."
+  },
+  {
+   "en": "And it doesn't mean you're not allowed",
+   "ar": "ولا يعني أنّه لا يحقّ لك"
+  },
+  {
+   "en": "to grieve what you lost.",
+   "ar": "أن تحزن على ما فقدته."
+  },
+  {
+   "en": "It simply reminds us",
+   "ar": "إنّه فقط يذكّرنا"
+  },
+  {
+   "en": "that our perspective is limited.",
+   "ar": "بأنّ نظرتنا محدودة."
+  },
+  {
+   "en": "We see a moment.",
+   "ar": "نحن نرى لحظة."
+  },
+  {
+   "en": "God knows the whole picture.",
+   "ar": "والله يعلم الصورة كاملة."
+  },
+  {
+   "en": "And sometimes faith means taking the next step",
+   "ar": "وأحيانًا يعني الإيمانُ أن تخطو الخطوة التالية"
+  },
+  {
+   "en": "even when you cannot see the entire road.",
+   "ar": "حتى حين لا ترى الطريق كلّه."
+  },
+  {
+   "en": "So, if life doesn't look the way you planned,",
+   "ar": "لذا، إن لم تكن الحياة كما خطّطتَ لها،"
+  },
+  {
+   "en": "take a breath.",
+   "ar": "خذ نفَسًا."
+  },
+  {
+   "en": "You haven't missed your only chance.",
+   "ar": "لم تفوّت فرصتك الوحيدة."
+  },
+  {
+   "en": "You haven't become less worthy",
+   "ar": "ولم تصبح أقلّ قيمة"
+  },
+  {
+   "en": "because things took longer.",
+   "ar": "لأنّ الأمور استغرقت وقتًا أطول."
+  },
+  {
+   "en": "And you don't need to have",
+   "ar": "ولستَ بحاجةٍ إلى أن تملك"
+  },
+  {
+   "en": "every answer tonight.",
+   "ar": "كلّ الإجابات الليلة."
+  },
+  {
+   "en": "Keep growing.",
+   "ar": "واصل النموّ."
+  },
+  {
+   "en": "Keep learning.",
+   "ar": "واصل التعلّم."
+  },
+  {
+   "en": "Keep becoming.",
+   "ar": "واصل أن تصير."
+  },
+  {
+   "en": "And don't forget to appreciate",
+   "ar": "ولا تنسَ أن تقدّر"
+  },
+  {
+   "en": "the person you're becoming along the way.",
+   "ar": "الشخص الذي تصيره على طول الطريق."
+  },
+  {
+   "en": "Because life isn't only about reaching",
+   "ar": "لأنّ الحياة ليست فقط في الوصول"
+  },
+  {
+   "en": "the destination you once imagined.",
+   "ar": "إلى الوجهة التي تخيّلتها يومًا."
+  },
+  {
+   "en": "It's also about discovering who you become",
+   "ar": "بل أيضًا في اكتشاف من تصير"
+  },
+  {
+   "en": "along the journey.",
+   "ar": "خلال الرحلة."
+  },
+  {
+   "en": "And wherever you are right now,",
+   "ar": "وأينما كنتَ الآن،"
+  },
+  {
+   "en": "I hope you find the courage to keep going.",
+   "ar": "أتمنّى أن تجد الشجاعة لتستمرّ."
+  },
+  {
+   "en": "Not because everything is certain,",
+   "ar": "ليس لأنّ كلّ شيءٍ مؤكّد،"
+  },
+  {
+   "en": "but because your story is still unfolding.",
+   "ar": "بل لأنّ قصّتك ما زالت تتكشّف."
+  },
+  {
+   "en": "This is Deeply Rooted.",
+   "ar": "هذه Deeply Rooted."
+  },
+  {
+   "en": "A place to pause, to reflect,",
+   "ar": "مكانٌ للتوقّف، وللتأمّل،"
+  },
+  {
+   "en": "and to remember what truly matters.",
+   "ar": "ولتذكّر ما يهمّ حقًّا."
+  },
+  {
+   "en": "Until next time,",
+   "ar": "إلى اللقاء،"
+  },
+  {
+   "en": "stay grounded, stay hopeful,",
+   "ar": "ابقَ ثابتًا، ابقَ متفائلًا،"
+  },
+  {
+   "en": "and stay deeply rooted.",
+   "ar": "وابقَ متجذّرًا بعمق."
+  }
+ ]
+}

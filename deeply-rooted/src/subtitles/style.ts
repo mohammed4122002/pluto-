@@ -25,9 +25,9 @@ export const BILINGUAL_TIMING = {
   leadFrames: 2, // a cue appears 2 frames before its first word
   tailSec: 0.5, // and stays 0.5 s after its last word…
   minGapFrames: 2, // …but always clears 2 frames before the next cue
-  maxCharsEn: 42, // one line per language: break long sentences into cues at natural pauses
-  maxCharsAr: 44,
-  maxCps: 17, // reading speed limit (characters per second, per language)
+  maxCharsEn: 46, // one line per language: break long sentences into cues at natural pauses
+  maxCharsAr: 46, // counted without diacritics
+  maxCps: 20, // reading-speed warning (characters per second); the narration's pace sets the real limit
 } as const;
 
 /**

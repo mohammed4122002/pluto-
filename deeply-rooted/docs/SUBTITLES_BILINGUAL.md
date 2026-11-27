@@ -27,7 +27,10 @@ Writing an episode's cue file is the only per-episode work: the English and Arab
 
 - A cue appears 2 frames before its first spoken word and stays 0.5 s after its last word.
 - It always clears 2 frames before the next cue.
-- Each line holds at most 42 characters (English) or 44 (Arabic), at no more than 17 characters per second.
+- Each line holds at most 46 characters per language (Arabic is counted without diacritics); longer sentences are split at natural pauses.
+- Reading speed above 20 characters per second is reported as a warning only, since the narrator's pace sets it.
+- Cues are timed automatically: the builder aligns each cue's English text to the narration's word timestamps, which tolerates the recogniser's spellings. `"burn": false` keeps a line, such as one carried by a title card, out of the picture but in the SRTs.
+- Burning in: `scripts/subtitles/render_cue_stills.mjs` renders each cue once with the component, and `scripts/subtitles/burn_bilingual.py` blends the stills onto the picture with the component's own fade curve.
 
 ## Staging rule: the subtitle-safe zone
 
