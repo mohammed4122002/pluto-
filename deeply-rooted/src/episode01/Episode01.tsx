@@ -151,7 +151,7 @@ add({id: '09 timeline', from: C24, bed: 'wind', render: (f, s) => {
   });
   const on = ramp(f, ps(24) + 30, 40) * (1 - ramp(f, s.to - 20, 20));
   return (
-    <RoadSide f={f} cam={cam} time="dusk" midChildren={<TimelineRuler y={705} x0={cam.px! * 0.45 - 500} x1={cam.px! * 0.45 + 3500} spacing={140} lit={lit} f={f} opacity={on} />}>
+    <RoadSide f={f} cam={cam} time="dusk" midChildren={<TimelineRuler y={590} x0={cam.px! * 0.45 - 500} x1={cam.px! * 0.45 + 3500} spacing={140} lit={lit} f={f} opacity={on} />}>
       <Trav id="t09" pose={walkPose(x / (STRIDE * ROAD_SCALE))} feet={[x, ROAD_FEET_Y]} scale={ROAD_SCALE} light="roadDusk" />
     </RoadSide>
   );

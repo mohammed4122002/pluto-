@@ -77,14 +77,15 @@ export const Plate: React.FC<{
     const n0 = Math.floor(x0 / tileWidth) - 1;
     const n1 = Math.ceil(x1 / tileWidth) + 1;
     const copies = [];
-    for (let n = n0; n <= n1; n++) copies.push(<Img key={n} src={src} style={st(` translate(${n * tileWidth}px, 0px)`, tileWidth)} />);
+    // copies overlap by 1.5 px so sub-pixel placement never opens a hairline seam
+    for (let n = n0; n <= n1; n++) copies.push(<Img key={n} src={src} style={st(` translate(${n * tileWidth - 0.75}px, 0px)`, tileWidth + 1.5)} />);
     return <>{copies}</>;
   }
   return (
     <>
       <Img src={src} style={st('', PW)} />
-      {mirrorTile && <Img src={src} style={st(` translate(${2 * PW}px, 0px) scale(-1, 1)`, PW)} />}
-      {mirrorTile && <Img src={src} style={st(` scale(-1, 1)`, PW)} />}
+      {mirrorTile && <Img src={src} style={st(` translate(${2 * PW - 1.5}px, 0px) scale(-1, 1)`, PW)} />}
+      {mirrorTile && <Img src={src} style={st(` translate(1.5px, 0px) scale(-1, 1)`, PW)} />}
     </>
   );
 };
@@ -403,18 +404,19 @@ export const Roots: React.FC<{x: number; y: number; size: number; grow: number; 
 export const TimelineRuler: React.FC<{y: number; x0: number; x1: number; spacing: number; lit: [number, number][]; f: number; opacity: number}> = ({y, x0, x1, spacing, lit, f, opacity}) => {
   const ticks = [];
   for (let x = Math.ceil(x0 / spacing) * spacing; x < x1; x += spacing) {
-    ticks.push(<line key={x} x1={x} y1={y - 12} x2={x} y2={y + 12} stroke="#F4D49A" strokeWidth={2} opacity={0.5} />);
+    ticks.push(<line key={x} x1={x} y1={y - 16} x2={x} y2={y + 16} stroke="#F4D49A" strokeWidth={3} opacity={0.75} />);
   }
   return (
     <g opacity={opacity}>
-      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#F4D49A" strokeWidth={1.6} opacity={0.55} />
+      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#F4D49A" strokeWidth={2.6} opacity={0.8} />
+      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#FFE2A8" strokeWidth={10} opacity={0.12} style={{filter: 'blur(4px)'}} />
       {ticks}
       {lit.map(([x, at]) => {
         const g = ramp(f, at, 10) * (1 - 0.55 * ramp(f, at + 30, 40));
         return g > 0 ? (
           <g key={`l${x}`}>
-            <line x1={x} y1={y - 22} x2={x} y2={y + 22} stroke="#FFE7B8" strokeWidth={3} opacity={g} />
-            <circle cx={x} cy={y} r={16} fill="#FFE1A6" opacity={0.55 * g} style={{filter: 'blur(7px)'}} />
+            <line x1={x} y1={y - 30} x2={x} y2={y + 30} stroke="#FFF0CC" strokeWidth={4.5} opacity={g} />
+            <circle cx={x} cy={y} r={28} fill="#FFE1A6" opacity={0.6 * g} style={{filter: 'blur(10px)'}} />
           </g>
         ) : null;
       })}
