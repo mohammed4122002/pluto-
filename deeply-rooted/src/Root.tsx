@@ -4,12 +4,14 @@ import {FPS, H, scenes, TOTAL_FRAMES, W} from './config/production';
 import {CaptionsOverlay, Timeline} from './Timeline';
 import {CharacterSheet, SHEET_H, SHEET_W} from './character/CharacterSheet';
 import {LookDev} from './LookDev';
+import {SSHEET_H, SSHEET_W, StickmanSheet} from './stickman/StickmanSheet';
 
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition id="Phase01" component={Timeline} durationInFrames={TOTAL_FRAMES} fps={FPS} width={W} height={H} defaultProps={{offset: 0, length: TOTAL_FRAMES}} />
     <Composition id="Phase01Clean" component={Timeline} durationInFrames={TOTAL_FRAMES} fps={FPS} width={W} height={H} defaultProps={{offset: 0, length: TOTAL_FRAMES, burnCaptions: false}} />
     <Composition id="CaptionsOverlay" component={CaptionsOverlay} durationInFrames={TOTAL_FRAMES} fps={FPS} width={W} height={H} defaultProps={{offset: 0}} />
+    <Composition id="StickmanSheet" component={StickmanSheet} durationInFrames={1} fps={FPS} width={SSHEET_W} height={SSHEET_H} />
     <Composition id="LookDev" component={LookDev} durationInFrames={60} fps={FPS} width={W} height={H} />
     <Composition id="CharacterSheet" component={CharacterSheet} durationInFrames={1} fps={FPS} width={SHEET_W} height={SHEET_H} />
     {Object.values(scenes).map((s) => (
