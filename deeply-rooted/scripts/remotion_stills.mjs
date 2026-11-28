@@ -17,6 +17,6 @@ const serveUrl = await bundle({entryPoint: path.resolve('src/index.ts')});
 const composition = await selectComposition({serveUrl, id, inputProps: props, browserExecutable});
 for (const f of frames) {
   const output = path.join(outDir, `${id}_${String(f).padStart(5, '0')}.${png ? 'png' : 'jpg'}`);
-  await renderStill({composition, serveUrl, output, frame: Number(f), inputProps: props, imageFormat: png ? 'png' : 'jpeg', jpegQuality: 88, browserExecutable, overwrite: true});
+  await renderStill({composition, serveUrl, output, frame: Number(f), inputProps: props, imageFormat: png ? 'png' : 'jpeg', ...(png ? {} : {jpegQuality: 88}), browserExecutable, overwrite: true});
   console.log(output);
 }

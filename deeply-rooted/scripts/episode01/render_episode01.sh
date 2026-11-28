@@ -53,7 +53,7 @@ fi
 s=$(now)
 ffmpeg -loglevel error -y -f concat -safe 0 -i $O/chunks/list.txt -c copy $O/picture_painted.mp4
 ffmpeg -loglevel error -y -i $O/picture_painted.mp4 -i $O/mix_master.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k -movflags +faststart $O/episode01_clean_master.mp4
-python3 scripts/subtitles/burn_bilingual.py $O/picture_painted.mp4 ep01 $O/cues $O/episode01_bilingual.mp4 --audio $O/mix_master.wav
+python3 scripts/subtitles/burn_bilingual.py $O/picture_painted.mp4 ep01 $O/cues $O/episode01_bilingual.mp4 --audio $O/mix_master.wav --preset medium
 ffmpeg -loglevel error -y -i $O/episode01_bilingual.mp4 -vf scale=1280:720 -c:v libx264 -crf 21 -preset slow -c:a copy -movflags +faststart $O/episode01_bilingual_720p.mp4
 cp subtitles/ep01_en.srt subtitles/ep01_ar.srt $O/
 echo "assemble $(( $(now)-s ))s" >> $LOG

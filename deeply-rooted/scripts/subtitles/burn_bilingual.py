@@ -30,6 +30,7 @@ def main():
     ap.add_argument("--offset", type=int, default=0)
     ap.add_argument("--audio")
     ap.add_argument("--crf", type=int, default=16)
+    ap.add_argument("--preset", default="slow")
     a = ap.parse_args()
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
     cues = json.load(open(os.path.join(root, "src", "data", "subtitles", f"{a.id}.timed.json"), encoding="utf-8"))["cues"]
@@ -50,7 +51,7 @@ def main():
     cmd = ["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", "30", "-i", "-"]
     if a.audio:
         cmd += ["-i", a.audio, "-map", "0:v", "-map", "1:a", "-c:a", "aac", "-b:a", "256k", "-shortest"]
-    cmd += ["-c:v", "libx264", "-preset", "slow", "-crf", str(a.crf), "-pix_fmt", "yuv420p", "-movflags", "+faststart", a.dst]
+    cmd += ["-c:v", "libx264", "-preset", a.preset, "-crf", str(a.crf), "-pix_fmt", "yuv420p", "-movflags", "+faststart", a.dst]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     n, k = 0, 0
     size = W * H * 3
