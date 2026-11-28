@@ -400,26 +400,83 @@ export const Roots: React.FC<{x: number; y: number; size: number; grow: number; 
   );
 };
 
-/** The faint golden timeline across the land; listed ticks light up at their frames. */
-export const TimelineRuler: React.FC<{y: number; x0: number; x1: number; spacing: number; lit: [number, number][]; f: number; opacity: number}> = ({y, x0, x1, spacing, lit, f, opacity}) => {
+/** The faint golden timeline across the land; listed ticks light up at their frames, then cool to grey as they
+ *  fall behind (missed milestones). `drop` 0…1 lets the whole ruler fall apart, tick by tick (letting go of deadlines). */
+export const TimelineRuler: React.FC<{y: number; x0: number; x1: number; spacing: number; lit: [number, number][]; f: number; opacity: number; drop?: number}> = ({y, x0, x1, spacing, lit, f, opacity, drop = 0}) => {
   const ticks = [];
+  const fall = (x: number) => clamp(drop * 1.6 - 0.6 * hash(Math.round(x / spacing), 41));
   for (let x = Math.ceil(x0 / spacing) * spacing; x < x1; x += spacing) {
-    ticks.push(<line key={x} x1={x} y1={y - 16} x2={x} y2={y + 16} stroke="#F4D49A" strokeWidth={3} opacity={0.75} />);
+    const d = fall(x);
+    ticks.push(<line key={x} x1={x} y1={y - 16 + d * 90} x2={x} y2={y + 16 + d * 90} stroke="#F4D49A" strokeWidth={3} opacity={0.75 * (1 - d)} />);
   }
   return (
     <g opacity={opacity}>
-      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#F4D49A" strokeWidth={2.6} opacity={0.8} />
-      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#FFE2A8" strokeWidth={10} opacity={0.12} style={{filter: 'blur(4px)'}} />
+      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#F4D49A" strokeWidth={2.6} opacity={0.8 * (1 - clamp(drop * 1.4))} />
+      <line x1={x0} y1={y} x2={x1} y2={y} stroke="#FFE2A8" strokeWidth={10} opacity={0.12 * (1 - clamp(drop * 1.4))} style={{filter: 'blur(4px)'}} />
       {ticks}
       {lit.map(([x, at]) => {
-        const g = ramp(f, at, 10) * (1 - 0.55 * ramp(f, at + 30, 40));
+        const g = ramp(f, at, 10) * (1 - 0.35 * ramp(f, at + 30, 40)) * (1 - fall(x));
+        const missed = ramp(f, at + 45, 50); // the moment passes: warm → cold grey
         return g > 0 ? (
           <g key={`l${x}`}>
-            <line x1={x} y1={y - 30} x2={x} y2={y + 30} stroke="#FFF0CC" strokeWidth={4.5} opacity={g} />
-            <circle cx={x} cy={y} r={28} fill="#FFE1A6" opacity={0.6 * g} style={{filter: 'blur(10px)'}} />
+            <line x1={x} y1={y - 30} x2={x} y2={y + 30} stroke={missed > 0.5 ? '#AEB8C6' : '#FFF0CC'} strokeWidth={4.5} opacity={g * (1 - 0.3 * missed)} />
+            <circle cx={x} cy={y} r={28} fill="#FFE1A6" opacity={0.6 * g * (1 - missed)} style={{filter: 'blur(10px)'}} />
           </g>
         ) : null;
       })}
     </g>
   );
 };
+
+/** "You had plans": a golden route drawn on through the air (draw 0…1), its stars kindling (dreams 0…1),
+ *  then the light gathering at its far end (gather 0…1) where the imagined self forms. */
+export const PlanLine: React.FC<{pts: [number, number][]; draw: number; dreams: number; gather: number; f: number}> = ({pts, draw, dreams, gather, f}) => {
+  if (draw <= 0) return null;
+  // the route drawn on: the polyline truncated at `draw` of its length
+  const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
+  const total = seg.reduce((x, y) => x + y, 0);
+  let left = clamp(draw) * total;
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < seg.length && left > 0; i++) {
+    const t = Math.min(1, left / seg[i]);
+    d += ` L${pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t} ${pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t}`;
+    left -= seg[i];
+  }
+  const end = pts[pts.length - 1];
+  const stars = [];
+  const n = 9;
+  for (let i = 1; i <= n; i++) {
+    const u = i / (n + 1);
+    const a = u * (pts.length - 1);
+    const j = Math.min(pts.length - 2, Math.floor(a)), t = a - j;
+    let x = pts[j][0] + (pts[j + 1][0] - pts[j][0]) * t;
+    let y = pts[j][1] + (pts[j + 1][1] - pts[j][1]) * t;
+    const on = clamp((draw - u) * 6) * (0.35 + 0.65 * clamp(dreams * 1.5 - u * 0.5));
+    const g = ease.inOutSine(clamp(gather * 1.4 - (1 - u) * 0.4)); // stars flow to the far end
+    x += (end[0] - x) * g;
+    y += (end[1] - y) * g;
+    const tw = 0.75 + 0.25 * Math.sin(f / 7 + i * 1.9);
+    const r = (3 + 4 * dreams) * tw;
+    stars.push(
+      <g key={i} opacity={on * (1 - clamp((gather - 0.75) * 4))}>
+        <circle cx={x} cy={y} r={r * 3.2} fill="#FFD58E" opacity={0.28} style={{filter: 'blur(6px)'}} />
+        <circle cx={x} cy={y} r={r} fill="#FFF1CF" />
+      </g>,
+    );
+  }
+  return (
+    <g>
+      <path d={d} stroke="#F4D49A" strokeWidth={3.2} fill="none" strokeDasharray="3 15" strokeLinecap="round" opacity={0.85 * (1 - clamp(gather * 1.3))} />
+      <path d={d} stroke="#FFE2A8" strokeWidth={10} fill="none" opacity={0.1 * (1 - clamp(gather * 1.3))} style={{filter: 'blur(5px)'}} />
+      {stars}
+    </g>
+  );
+};
+
+/** A person's own small light (reads at a distance, and on a phone): each life at its own pace. */
+export const Lantern: React.FC<{x: number; y: number; sc: number; o?: number; warm?: boolean}> = ({x, y, sc, o = 1, warm = true}) => (
+  <g opacity={o}>
+    <circle cx={x} cy={y} r={26 * sc} fill={warm ? '#FFD596' : '#DDE6F2'} opacity={0.35} style={{filter: `blur(${9 * sc}px)`}} />
+    <circle cx={x} cy={y} r={5 * sc} fill="#FFF3D6" opacity={0.85} style={{filter: `blur(${1.2 * sc}px)`}} />
+  </g>
+);

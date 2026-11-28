@@ -49,8 +49,10 @@ PARAMS_LIGHT = dict(
     bloom=0.2,
     bloom_threshold=0.72,
     grain=0.022,
+    broad_half=True,
 )
 ACTIVE = PARAMS
+EXTEND_BELOW = 0  # vertical master: rows from here down are filled with a soft reflection of the picture above
 
 
 def _half_kernels(r: int):
@@ -99,10 +101,37 @@ def canvas_texture() -> np.ndarray:
     return _canvas
 
 
+def extend_below(frame_bgr: np.ndarray, row: int) -> np.ndarray:
+    """Fill the rows under the picture (9:16 master) with the scene's own foreground, mirrored, softened and darkened —
+    like water or ground continuing into shadow — so the bottom of the phone frame belongs to the scene."""
+    h = frame_bgr.shape[0] - row
+    if h <= 0:
+        return frame_bgr
+    out = frame_bgr.copy()
+    src = frame_bgr[row - h:row][::-1].astype(np.float32)
+    small = cv2.resize(src, (src.shape[1] // 8, max(1, h // 8)), interpolation=cv2.INTER_AREA)
+    small = cv2.GaussianBlur(small, (0, 0), 3.0)
+    soft = cv2.resize(small, (src.shape[1], h), interpolation=cv2.INTER_LINEAR)
+    t = np.linspace(0, 1, h, dtype=np.float32)[:, None, None]
+    near = np.clip(1 - t / 0.08, 0, 1)  # the first rows stay closer to the sharp mirror, so the seam is invisible
+    mix = src * near + soft * (1 - near)
+    dark = 0.78 - 0.5 * t ** 0.8
+    out[row:] = np.clip(mix * dark + 6 * (1 - dark), 0, 255).astype(np.uint8)
+    return out
+
+
 def paint(frame_bgr: np.ndarray, idx: int = 0, p: dict = PARAMS) -> np.ndarray:
+    if EXTEND_BELOW:
+        frame_bgr = extend_below(frame_bgr, EXTEND_BELOW)
     img = frame_bgr.astype(np.float32) / 255.0
     fine = kuwahara(img, p["radius_fine"], p["q"])
-    broad = kuwahara(img, p["radius_broad"], p["q"])
+    if p.get("broad_half"):
+        # the broad (low-frequency) strokes computed at half resolution: same look, ~3x cheaper
+        h0, w0 = img.shape[:2]
+        small = cv2.resize(img, (w0 // 2, h0 // 2), interpolation=cv2.INTER_AREA)
+        broad = cv2.resize(kuwahara(small, max(1, p["radius_broad"] // 2), p["q"]), (w0, h0), interpolation=cv2.INTER_LINEAR)
+    else:
+        broad = kuwahara(img, p["radius_broad"], p["q"])
     # broad strokes in flat areas, fine strokes where detail lives (faces, hands, edges)
     lum = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     detail = cv2.GaussianBlur(np.abs(cv2.Laplacian(lum, cv2.CV_32F, ksize=3)), (0, 0), 3)
@@ -183,7 +212,11 @@ if __name__ == "__main__":
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--crf", type=int, default=14)
     ap.add_argument("--light", action="store_true", help="gentler pass for pre-painted plates")
+    ap.add_argument("--size", default="1920x1080", help="frame size WxH (1080x1920 for the vertical master)")
+    ap.add_argument("--extend-below", type=int, default=0, help="vertical master: fill rows from this one down")
     a = ap.parse_args()
+    W, H = map(int, a.size.split("x"))
+    EXTEND_BELOW = a.extend_below
     if a.light:
         ACTIVE = PARAMS_LIGHT
     if a.still:

@@ -20,6 +20,21 @@ export const BILINGUAL_STYLE = {
   sideMargin: 160, // lines never run closer than this to the frame edge
 } as const;
 
+/**
+ * Vertical (9:16, 1080×1920) variant for the Shorts master: same typefaces, colour, shadow, fades and cue timing,
+ * re-laid out for phones. Lines may wrap (balanced) inside a narrower column, the block sits above the area
+ * platforms cover with captions/handles (bottom ≈ 23%), and it is shifted slightly left of the action buttons.
+ * Values are for a 1080-wide portrait frame.
+ */
+export const BILINGUAL_STYLE_VERTICAL = {
+  bottom: 460, // block bottom is 460 px above the frame bottom (y = 1460)
+  gap: 10,
+  enSize: 46,
+  arSize: 50,
+  maxWidth: 820,
+  centerX: 500, // a little left of centre: keeps clear of the right-hand action buttons
+} as const;
+
 /** Timing rules used by scripts/subtitles/build_subtitles.py (kept here so the whole system is documented in one place). */
 export const BILINGUAL_TIMING = {
   leadFrames: 2, // a cue appears 2 frames before its first word

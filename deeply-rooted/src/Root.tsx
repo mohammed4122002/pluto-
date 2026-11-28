@@ -8,7 +8,7 @@ import {SSHEET_H, SSHEET_W, StickmanSheet} from './stickman/StickmanSheet';
 import {Pilot01, PILOT_FPS, PILOT_FRAMES, PilotSubsAR, PilotSubsEN} from './pilot/Pilot01';
 import {Pilot01VoiceTest, PILOT_FRAMES as VT_FRAMES, VoiceTestSubsAR, VoiceTestSubsEN} from './pilot/Pilot01VoiceTest';
 import {Pilot01Bilingual, Pilot01BilingualSubs} from './pilot/Pilot01Bilingual';
-import {BilingualCueStill, Episode01, Episode01Preview, EP_FRAMES} from './episode01/Episode01';
+import {BilingualCueStill, Episode01, Episode01Preview, Episode01Vertical, Episode01VerticalPreview, EP_FRAMES} from './episode01/Episode01';
 
 export const RemotionRoot: React.FC = () => (
   <>
@@ -25,6 +25,9 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="Pilot01BilingualSubs" component={Pilot01BilingualSubs} durationInFrames={VT_FRAMES} fps={PILOT_FPS} width={W} height={H} />
     <Composition id="Episode01" component={Episode01} durationInFrames={EP_FRAMES} fps={30} width={W} height={H} />
     <Composition id="Episode01Preview" component={Episode01Preview} durationInFrames={EP_FRAMES} fps={30} width={W} height={H} defaultProps={{showSafeZone: false}} />
+    <Composition id="Episode01Vertical" component={Episode01Vertical} durationInFrames={EP_FRAMES} fps={30} width={1080} height={1920} />
+    <Composition id="Episode01VerticalPreview" component={Episode01VerticalPreview} durationInFrames={EP_FRAMES} fps={30} width={1080} height={1920} />
+    <Composition id="BilingualCueStillVertical" component={BilingualCueStill} durationInFrames={1} fps={30} width={1080} height={1920} defaultProps={{en: 'Have you ever looked at your life…', ar: 'هل نظرتَ يومًا إلى حياتك…', scrim: false}} />
     <Composition id="BilingualCueStill" component={BilingualCueStill} durationInFrames={1} fps={30} width={W} height={H} defaultProps={{en: 'Have you ever looked at your life…', ar: 'هل نظرتَ يومًا إلى حياتك…', scrim: false}} />
     <Composition id="StickmanSheet" component={StickmanSheet} durationInFrames={1} fps={FPS} width={SSHEET_W} height={SSHEET_H} />
     <Composition id="LookDev" component={LookDev} durationInFrames={60} fps={FPS} width={W} height={H} />

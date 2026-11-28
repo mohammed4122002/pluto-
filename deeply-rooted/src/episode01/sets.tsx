@@ -28,6 +28,28 @@ export const LIGHTS: Record<string, Preset> = {
   hillMorning: {pos: [6000, -2000], r: 30000, dir: [0.7, -0.71], key: 0.55, amb: [0.72, 0.72, 0.72], warm: SUN_WARM, shadow: 'matrix(1 0 -0.9 -0.3 0 0)', shadowOpacity: 0.4},
 };
 
+/** Blend two lighting presets (time passing: the key light travels, the shadow swings). */
+export const lerpLight = (a: keyof typeof LIGHTS, b: keyof typeof LIGHTS, t: number): Preset => {
+  const A = LIGHTS[a], B = LIGHTS[b];
+  const l = (x: number, y: number) => x + (y - x) * t;
+  const mat = (m: string) => m.match(/-?[\d.]+/g)!.map(Number);
+  const ma = mat(A.shadow), mb = mat(B.shadow);
+  const norm = (v: [number, number]): [number, number] => {
+    const n = Math.hypot(v[0], v[1]) || 1;
+    return [v[0] / n, v[1] / n];
+  };
+  return {
+    ...(t < 0.5 ? A : B),
+    pos: [l(A.pos[0], B.pos[0]), l(A.pos[1], B.pos[1])],
+    r: l(A.r, B.r),
+    dir: norm([l(A.dir[0], B.dir[0]), l(A.dir[1], B.dir[1])]),
+    key: l(A.key, B.key),
+    amb: [l(A.amb[0], B.amb[0]), l(A.amb[1], B.amb[1]), l(A.amb[2], B.amb[2])],
+    shadow: `matrix(${ma.map((v, i) => l(v, mb[i]).toFixed(3)).join(' ')})`,
+    shadowOpacity: l(A.shadowOpacity, B.shadowOpacity),
+  };
+};
+
 /** The Traveller in a set: lighting widths scale with his size, like the pilot's tuned values. */
 export const Trav: React.FC<{
   id: string;
@@ -74,14 +96,22 @@ export const LakeMedium: React.FC<{
   skyOnly?: boolean;
   children?: React.ReactNode; // figures etc., in pier-plane coordinates
   over?: React.ReactNode; // above the foreground (title cards etc.)
-}> = ({f, cam, time, lamp, rain = 0, skyOnly = false, children, over}) => {
+  mistX?: number; // override the mist drift (plate px), e.g. a time-lapse
+  dawnMix?: number; // night set only: 0…1 of the dawn sky/mist laid over the night ones (time passing)
+}> = ({f, cam, time, lamp, rain = 0, skyOnly = false, children, over, mistX: mistOverride, dawnMix = 0}) => {
   const night = time === 'night';
-  const pierFilter = night ? undefined : 'brightness(1.45) saturate(0.85) sepia(0.18)';
-  const mistX = -f * 0.6;
+  const pierFilter = night ? (dawnMix > 0.01 ? `brightness(${1 + 0.45 * dawnMix}) sepia(${0.18 * dawnMix})` : undefined) : 'brightness(1.45) saturate(0.85) sepia(0.18)';
+  const mistX = mistOverride ?? -f * 0.6;
   return (
     <AbsoluteFill style={{background: '#0B1018'}}>
       <Plate src={plate(night ? 'pilot01/s1_far.png' : 'ep01/lake1_dawn_far.png')} cam={cam} k={0.29} />
       <Plate src={plate(night ? 'pilot01/s1_mist.png' : 'ep01/lake1_dawn_mist.png')} cam={cam} k={0.5} dx={mistX % 2560} opacity={0.9} mirrorTile />
+      {night && dawnMix > 0.01 && (
+        <>
+          <Plate src={plate('ep01/lake1_dawn_far.png')} cam={cam} k={0.29} opacity={dawnMix} />
+          <Plate src={plate('ep01/lake1_dawn_mist.png')} cam={cam} k={0.5} dx={mistX % 2560} opacity={0.9 * dawnMix} mirrorTile />
+        </>
+      )}
       {!skyOnly && (
         <>
           <Plate src={plate('pilot01/s1_pier.png')} cam={cam} k={1} filter={pierFilter} />
@@ -188,7 +218,10 @@ export const Plain: React.FC<{f: number; cam: Cam; time: 'dusk' | 'dawn'; childr
       <Plate src={plate(`ep01/plain_sky_${time}.png`)} cam={cam} k={0.15} mirrorTile />
       <Plate src={plate('ep01/plain_ground.png')} cam={cam} k={1} filter={land} />
       <PlaneSvg cam={cam}>{children}</PlaneSvg>
-      <Plate src={plate('ep01/plain_fg.png')} cam={cam} k={1.8} blur={7} filter={land + ' brightness(0.7)'} />
+      {/* foreground grass: only along the bottom of the frame, so it never hides the travellers on their paths */}
+      <AbsoluteFill style={{maskImage: 'linear-gradient(to top, black 0%, black 9%, transparent 24%)', WebkitMaskImage: 'linear-gradient(to top, black 0%, black 9%, transparent 24%)'}}>
+        <Plate src={plate('ep01/plain_fg.png')} cam={cam} k={1.8} blur={7} filter={land + ' brightness(0.7)'} />
+      </AbsoluteFill>
       <AbsoluteFill
         style={{
           background: time === 'dusk' ? 'linear-gradient(180deg, rgba(60,50,90,0) 35%, rgba(60,50,90,0.35) 100%)' : 'linear-gradient(180deg, rgba(255,215,170,0.14), rgba(0,0,0,0) 60%)',

@@ -11,1023 +11,1016 @@
   },
   {
    "from": 97,
-   "to": 134,
+   "to": 141,
    "en": "Deeply Rooted",
    "ar": "Deeply Rooted",
    "burn": false
   },
   {
-   "from": 136,
-   "to": 196,
-   "en": "Episode One",
-   "ar": "الحلقة الأولى",
-   "burn": false
-  },
-  {
-   "from": 198,
-   "to": 261,
+   "from": 154,
+   "to": 217,
    "en": "Have you ever looked at your life…",
    "ar": "هل نظرتَ يومًا إلى حياتك…"
   },
   {
-   "from": 263,
-   "to": 336,
+   "from": 219,
+   "to": 292,
    "en": "…and wondered how you ended up here?",
    "ar": "…وتساءلتَ كيف انتهى بك المطافُ إلى هنا؟"
   },
   {
-   "from": 376,
-   "to": 441,
+   "from": 332,
+   "to": 397,
    "en": "Not because everything is terrible.",
    "ar": "ليس لأنّ كلّ شيءٍ سيّئ."
   },
   {
-   "from": 443,
-   "to": 477,
+   "from": 399,
+   "to": 433,
    "en": "But because…",
    "ar": "بل لأنّك…"
   },
   {
-   "from": 479,
-   "to": 548,
+   "from": 435,
+   "to": 504,
    "en": "this isn't where you thought you would be.",
    "ar": "لستَ حيث ظننتَ أنّك ستكون."
   },
   {
-   "from": 551,
-   "to": 592,
+   "from": 507,
+   "to": 548,
    "en": "You had plans.",
    "ar": "كانت لديك خطط."
   },
   {
-   "from": 594,
-   "to": 638,
+   "from": 550,
+   "to": 594,
    "en": "You had dreams.",
    "ar": "كانت لديك أحلام."
   },
   {
-   "from": 640,
-   "to": 702,
+   "from": 596,
+   "to": 658,
    "en": "You imagined a different version of yourself",
    "ar": "تخيّلتَ نسخةً مختلفةً من نفسك"
   },
   {
-   "from": 704,
-   "to": 732,
+   "from": 660,
+   "to": 688,
    "en": "by now.",
    "ar": "بحلول هذا الوقت."
   },
   {
-   "from": 734,
-   "to": 788,
+   "from": 690,
+   "to": 744,
    "en": "Maybe you thought you'd be happier,",
    "ar": "ربما ظننتَ أنّك ستكون أسعد،"
   },
   {
-   "from": 790,
-   "to": 867,
+   "from": 746,
+   "to": 823,
    "en": "more successful, more loved.",
    "ar": "أكثر نجاحًا، ومحبوبًا أكثر."
   },
   {
-   "from": 869,
-   "to": 907,
+   "from": 825,
+   "to": 863,
    "en": "Maybe you thought certain people",
    "ar": "ربما ظننتَ أنّ أشخاصًا بعينهم"
   },
   {
-   "from": 909,
-   "to": 961,
+   "from": 865,
+   "to": 917,
    "en": "would still be beside you.",
    "ar": "سيظلّون إلى جانبك."
   },
   {
-   "from": 963,
-   "to": 1026,
+   "from": 919,
+   "to": 982,
    "en": "Maybe you believed that by this age,",
    "ar": "ربما اعتقدتَ أنّه في هذا العمر،"
   },
   {
-   "from": 1028,
-   "to": 1066,
+   "from": 984,
+   "to": 1022,
    "en": "by this moment,",
    "ar": "وفي هذه اللحظة،"
   },
   {
-   "from": 1068,
-   "to": 1141,
+   "from": 1024,
+   "to": 1096,
    "en": "everything would finally make sense.",
    "ar": "سيصبح لكلّ شيءٍ معنى أخيرًا."
   },
   {
-   "from": 1143,
-   "to": 1216,
+   "from": 1098,
+   "to": 1172,
    "en": "But life… had other plans.",
    "ar": "لكنّ الحياة… كانت لها خططٌ أخرى."
   },
   {
-   "from": 1218,
-   "to": 1272,
+   "from": 1174,
+   "to": 1228,
    "en": "And sometimes the hardest part",
    "ar": "وأحيانًا، الجزء الأصعب"
   },
   {
-   "from": 1274,
-   "to": 1316,
+   "from": 1230,
+   "to": 1272,
    "en": "isn't what happened.",
    "ar": "ليس ما حدث."
   },
   {
-   "from": 1318,
-   "to": 1351,
+   "from": 1274,
+   "to": 1307,
    "en": "It's learning to accept",
    "ar": "بل أن تتعلّم القبول"
   },
   {
-   "from": 1353,
-   "to": 1400,
+   "from": 1309,
+   "to": 1356,
    "en": "that the life you imagined",
    "ar": "بأنّ الحياة التي تخيّلتها"
   },
   {
-   "from": 1402,
-   "to": 1487,
+   "from": 1358,
+   "to": 1443,
    "en": "may never look exactly the way you expected.",
    "ar": "قد لا تبدو أبدًا كما توقّعتها تمامًا."
   },
   {
-   "from": 1489,
-   "to": 1558,
+   "from": 1445,
+   "to": 1514,
    "en": "But what if you're not falling behind?",
    "ar": "لكن ماذا لو أنّك لستَ متأخّرًا؟"
   },
   {
-   "from": 1560,
-   "to": 1611,
+   "from": 1516,
+   "to": 1567,
    "en": "What if you're simply living a chapter",
    "ar": "ماذا لو أنّك تعيش ببساطة فصلًا"
   },
   {
-   "from": 1613,
-   "to": 1664,
+   "from": 1569,
+   "to": 1620,
    "en": "you never knew you needed?",
    "ar": "لم تكن تعلم أنّك تحتاجه؟"
   },
   {
-   "from": 1666,
-   "to": 1719,
+   "from": 1622,
+   "to": 1675,
    "en": "We spend so much of our lives",
    "ar": "نقضي جزءًا كبيرًا من حياتنا"
   },
   {
-   "from": 1721,
-   "to": 1751,
+   "from": 1677,
+   "to": 1707,
    "en": "measuring ourselves",
    "ar": "ونحن نقيس أنفسنا"
   },
   {
-   "from": 1753,
-   "to": 1808,
+   "from": 1709,
+   "to": 1764,
    "en": "against invisible timelines.",
    "ar": "بجداول زمنيةٍ خفيّة."
   },
   {
-   "from": 1814,
-   "to": 1888,
+   "from": 1770,
+   "to": 1844,
    "en": "\"By this age, I should have achieved this.\"",
    "ar": "«في هذا العمر، كان يجب أن أحقّق هذا.»"
   },
   {
-   "from": 1890,
-   "to": 1962,
+   "from": 1846,
+   "to": 1918,
    "en": "\"By now, I should have found my purpose.\"",
    "ar": "«حتى الآن، كان يجب أن أجد هدفي.»"
   },
   {
-   "from": 1964,
-   "to": 2008,
+   "from": 1920,
+   "to": 1964,
    "en": "\"I should be further ahead.\"",
    "ar": "«يجب أن أكون قد تقدّمتُ أكثر.»"
   },
   {
-   "from": 2010,
-   "to": 2053,
+   "from": 1966,
+   "to": 2009,
    "en": "\"I should be happier.\"",
    "ar": "«يجب أن أكون أسعد.»"
   },
   {
-   "from": 2055,
-   "to": 2107,
+   "from": 2011,
+   "to": 2063,
    "en": "And without even realizing it,",
    "ar": "ودون أن ندرك ذلك،"
   },
   {
-   "from": 2109,
-   "to": 2158,
+   "from": 2065,
+   "to": 2114,
    "en": "we turn our lives into a race",
    "ar": "نحوّل حياتنا إلى سباقٍ"
   },
   {
-   "from": 2160,
-   "to": 2204,
+   "from": 2116,
+   "to": 2160,
    "en": "against a version of ourselves",
    "ar": "مع نسخةٍ من أنفسنا"
   },
   {
-   "from": 2206,
-   "to": 2260,
+   "from": 2162,
+   "to": 2216,
    "en": "that doesn't even exist.",
    "ar": "لا وجود لها أصلًا."
   },
   {
-   "from": 2262,
-   "to": 2323,
+   "from": 2218,
+   "to": 2279,
    "en": "We forget that people grow differently,",
    "ar": "ننسى أنّ الناس ينمون بطرقٍ مختلفة،"
   },
   {
-   "from": 2325,
-   "to": 2361,
+   "from": 2281,
+   "to": 2317,
    "en": "heal differently,",
    "ar": "ويُشفَون بطرقٍ مختلفة،"
   },
   {
-   "from": 2363,
-   "to": 2422,
+   "from": 2319,
+   "to": 2378,
    "en": "discover themselves differently.",
    "ar": "ويكتشفون أنفسهم بطرقٍ مختلفة."
   },
   {
-   "from": 2424,
-   "to": 2487,
+   "from": 2380,
+   "to": 2443,
    "en": "Some people find their direction early.",
    "ar": "بعض الناس يجدون طريقهم مبكرًا."
   },
   {
-   "from": 2489,
-   "to": 2550,
+   "from": 2445,
+   "to": 2506,
    "en": "Others spend years searching.",
    "ar": "وآخرون يقضون سنواتٍ في البحث."
   },
   {
-   "from": 2552,
-   "to": 2628,
+   "from": 2508,
+   "to": 2584,
    "en": "Some find love when they least expect it.",
    "ar": "بعضهم يجد الحبّ حين لا يتوقّعه."
   },
   {
-   "from": 2630,
-   "to": 2665,
+   "from": 2586,
+   "to": 2621,
    "en": "Others need time to learn",
    "ar": "وآخرون يحتاجون وقتًا ليتعلّموا"
   },
   {
-   "from": 2667,
-   "to": 2720,
+   "from": 2623,
+   "to": 2676,
    "en": "how to love themselves first.",
    "ar": "كيف يحبّون أنفسهم أولًا."
   },
   {
-   "from": 2722,
-   "to": 2768,
+   "from": 2678,
+   "to": 2724,
    "en": "And some of the strongest people",
    "ar": "وبعضُ أقوى الناس"
   },
   {
-   "from": 2770,
-   "to": 2800,
+   "from": 2726,
+   "to": 2756,
    "en": "you'll ever meet",
    "ar": "الذين ستقابلهم يومًا"
   },
   {
-   "from": 2802,
-   "to": 2857,
+   "from": 2758,
+   "to": 2813,
    "en": "are still figuring things out.",
    "ar": "ما زالوا يحاولون فهم الأمور."
   },
   {
-   "from": 2859,
-   "to": 2913,
+   "from": 2815,
+   "to": 2869,
    "en": "There is no universal timeline",
    "ar": "لا يوجد جدولٌ زمنيّ واحدٌ للجميع"
   },
   {
-   "from": 2915,
-   "to": 2971,
+   "from": 2871,
+   "to": 2927,
    "en": "for becoming who you are meant to be.",
    "ar": "لتصبح من قُدِّر لك أن تكون."
   },
   {
-   "from": 2973,
-   "to": 3008,
+   "from": 2929,
+   "to": 2964,
    "en": "Your journey doesn't become",
    "ar": "رحلتك لا تصبح"
   },
   {
-   "from": 3010,
-   "to": 3049,
+   "from": 2966,
+   "to": 3005,
    "en": "less meaningful just because",
    "ar": "أقلّ معنًى لمجرّد"
   },
   {
-   "from": 3051,
-   "to": 3113,
+   "from": 3007,
+   "to": 3069,
    "en": "it looks different from someone else's.",
    "ar": "أنّها تبدو مختلفةً عن رحلة غيرك."
   },
   {
-   "from": 3115,
-   "to": 3146,
+   "from": 3071,
+   "to": 3102,
    "en": "So please,",
    "ar": "لذا، أرجوك،"
   },
   {
-   "from": 3148,
-   "to": 3215,
+   "from": 3104,
+   "to": 3171,
    "en": "stop treating your life like a deadline.",
    "ar": "توقّف عن معاملة حياتك كموعدٍ نهائيّ."
   },
   {
-   "from": 3217,
-   "to": 3270,
+   "from": 3173,
+   "to": 3226,
    "en": "You are a human being,",
    "ar": "أنت إنسان،"
   },
   {
-   "from": 3272,
-   "to": 3328,
+   "from": 3228,
+   "to": 3284,
    "en": "not a project that needs to be completed",
    "ar": "لا مشروعٌ يجب إنجازه"
   },
   {
-   "from": 3330,
-   "to": 3377,
+   "from": 3286,
+   "to": 3333,
    "en": "by a certain age.",
    "ar": "قبل عمرٍ معيّن."
   },
   {
-   "from": 3416,
-   "to": 3443,
+   "from": 3372,
+   "to": 3399,
    "en": "And then,",
    "ar": "ثمّ،"
   },
   {
-   "from": 3445,
-   "to": 3521,
+   "from": 3401,
+   "to": 3477,
    "en": "there are the things we never wanted to lose.",
    "ar": "هناك الأشياء التي لم نرغب يومًا في خسارتها."
   },
   {
-   "from": 3523,
-   "to": 3556,
+   "from": 3479,
+   "to": 3512,
    "en": "A relationship.",
    "ar": "علاقة."
   },
   {
-   "from": 3558,
-   "to": 3591,
+   "from": 3514,
+   "to": 3547,
    "en": "An opportunity.",
    "ar": "فرصة."
   },
   {
-   "from": 3593,
-   "to": 3662,
+   "from": 3549,
+   "to": 3618,
    "en": "A dream we worked so hard for.",
    "ar": "حلمٌ عملنا بجدٍّ من أجله."
   },
   {
-   "from": 3664,
-   "to": 3701,
+   "from": 3620,
+   "to": 3657,
    "en": "A version of life we thought",
    "ar": "نسخةٌ من الحياة ظننّا"
   },
   {
-   "from": 3703,
-   "to": 3757,
+   "from": 3659,
+   "to": 3713,
    "en": "was finally within reach.",
    "ar": "أنّها أصبحت أخيرًا في متناولنا."
   },
   {
-   "from": 3759,
-   "to": 3846,
+   "from": 3715,
+   "to": 3802,
    "en": "Losing something you truly wanted hurts.",
    "ar": "خسارة شيءٍ أردتَه حقًّا تؤلم."
   },
   {
-   "from": 3848,
-   "to": 3913,
+   "from": 3804,
+   "to": 3869,
    "en": "And you don't have to pretend otherwise.",
    "ar": "ولستَ مضطرًّا إلى التظاهر بغير ذلك."
   },
   {
-   "from": 3915,
-   "to": 3943,
+   "from": 3871,
+   "to": 3899,
    "en": "You don't have to call",
    "ar": "لستَ مضطرًّا إلى أن تسمّي"
   },
   {
-   "from": 3945,
-   "to": 3989,
+   "from": 3901,
+   "to": 3945,
    "en": "every disappointment a blessing",
    "ar": "كلّ خيبةٍ نعمة"
   },
   {
-   "from": 3991,
-   "to": 4053,
+   "from": 3947,
+   "to": 4009,
    "en": "while you're still trying to understand it.",
    "ar": "بينما ما زلتَ تحاول أن تفهمها."
   },
   {
-   "from": 4055,
-   "to": 4101,
+   "from": 4011,
+   "to": 4057,
    "en": "Sometimes you just need",
    "ar": "أحيانًا تحتاج فقط"
   },
   {
-   "from": 4103,
-   "to": 4141,
+   "from": 4059,
+   "to": 4097,
    "en": "to sit with the feeling.",
    "ar": "إلى أن تبقى مع هذا الشعور."
   },
   {
-   "from": 4143,
-   "to": 4194,
+   "from": 4099,
+   "to": 4150,
    "en": "To acknowledge that it mattered.",
    "ar": "أن تعترف بأنّه كان مهمًّا."
   },
   {
-   "from": 4196,
-   "to": 4227,
+   "from": 4152,
+   "to": 4183,
    "en": "That you cared.",
    "ar": "وأنّك اهتممت."
   },
   {
-   "from": 4229,
-   "to": 4263,
+   "from": 4185,
+   "to": 4219,
    "en": "That you hoped.",
    "ar": "وأنّك تمنّيت."
   },
   {
-   "from": 4265,
-   "to": 4314,
+   "from": 4221,
+   "to": 4270,
    "en": "And that it hurts.",
    "ar": "وأنّه يؤلم."
   },
   {
-   "from": 4352,
-   "to": 4408,
+   "from": 4308,
+   "to": 4364,
    "en": "But don't let one painful chapter",
    "ar": "لكن لا تدع فصلًا مؤلمًا واحدًا"
   },
   {
-   "from": 4410,
-   "to": 4489,
+   "from": 4366,
+   "to": 4445,
    "en": "convince you that the entire story is over.",
    "ar": "يقنعك بأنّ القصة كلّها قد انتهت."
   },
   {
-   "from": 4491,
-   "to": 4547,
+   "from": 4447,
+   "to": 4503,
    "en": "A closed door is not proof",
    "ar": "الباب المغلق ليس دليلًا"
   },
   {
-   "from": 4549,
-   "to": 4621,
+   "from": 4505,
+   "to": 4577,
    "en": "that every door will remain closed.",
    "ar": "على أنّ كلّ الأبواب ستبقى مغلقة."
   },
   {
-   "from": 4623,
-   "to": 4659,
+   "from": 4579,
+   "to": 4615,
    "en": "A difficult season",
    "ar": "الموسم الصعب"
   },
   {
-   "from": 4661,
-   "to": 4724,
+   "from": 4617,
+   "to": 4680,
    "en": "is not a permanent identity.",
    "ar": "ليس هويةً دائمة."
   },
   {
-   "from": 4726,
-   "to": 4772,
+   "from": 4682,
+   "to": 4728,
    "en": "And a moment of uncertainty",
    "ar": "ولحظةٌ من الحيرة"
   },
   {
-   "from": 4774,
-   "to": 4847,
+   "from": 4730,
+   "to": 4803,
    "en": "doesn't mean you've lost your way forever.",
    "ar": "لا تعني أنّك أضعتَ طريقك إلى الأبد."
   },
   {
-   "from": 4852,
-   "to": 4886,
+   "from": 4808,
+   "to": 4842,
    "en": "Sometimes,",
    "ar": "أحيانًا،"
   },
   {
-   "from": 4888,
-   "to": 4974,
+   "from": 4844,
+   "to": 4930,
    "en": "the most important growth happens quietly.",
    "ar": "يحدث أهمّ نموٍّ بهدوء."
   },
   {
-   "from": 4976,
-   "to": 5024,
+   "from": 4932,
+   "to": 4980,
    "en": "When nobody is watching.",
    "ar": "حين لا يراك أحد."
   },
   {
-   "from": 5026,
-   "to": 5097,
+   "from": 4982,
+   "to": 5053,
    "en": "When there are no achievements to celebrate.",
    "ar": "حين لا توجد إنجازاتٌ للاحتفال بها."
   },
   {
-   "from": 5099,
-   "to": 5179,
+   "from": 5055,
+   "to": 5135,
    "en": "When all you're doing is choosing to get up",
    "ar": "حين يكون كلّ ما تفعله أن تختار النهوض"
   },
   {
-   "from": 5181,
-   "to": 5218,
+   "from": 5137,
+   "to": 5174,
    "en": "and try again.",
    "ar": "والمحاولة من جديد."
   },
   {
-   "from": 5220,
-   "to": 5261,
+   "from": 5176,
+   "to": 5217,
    "en": "That matters too.",
    "ar": "وهذا مهمٌّ أيضًا."
   },
   {
-   "from": 5263,
-   "to": 5324,
+   "from": 5219,
+   "to": 5280,
    "en": "Maybe you need to hear this today:",
    "ar": "ربما تحتاج أن تسمع هذا اليوم:"
   },
   {
-   "from": 5326,
-   "to": 5395,
+   "from": 5282,
+   "to": 5351,
    "en": "You are allowed to begin again.",
    "ar": "يحقّ لك أن تبدأ من جديد."
   },
   {
-   "from": 5397,
-   "to": 5460,
+   "from": 5353,
+   "to": 5416,
    "en": "You are allowed to change your mind.",
    "ar": "يحقّ لك أن تغيّر رأيك."
   },
   {
-   "from": 5462,
-   "to": 5506,
+   "from": 5418,
+   "to": 5462,
    "en": "You are allowed to outgrow",
    "ar": "يحقّ لك أن تتجاوز"
   },
   {
-   "from": 5508,
-   "to": 5554,
+   "from": 5464,
+   "to": 5510,
    "en": "the dreams you once had.",
    "ar": "الأحلام التي كانت لديك يومًا."
   },
   {
-   "from": 5556,
-   "to": 5603,
+   "from": 5512,
+   "to": 5559,
    "en": "You are allowed to walk away",
    "ar": "يحقّ لك أن تبتعد"
   },
   {
-   "from": 5605,
-   "to": 5663,
+   "from": 5561,
+   "to": 5619,
    "en": "from what no longer feels right.",
    "ar": "عمّا لم يعد يبدو صحيحًا."
   },
   {
-   "from": 5665,
-   "to": 5706,
+   "from": 5621,
+   "to": 5662,
    "en": "And you are allowed to build",
    "ar": "ويحقّ لك أن تبني"
   },
   {
-   "from": 5708,
-   "to": 5761,
+   "from": 5664,
+   "to": 5717,
    "en": "a completely different life,",
    "ar": "حياةً مختلفةً تمامًا،"
   },
   {
-   "from": 5763,
-   "to": 5835,
+   "from": 5719,
+   "to": 5791,
    "en": "even if it takes longer than you imagined.",
    "ar": "حتى لو استغرق ذلك وقتًا أطول ممّا تخيّلت."
   },
   {
-   "from": 5837,
-   "to": 5897,
+   "from": 5793,
+   "to": 5853,
    "en": "Don't underestimate the quiet courage",
    "ar": "لا تستهِن بالشجاعة الهادئة"
   },
   {
-   "from": 5899,
-   "to": 5941,
+   "from": 5855,
+   "to": 5897,
    "en": "it takes to keep going.",
    "ar": "التي يتطلّبها الاستمرار."
   },
   {
-   "from": 5943,
-   "to": 6005,
+   "from": 5899,
+   "to": 5961,
    "en": "Not every victory is visible.",
    "ar": "ليس كلّ انتصارٍ مرئيًّا."
   },
   {
-   "from": 6007,
-   "to": 6063,
+   "from": 5963,
+   "to": 6019,
    "en": "Sometimes victory is getting through",
    "ar": "أحيانًا يكون الانتصار أن تجتاز"
   },
   {
-   "from": 6065,
-   "to": 6146,
+   "from": 6021,
+   "to": 6102,
    "en": "a difficult day without giving up on yourself.",
    "ar": "يومًا صعبًا دون أن تتخلّى عن نفسك."
   },
   {
-   "from": 6148,
-   "to": 6204,
+   "from": 6104,
+   "to": 6160,
    "en": "Sometimes it's choosing peace",
    "ar": "وأحيانًا يكون باختيار السلام"
   },
   {
-   "from": 6206,
-   "to": 6244,
+   "from": 6162,
+   "to": 6200,
    "en": "over proving a point.",
    "ar": "بدل إثبات وجهة نظر."
   },
   {
-   "from": 6246,
-   "to": 6301,
+   "from": 6202,
+   "to": 6257,
    "en": "Sometimes it's forgiving yourself",
    "ar": "وأحيانًا يكون بأن تسامح نفسك"
   },
   {
-   "from": 6303,
-   "to": 6354,
+   "from": 6259,
+   "to": 6310,
    "en": "for the years you spent not knowing",
    "ar": "على السنوات التي قضيتَها لا تعرف"
   },
   {
-   "from": 6356,
-   "to": 6391,
+   "from": 6312,
+   "to": 6347,
    "en": "what you know today.",
    "ar": "ما تعرفه اليوم."
   },
   {
-   "from": 6393,
-   "to": 6428,
+   "from": 6349,
+   "to": 6384,
    "en": "And sometimes,",
    "ar": "وأحيانًا،"
   },
   {
-   "from": 6430,
-   "to": 6493,
+   "from": 6386,
+   "to": 6449,
    "en": "it's simply trusting that your story",
    "ar": "يكون ببساطة بأن تثق بأنّ قصتك"
   },
   {
-   "from": 6495,
-   "to": 6579,
+   "from": 6451,
+   "to": 6535,
    "en": "still has beautiful pages left to be written.",
    "ar": "ما زالت فيها صفحاتٌ جميلة لم تُكتب بعد."
   },
   {
-   "from": 6581,
-   "to": 6617,
+   "from": 6537,
+   "to": 6573,
    "en": "And perhaps",
    "ar": "وربما"
   },
   {
-   "from": 6619,
-   "to": 6685,
+   "from": 6575,
+   "to": 6641,
    "en": "there is another way to look at all of this.",
    "ar": "هناك طريقةٌ أخرى للنظر إلى كلّ هذا."
   },
   {
-   "from": 6687,
-   "to": 6751,
+   "from": 6643,
+   "to": 6707,
    "en": "A way that invites us to loosen our grip",
    "ar": "طريقةٌ تدعونا إلى أن نرخي قبضتنا"
   },
   {
-   "from": 6753,
-   "to": 6810,
+   "from": 6709,
+   "to": 6766,
    "en": "on the things we cannot control.",
    "ar": "عن الأشياء التي لا نملك السيطرة عليها."
   },
   {
-   "from": 6812,
-   "to": 6869,
+   "from": 6768,
+   "to": 6825,
    "en": "In the Qur'an, Allah reminds us",
    "ar": "في القرآن الكريم، يذكّرنا الله"
   },
   {
-   "from": 6871,
-   "to": 6951,
+   "from": 6827,
+   "to": 6907,
    "en": "in Surah Al-Baqarah, verse 216:",
    "ar": "في سورة البقرة، الآية ٢١٦:"
   },
   {
-   "from": 6953,
-   "to": 6998,
+   "from": 6909,
+   "to": 6954,
    "en": "\"But perhaps you hate a thing",
    "ar": "«وَعَسَىٰ أَن تَكْرَهُوا شَيْئًا"
   },
   {
-   "from": 7000,
-   "to": 7040,
+   "from": 6956,
+   "to": 6996,
    "en": "and it is good for you;",
    "ar": "وَهُوَ خَيْرٌ لَّكُمْ"
   },
   {
-   "from": 7042,
-   "to": 7084,
+   "from": 6998,
+   "to": 7039,
    "en": "and perhaps you love a thing",
    "ar": "وَعَسَىٰ أَن تُحِبُّوا شَيْئًا"
   },
   {
-   "from": 7086,
-   "to": 7129,
+   "from": 7041,
+   "to": 7085,
    "en": "and it is bad for you.",
    "ar": "وَهُوَ شَرٌّ لَّكُمْ"
   },
   {
-   "from": 7131,
-   "to": 7215,
+   "from": 7087,
+   "to": 7171,
    "en": "And Allah knows, while you know not.\"",
    "ar": "وَاللَّهُ يَعْلَمُ وَأَنتُمْ لَا تَعْلَمُونَ»"
   },
   {
-   "from": 7273,
-   "to": 7317,
+   "from": 7229,
+   "to": 7273,
    "en": "Think about that for a moment.",
    "ar": "فكّر في ذلك للحظة."
   },
   {
-   "from": 7319,
-   "to": 7404,
+   "from": 7275,
+   "to": 7360,
    "en": "How often have we wanted something so deeply,",
    "ar": "كم مرّةً أردنا شيئًا بشدّة،"
   },
   {
-   "from": 7406,
-   "to": 7476,
+   "from": 7362,
+   "to": 7432,
    "en": "believing it was exactly what we needed?",
    "ar": "معتقدين أنّه تمامًا ما نحتاجه؟"
   },
   {
-   "from": 7478,
-   "to": 7525,
+   "from": 7434,
+   "to": 7481,
    "en": "And how often have we looked back",
    "ar": "وكم مرّةً نظرنا إلى الوراء"
   },
   {
-   "from": 7527,
-   "to": 7570,
+   "from": 7483,
+   "to": 7526,
    "en": "at something we once considered",
    "ar": "إلى شيءٍ اعتبرناه يومًا"
   },
   {
-   "from": 7572,
-   "to": 7600,
+   "from": 7528,
+   "to": 7556,
    "en": "a disappointment,",
    "ar": "خيبةَ أمل،"
   },
   {
-   "from": 7602,
-   "to": 7658,
+   "from": 7558,
+   "to": 7614,
    "en": "only to realize that life took us",
    "ar": "لندرك أنّ الحياة أخذتنا"
   },
   {
-   "from": 7660,
-   "to": 7717,
+   "from": 7616,
+   "to": 7672,
    "en": "somewhere we couldn't have imagined.",
    "ar": "إلى مكانٍ لم نكن لنتخيّله."
   },
   {
-   "from": 7719,
-   "to": 7784,
+   "from": 7674,
+   "to": 7740,
    "en": "This doesn't mean every painful experience",
    "ar": "هذا لا يعني أنّ كلّ تجربةٍ مؤلمة"
   },
   {
-   "from": 7786,
-   "to": 7835,
+   "from": 7742,
+   "to": 7791,
    "en": "will immediately make sense.",
    "ar": "سيتّضح معناها على الفور."
   },
   {
-   "from": 7837,
-   "to": 7884,
+   "from": 7793,
+   "to": 7840,
    "en": "And it doesn't mean you're not allowed",
    "ar": "ولا يعني أنّه لا يحقّ لك"
   },
   {
-   "from": 7886,
-   "to": 7928,
+   "from": 7842,
+   "to": 7884,
    "en": "to grieve what you lost.",
    "ar": "أن تحزن على ما فقدته."
   },
   {
-   "from": 7930,
-   "to": 7969,
+   "from": 7886,
+   "to": 7925,
    "en": "It simply reminds us",
    "ar": "إنّه فقط يذكّرنا"
   },
   {
-   "from": 7971,
-   "to": 8034,
+   "from": 7927,
+   "to": 7990,
    "en": "that our perspective is limited.",
    "ar": "بأنّ نظرتنا محدودة."
   },
   {
-   "from": 8036,
-   "to": 8075,
+   "from": 7992,
+   "to": 8031,
    "en": "We see a moment.",
    "ar": "نحن نرى لحظة."
   },
   {
-   "from": 8077,
-   "to": 8131,
+   "from": 8033,
+   "to": 8087,
    "en": "God knows the whole picture.",
    "ar": "والله يعلم الصورة كاملة."
   },
   {
-   "from": 8133,
-   "to": 8223,
+   "from": 8089,
+   "to": 8179,
    "en": "And sometimes faith means taking the next step",
    "ar": "وأحيانًا يعني الإيمانُ أن تخطو الخطوة التالية"
   },
   {
-   "from": 8225,
-   "to": 8307,
+   "from": 8181,
+   "to": 8263,
    "en": "even when you cannot see the entire road.",
    "ar": "حتى حين لا ترى الطريق كلّه."
   },
   {
-   "from": 8309,
-   "to": 8398,
+   "from": 8265,
+   "to": 8354,
    "en": "So, if life doesn't look the way you planned,",
    "ar": "لذا، إن لم تكن الحياة كما خطّطتَ لها،"
   },
   {
-   "from": 8400,
-   "to": 8430,
+   "from": 8356,
+   "to": 8386,
    "en": "take a breath.",
    "ar": "خذ نفَسًا."
   },
   {
-   "from": 8432,
-   "to": 8492,
+   "from": 8388,
+   "to": 8448,
    "en": "You haven't missed your only chance.",
    "ar": "لم تفوّت فرصتك الوحيدة."
   },
   {
-   "from": 8494,
-   "to": 8538,
+   "from": 8450,
+   "to": 8494,
    "en": "You haven't become less worthy",
    "ar": "ولم تصبح أقلّ قيمة"
   },
   {
-   "from": 8540,
-   "to": 8584,
+   "from": 8496,
+   "to": 8540,
    "en": "because things took longer.",
    "ar": "لأنّ الأمور استغرقت وقتًا أطول."
   },
   {
-   "from": 8586,
-   "to": 8624,
+   "from": 8542,
+   "to": 8580,
    "en": "And you don't need to have",
    "ar": "ولستَ بحاجةٍ إلى أن تملك"
   },
   {
-   "from": 8626,
-   "to": 8664,
+   "from": 8582,
+   "to": 8620,
    "en": "every answer tonight.",
    "ar": "كلّ الإجابات الليلة."
   },
   {
-   "from": 8666,
-   "to": 8696,
+   "from": 8622,
+   "to": 8652,
    "en": "Keep growing.",
    "ar": "واصل النموّ."
   },
   {
-   "from": 8698,
-   "to": 8728,
+   "from": 8654,
+   "to": 8684,
    "en": "Keep learning.",
    "ar": "واصل التعلّم."
   },
   {
-   "from": 8730,
-   "to": 8760,
+   "from": 8686,
+   "to": 8716,
    "en": "Keep becoming.",
    "ar": "واصل أن تصير."
   },
   {
-   "from": 8762,
-   "to": 8810,
+   "from": 8718,
+   "to": 8766,
    "en": "And don't forget to appreciate",
    "ar": "ولا تنسَ أن تقدّر"
   },
   {
-   "from": 8812,
-   "to": 8881,
+   "from": 8768,
+   "to": 8837,
    "en": "the person you're becoming along the way.",
-   "ar": "الشخص الذي تصيره على طول الطريق."
+   "ar": "الشخصَ الذي تصير إليه على طول الطريق."
   },
   {
-   "from": 8883,
-   "to": 8943,
+   "from": 8839,
+   "to": 8899,
    "en": "Because life isn't only about reaching",
    "ar": "لأنّ الحياة ليست فقط في الوصول"
   },
   {
-   "from": 8945,
-   "to": 9012,
+   "from": 8901,
+   "to": 8968,
    "en": "the destination you once imagined.",
    "ar": "إلى الوجهة التي تخيّلتها يومًا."
   },
   {
-   "from": 9014,
-   "to": 9097,
+   "from": 8970,
+   "to": 9053,
    "en": "It's also about discovering who you become",
-   "ar": "بل أيضًا في اكتشاف من تصير"
+   "ar": "بل أيضًا في اكتشاف من تصبح"
   },
   {
-   "from": 9099,
-   "to": 9138,
+   "from": 9055,
+   "to": 9094,
    "en": "along the journey.",
    "ar": "خلال الرحلة."
   },
   {
-   "from": 9140,
-   "to": 9195,
+   "from": 9096,
+   "to": 9151,
    "en": "And wherever you are right now,",
    "ar": "وأينما كنتَ الآن،"
   },
   {
-   "from": 9197,
-   "to": 9274,
+   "from": 9153,
+   "to": 9230,
    "en": "I hope you find the courage to keep going.",
    "ar": "أتمنّى أن تجد الشجاعة لتستمرّ."
   },
   {
-   "from": 9276,
-   "to": 9332,
+   "from": 9232,
+   "to": 9288,
    "en": "Not because everything is certain,",
    "ar": "ليس لأنّ كلّ شيءٍ مؤكّد،"
   },
   {
-   "from": 9334,
-   "to": 9429,
+   "from": 9290,
+   "to": 9385,
    "en": "but because your story is still unfolding.",
    "ar": "بل لأنّ قصّتك ما زالت تتكشّف."
   },
   {
-   "from": 9475,
-   "to": 9531,
+   "from": 9431,
+   "to": 9487,
    "en": "This is Deeply Rooted.",
    "ar": "هذه Deeply Rooted."
   },
   {
-   "from": 9533,
-   "to": 9607,
+   "from": 9489,
+   "to": 9563,
    "en": "A place to pause, to reflect,",
    "ar": "مكانٌ للتوقّف، وللتأمّل،"
   },
   {
-   "from": 9609,
-   "to": 9681,
+   "from": 9565,
+   "to": 9637,
    "en": "and to remember what truly matters.",
    "ar": "ولتذكّر ما يهمّ حقًّا."
   },
   {
-   "from": 9683,
-   "to": 9717,
+   "from": 9639,
+   "to": 9673,
    "en": "Until next time,",
    "ar": "إلى اللقاء،"
   },
   {
-   "from": 9719,
-   "to": 9786,
+   "from": 9675,
+   "to": 9742,
    "en": "stay grounded, stay hopeful,",
    "ar": "ابقَ ثابتًا، ابقَ متفائلًا،"
   },
   {
-   "from": 9788,
-   "to": 9858,
+   "from": 9744,
+   "to": 9814,
    "en": "and stay deeply rooted.",
    "ar": "وابقَ متجذّرًا بعمق."
   }

@@ -1,16 +1,66 @@
 {
-  "_doc": "Episode 01 narration placement: the new recording (public/audio/voice_new/narration_new_2026-11-27.mp3) in six unedited, unstretched segments, cut only inside its own silences, with short added pauses at the emotional beats. src = seconds in the recording, at = film seconds where the segment starts. All values are whole frames at 30 fps.",
+  "_doc": "Episode 01 narration placement: the new recording (public/audio/voice_new/narration_new_2026-11-27.mp3) in seven unedited, unstretched segments, cut only inside its own silences, with short added pauses at the emotional beats. src = seconds in the recording, at = film seconds where the segment starts. All values are whole frames at 30 fps.",
   "fps": 30,
   "voice": "audio/voice_new/narration_new_2026-11-27.mp3",
   "voiceGain": 2.6,
   "segments": [
-    {"src": [0, 9.966667], "at": 1.0, "note": "title + 'Have you ever looked at your life… here?'  (+1.2 s pause after)"},
-    {"src": [9.966667, 110.1], "at": 12.166667, "note": "to '…completed by a certain age.'  (+1.5 s)"},
-    {"src": [110.1, 139.8], "at": 113.8, "note": "the things we lose, to '…and that it hurts.'  (+1.5 s)"},
-    {"src": [139.8, 235.1], "at": 145.0, "note": "begin again … the verse, to '…while you know not.'  (+2.0 s)"},
-    {"src": [235.1, 306.966667], "at": 242.3, "note": "the bigger picture, to '…your story is still unfolding.'  (+1.5 s)"},
-    {"src": [306.966667, 319.4], "at": 315.666667, "note": "outro"}
+    {
+      "src": [
+        0,
+        3.4
+      ],
+      "at": 1.0,
+      "note": "title: 'When life doesn't go as planned. Deeply Rooted.' (the spoken episode number that followed, 3.4–5.4 s in the recording, is left out at the channel's request)"
+    },
+    {
+      "src": [
+        5.4,
+        9.966667
+      ],
+      "at": 4.933333,
+      "note": "'Have you ever looked at your life… here?'  (+1.2 s pause after)"
+    },
+    {
+      "src": [
+        9.966667,
+        110.1
+      ],
+      "at": 10.7,
+      "note": "to '…completed by a certain age.'  (+1.5 s)"
+    },
+    {
+      "src": [
+        110.1,
+        139.8
+      ],
+      "at": 112.333333,
+      "note": "the things we lose, to '…and that it hurts.'  (+1.5 s)"
+    },
+    {
+      "src": [
+        139.8,
+        235.1
+      ],
+      "at": 143.533333,
+      "note": "begin again … the verse, to '…while you know not.'  (+2.0 s)"
+    },
+    {
+      "src": [
+        235.1,
+        306.966667
+      ],
+      "at": 240.833333,
+      "note": "the bigger picture, to '…your story is still unfolding.'  (+1.5 s)"
+    },
+    {
+      "src": [
+        306.966667,
+        319.4
+      ],
+      "at": 314.2,
+      "note": "outro"
+    }
   ],
   "tail": 4.0,
-  "frames": 9963
+  "frames": 9919
 }

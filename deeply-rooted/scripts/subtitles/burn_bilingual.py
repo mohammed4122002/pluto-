@@ -31,7 +31,10 @@ def main():
     ap.add_argument("--audio")
     ap.add_argument("--crf", type=int, default=16)
     ap.add_argument("--preset", default="slow")
+    ap.add_argument("--size", default="1920x1080", help="frame size WxH (1080x1920 for the vertical master)")
     a = ap.parse_args()
+    global W, H
+    W, H = map(int, a.size.split("x"))
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
     cues = json.load(open(os.path.join(root, "src", "data", "subtitles", f"{a.id}.timed.json"), encoding="utf-8"))["cues"]
     cues = [(i, c) for i, c in enumerate(cues) if c.get("burn") is not False]
